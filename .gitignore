@@ -1,0 +1,41 @@
+# ── Dependencies ──────────────────────────
+node_modules/
+.pnpm-store/
+
+# ── Python ────────────────────────────────
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# ── Environment / secrets ────────────────
+.env
+.env.local
+.env.*.local
+
+# ── IDE / OS ──────────────────────────────
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+
+# ── Next.js ───────────────────────────────
+.next/
+out/
+
+# ── Expo / React Native ──────────────────
+apps/mobile/.expo/
+apps/mobile/android/
+apps/mobile/ios/
+
+# ── Build artifacts ──────────────────────
+*.log
+coverage/
+
+# ── Misc ──────────────────────────────────
+config-files.txt
