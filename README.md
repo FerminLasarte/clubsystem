@@ -102,7 +102,7 @@ Necesitás **2 terminales**:
 
 ```bash
 cd backend
-poetry run uvicorn app.main:app --reload --port 8000
+poetry run python -m uvicorn app.main:app --reload --port 8000
 ```
 
 > API disponible en http://localhost:8000
