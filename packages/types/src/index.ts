@@ -3,6 +3,68 @@
 
 export type SportType = "tennis" | "padel" | "football" | "basketball" | "other";
 export type UserRole = "admin" | "staff" | "member";
+
+// ── RBAC — Staff roles (multi-tenant) ────────────────────────
+/** Roles del panel de administración. Espejado en backend como staff_role enum. */
+export type StaffRole =
+  | "OWNER"                 // Acceso total al panel
+  | "RESERVATIONS_MANAGER"  // Solo Reservas + Socios
+  | "STOCK_MANAGER";        // Solo Inventario
+
+/** Permisos por ruta de cada StaffRole. */
+export const ROLE_PERMISSIONS: Record<StaffRole, string[]> = {
+  OWNER:                ["/" , "/reservations", "/expenses", "/stock", "/members", "/settings"],
+  RESERVATIONS_MANAGER: ["/", "/reservations", "/members"],
+  STOCK_MANAGER:        ["/", "/stock"],
+};
+
+/** Labels en español para mostrar en UI. */
+export const ROLE_LABELS: Record<StaffRole, string> = {
+  OWNER:                "Propietario",
+  RESERVATIONS_MANAGER: "Gestor de Reservas",
+  STOCK_MANAGER:        "Gestor de Stock",
+};
+
+/**
+ * Representa un club al que el operador tiene acceso.
+ * Retornado por el backend en LoginResponse.available_clubs.
+ */
+export interface StaffClub {
+  clubId: string;
+  clubName: string;
+  clubSlug: string;
+  role: StaffRole;
+  primaryColor: string;
+  accentColor: string;
+  logoUrl?: string;
+  fontFamily: string;
+}
+
+/** Respuesta completa del endpoint de login. */
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  club: {
+    id: string;
+    slug: string;
+    name: string;
+    primary_color: string;
+    accent_color: string;
+    logo_url?: string;
+    font_family: string;
+  };
+  user_role: StaffRole;
+  available_clubs: Array<{
+    club_id: string;
+    club_name: string;
+    club_slug: string;
+    role: StaffRole;
+    primary_color: string;
+    accent_color: string;
+    logo_url?: string;
+    font_family: string;
+  }>;
+}
 export type ReservationStatus = "pending" | "confirmed" | "cancelled" | "completed";
 export type ExpenseCategory =
   | "maintenance"

@@ -33,17 +33,40 @@ export default function LoginPage() {
         throw new Error(data.detail ?? "Credenciales inválidas");
       }
 
-      const { access_token, club } = await res.json();
+      const data = await res.json();
+      const { access_token, club, user_role, available_clubs } = data;
 
-      localStorage.setItem("token", access_token);
-      localStorage.setItem("club_id", club.id);
-      localStorage.setItem("club_slug", club.slug);
-      localStorage.setItem("club_name", club.name);
+      // ── Persistir sesión en localStorage ──────────────────
+      localStorage.setItem("token",              access_token);
+      localStorage.setItem("club_id",            club.id);
+      localStorage.setItem("club_slug",          club.slug);
+      localStorage.setItem("club_name",          club.name);
       localStorage.setItem("club_primary_color", club.primary_color);
-      localStorage.setItem("club_accent_color", club.accent_color);
-      localStorage.setItem("user_email", email);
+      localStorage.setItem("club_accent_color",  club.accent_color);
+      localStorage.setItem("user_email",         email);
+      // RBAC: rol activo y lista completa de clubs del operador
+      localStorage.setItem("user_role",          user_role ?? "OWNER");
 
-      document.documentElement.style.setProperty("--color-brand", club.primary_color);
+      // Normalizar available_clubs de snake_case (API) → camelCase (frontend)
+      if (Array.isArray(available_clubs)) {
+        const normalizedClubs = available_clubs.map((c: {
+          club_id: string; club_name: string; club_slug: string; role: string;
+          primary_color: string; accent_color: string; logo_url?: string; font_family: string;
+        }) => ({
+          clubId:       c.club_id,
+          clubName:     c.club_name,
+          clubSlug:     c.club_slug,
+          role:         c.role,
+          primaryColor: c.primary_color,
+          accentColor:  c.accent_color,
+          logoUrl:      c.logo_url,
+          fontFamily:   c.font_family,
+        }));
+        localStorage.setItem("available_clubs", JSON.stringify(normalizedClubs));
+      }
+
+      // Aplicar variables CSS de branding
+      document.documentElement.style.setProperty("--color-brand",      club.primary_color);
       document.documentElement.style.setProperty("--color-accent-club", club.accent_color);
 
       router.push("/");

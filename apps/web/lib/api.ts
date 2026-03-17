@@ -10,6 +10,7 @@ import type {
   User,
   PaginatedResponse,
   ApiError,
+  LoginResponse,
 } from "@clubsync/types";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -78,10 +79,23 @@ async function request<T>(
 
 // ── Auth ──────────────────────────────────────────────────────
 export const authApi = {
+  /**
+   * Login multi-club. Retorna token + club activo + todos los clubs del operador.
+   */
   login: (email: string, password: string) =>
-    request<{ access_token: string; token_type: string }>("/api/v1/auth/login", {
+    request<LoginResponse>("/api/v1/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
+    }),
+
+  /**
+   * Cambia el club activo sin re-autenticar con contraseña.
+   * Emite un nuevo JWT con el club_id y role del club destino.
+   */
+  switchClub: (clubId: string) =>
+    request<LoginResponse>("/api/v1/auth/switch-club", {
+      method: "POST",
+      body: JSON.stringify({ club_id: clubId }),
     }),
 };
 
