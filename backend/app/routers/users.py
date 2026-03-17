@@ -38,6 +38,12 @@ class MembersResponse(BaseModel):
     page_size: int
 
 
+class UsersStats(BaseModel):
+    total: int
+    active: int
+    inactive: int
+
+
 @router.get("/", response_model=MembersResponse)
 async def list_members(
     search: Optional[str] = Query(None),
@@ -85,6 +91,37 @@ async def list_members(
         total=total,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.get("/stats", response_model=UsersStats)
+async def get_users_stats(
+    club_id: UUID = Depends(get_current_club_id),
+    db: AsyncSession = Depends(get_db),
+):
+    role_col = cast(User.role, String)
+    
+    # Query count by is_active status
+    q = select(User.is_active, func.count(User.id)).where(
+        User.club_id == club_id,
+        role_col == "member"
+    ).group_by(User.is_active)
+    
+    result = await db.execute(q)
+    rows = result.all()
+    
+    active = 0
+    inactive = 0
+    for is_active_status, count in rows:
+        if is_active_status:
+            active = count
+        else:
+            inactive = count
+            
+    return UsersStats(
+        total=active + inactive,
+        active=active,
+        inactive=inactive,
     )
 
 
