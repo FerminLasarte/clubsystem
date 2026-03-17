@@ -1,7 +1,7 @@
 # backend/app/routers/users.py
 from uuid import UUID
 from typing import Optional
-from datetime import date
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
@@ -26,6 +26,7 @@ class MemberOut(BaseModel):
     joined_at: Optional[date]
     is_active: bool
     role: str
+    last_login_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

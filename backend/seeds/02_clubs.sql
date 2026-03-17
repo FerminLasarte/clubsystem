@@ -1,17 +1,9 @@
 -- ============================================================
 -- ClubSync — Seed de clubes reales (Tandil)
--- Ejecutar DESPUÉS de schema.sql
+-- Ejecutar DESPUÉS de arrancar el backend (que crea las tablas via SQLAlchemy)
+-- Nota: sport_types es VARCHAR[] en SQLAlchemy, no usa ENUM de PostgreSQL
 -- ============================================================
 
--- 1. Extender el ENUM sport_type con los deportes que faltan
---    (ALTER TYPE no se puede dentro de una transacción en algunos contextos,
---     por eso va primero y solo)
-ALTER TYPE sport_type ADD VALUE IF NOT EXISTS 'rugby';
-ALTER TYPE sport_type ADD VALUE IF NOT EXISTS 'hockey';
-
--- ============================================================
--- 2. Insertar los clubes
--- ============================================================
 INSERT INTO clubs (
   id,
   slug,
@@ -25,57 +17,53 @@ INSERT INTO clubs (
   is_active
 ) VALUES
 (
-  gen_random_uuid(),
+  '0fefa106-be3d-4c6c-90a5-c5b1a641c0b4',
   'los-cardos-rugby-club',
   'Los Cardos Rugby Club',
-  ARRAY['rugby','hockey','tennis']::sport_type[],
-  '#1A4731',   -- verde oscuro
-  '#2D6A4F',   -- verde oscuro claro (acento)
+  ARRAY['rugby','hockey','tennis'],
+  '#1A4731',
+  '#2D6A4F',
   'Tandil',
   'AR',
   'starter',
   TRUE
 ),
 (
-  gen_random_uuid(),
+  'e5f3be47-9620-42b8-8ddc-44e7219c6fbd',
   'uncas-rugby-club',
   'Uncas Rugby Club',
-  ARRAY['rugby','hockey','tennis']::sport_type[],
-  '#F5C400',   -- amarillo
-  '#1A1A1A',   -- negro (acento)
+  ARRAY['rugby','hockey','tennis'],
+  '#F5C400',
+  '#1A1A1A',
   'Tandil',
   'AR',
   'starter',
   TRUE
 ),
 (
-  gen_random_uuid(),
+  'd31fec3e-4681-4329-b369-ce8639abf03e',
   'club-los-50',
   'Club Los 50',
-  ARRAY['rugby','hockey']::sport_type[],
-  '#4CAF50',   -- verde claro
-  '#388E3C',   -- verde claro oscurecido (acento)
+  ARRAY['rugby','hockey'],
+  '#4CAF50',
+  '#388E3C',
   'Tandil',
   'AR',
   'starter',
   TRUE
 ),
 (
-  gen_random_uuid(),
+  '68b28494-ef4a-46a5-894c-6661f960e871',
   'club-nahuel',
   'Club Nahuel',
-  ARRAY['football','tennis','padel']::sport_type[],
-  '#29ABE2',   -- celeste
-  '#0077B6',   -- celeste oscuro (acento)
+  ARRAY['football','tennis','padel'],
+  '#29ABE2',
+  '#0077B6',
   'Tandil',
   'AR',
   'starter',
   TRUE
-);
+)
+ON CONFLICT (slug) DO NOTHING;
 
--- ============================================================
--- 3. Verificar inserción
--- ============================================================
-SELECT id, slug, name, sport_types, primary_color, accent_color, plan
-FROM clubs
-ORDER BY created_at;
+SELECT id, slug, name, sport_types, primary_color, plan FROM clubs ORDER BY name;

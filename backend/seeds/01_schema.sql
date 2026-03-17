@@ -5,6 +5,9 @@
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+-- Required for UUID columns inside GIST exclusion constraints (anti-double-booking)
+CREATE EXTENSION IF NOT EXISTS "btree_gist";
+
 
 -- ============================================================
 -- ENUM TYPES
@@ -256,7 +259,10 @@ ALTER TABLE stock_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stock_movements ENABLE ROW LEVEL SECURITY;
 
 -- App uses a single DB role "app_user" and sets current_club_id per session
-CREATE ROLE app_user;
+DO $$ BEGIN
+  CREATE ROLE app_user;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Policy: each table only shows rows matching current_setting club_id
 CREATE POLICY tenant_isolation ON users

@@ -1,177 +1,193 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
+from typing import Optional
+from datetime import date, datetime, time, timedelta
+
+from fastapi import APIRouter, Depends, Query, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import select, and_
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
-from datetime import date, datetime, timedelta, time
-from typing import List, Optional
-from pydantic import BaseModel, UUID4
 
 from app.core.database import get_db
-# Nota: Deberás importar tus modelos SQLAlchemy reales aquí. 
-# Usamos nombres genéricos como Court y Reservation para el ejemplo.
-# from app.models import Court, Reservation
+from app.middleware.tenant import get_current_club_id
+from app.models.reservation import Reservation
+from app.models.court import Court
+from app.models.user import User
 
 router = APIRouter()
 
-# ── Pydantic Schemas (Idealmente mover a app/schemas/reservation.py) ──
 
-class TimeSlot(BaseModel):
-    court_id: int
+# ── Schemas ───────────────────────────────────────────────────
+
+class ReservationOut(BaseModel):
+    id: UUID
+    court_id: UUID
     court_name: str
-    start_time: datetime
-    end_time: datetime
-
-class ReservationCreate(BaseModel):
-    court_id: int
-    user_id: int
-    start_time: datetime
-    end_time: datetime
-    sport_type: str
-
-class ReservationResponse(ReservationCreate):
-    id: int
+    user_id: UUID
+    user_name: str
     status: str
-    club_id: int
+    starts_at: datetime
+    ends_at: datetime
+    total_price: float
+    paid_amount: float
+    notes: Optional[str]
 
     class Config:
         from_attributes = True
 
 
-# ── Lógica de Generación de Turnos ──
-
-def generate_slots(
-    opening_time: time, 
-    closing_time: time, 
-    target_date: date, 
-    duration_minutes: int
-) -> List[tuple[datetime, datetime]]:
-    """Genera bloques de tiempo consecutivos para un día específico."""
-    slots = []
-    current = datetime.combine(target_date, opening_time)
-    end_of_day = datetime.combine(target_date, closing_time)
-    
-    while current + timedelta(minutes=duration_minutes) <= end_of_day:
-        slot_end = current + timedelta(minutes=duration_minutes)
-        slots.append((current, slot_end))
-        current = slot_end
-    return slots
+class ReservationCreate(BaseModel):
+    court_id: UUID
+    user_id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    total_price: float = 0
+    notes: Optional[str] = None
 
 
-# ── Endpoints ──
+class ReservationUpdate(BaseModel):
+    status: Optional[str] = None
+    notes: Optional[str] = None
 
-@router.get("/availability", response_model=List[TimeSlot])
-async def get_availability(
-    request: Request,
-    target_date: date,
-    sport_type: str,
-    db: AsyncSession = Depends(get_db)
+
+# ── Endpoints ─────────────────────────────────────────────────
+
+@router.get("/", response_model=list[ReservationOut])
+async def list_reservations(
+    target_date: Optional[date] = Query(None, description="Fecha en formato YYYY-MM-DD. Default: hoy."),
+    court_id: Optional[UUID] = Query(None),
+    status: Optional[str] = Query(None),
+    club_id: UUID = Depends(get_current_club_id),
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Devuelve los horarios disponibles para un deporte en una fecha específica.
-    """
-    club_id = request.state.tenant_id  # Inyectado por tu TenantMiddleware
-    
-    # 1. Definir duración del turno según el deporte
-    duration_minutes = 90 if sport_type.lower() == "futbol" else 60
-    
-    # (Mock) Horarios de apertura del club - Idealmente vienen de la DB
-    opening_time = time(8, 0)
-    closing_time = time(23, 0)
+    day = target_date or date.today()
+    day_start = datetime.combine(day, time.min)
+    day_end = datetime.combine(day, time.max)
 
-    # 2. Buscar canchas del club para ese deporte
-    # courts_query = await db.execute(
-    #     select(Court).where(and_(Court.club_id == club_id, Court.sport_type == sport_type))
-    # )
-    # courts = courts_query.scalars().all()
-    courts = [] # Reemplazar con la query real cuando tengas el modelo Court
-    
-    if not courts:
-        return []
-
-    # 3. Buscar reservas existentes para ese día y esas canchas
-    court_ids = [c.id for c in courts]
-    start_of_day = datetime.combine(target_date, time.min)
-    end_of_day = datetime.combine(target_date, time.max)
-    
-    # reservations_query = await db.execute(
-    #     select(Reservation).where(
-    #         and_(
-    #             Reservation.court_id.in_(court_ids),
-    #             Reservation.start_time >= start_of_day,
-    #             Reservation.start_time <= end_of_day,
-    #             Reservation.status != 'cancelled'
-    #         )
-    #     )
-    # )
-    # active_reservations = reservations_query.scalars().all()
-    active_reservations = [] # Reemplazar con la query real
-
-    # 4. Calcular disponibilidad real cruzando slots generados con reservas activas
-    all_possible_slots = generate_slots(opening_time, closing_time, target_date, duration_minutes)
-    available_slots = []
-    
-    for court in courts:
-        court_reservations = [r for r in active_reservations if r.court_id == court.id]
-        
-        for slot_start, slot_end in all_possible_slots:
-            # Comprobar si el slot se superpone con alguna reserva
-            is_taken = any(
-                r.start_time < slot_end and r.end_time > slot_start 
-                for r in court_reservations
+    q = (
+        select(Reservation, Court, User)
+        .join(Court, Court.id == Reservation.court_id)
+        .join(User, User.id == Reservation.user_id)
+        .where(
+            and_(
+                Reservation.club_id == club_id,
+                Reservation.starts_at >= day_start,
+                Reservation.starts_at <= day_end,
             )
-            
-            if not is_taken:
-                available_slots.append(
-                    TimeSlot(
-                        court_id=court.id,
-                        court_name=court.name,
-                        start_time=slot_start,
-                        end_time=slot_end
-                    )
-                )
+        )
+    )
 
-    return available_slots
+    if court_id:
+        q = q.where(Reservation.court_id == court_id)
+    if status:
+        q = q.where(Reservation.status == status)
+
+    q = q.order_by(Reservation.starts_at)
+    result = await db.execute(q)
+    rows = result.all()
+
+    return [
+        ReservationOut(
+            id=r.id,
+            court_id=r.court_id,
+            court_name=c.name,
+            user_id=r.user_id,
+            user_name=f"{u.first_name} {u.last_name}",
+            status=r.status,
+            starts_at=r.starts_at,
+            ends_at=r.ends_at,
+            total_price=float(r.total_price),
+            paid_amount=float(r.paid_amount),
+            notes=r.notes,
+        )
+        for r, c, u in rows
+    ]
 
 
-@router.post("/", response_model=ReservationResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ReservationOut, status_code=status.HTTP_201_CREATED)
 async def create_reservation(
-    request: Request,
-    res_in: ReservationCreate,
-    db: AsyncSession = Depends(get_db)
+    payload: ReservationCreate,
+    club_id: UUID = Depends(get_current_club_id),
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Crea una nueva reserva. Depende del constraint GiST en PostgreSQL para evitar double-booking.
-    """
-    club_id = request.state.tenant_id
-    
-    # new_reservation = Reservation(
-    #     club_id=club_id,
-    #     court_id=res_in.court_id,
-    #     user_id=res_in.user_id,
-    #     start_time=res_in.start_time,
-    #     end_time=res_in.end_time,
-    #     sport_type=res_in.sport_type,
-    #     status="pending"
-    # )
-    # db.add(new_reservation)
+    new_res = Reservation(
+        club_id=club_id,
+        court_id=payload.court_id,
+        user_id=payload.user_id,
+        starts_at=payload.starts_at,
+        ends_at=payload.ends_at,
+        total_price=payload.total_price,
+        notes=payload.notes,
+        status="pending",
+    )
+    db.add(new_res)
 
     try:
-        # await db.commit()
-        # await db.refresh(new_reservation)
-        # return new_reservation
-        pass # Reemplazar con el código de arriba cuando tengas los modelos SQLAlchemy
-        
+        await db.commit()
+        await db.refresh(new_res)
     except IntegrityError as e:
         await db.rollback()
-        # Capturamos el error específico del constraint de exclusión (GiST)
-        error_msg = str(e.orig)
-        if "conflicts with existing key" in error_msg or "overlapping_reservations" in error_msg:
+        err = str(e.orig)
+        if "no_overlap" in err or "conflicts with existing key" in err:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="¡Uy! Parece que alguien más acaba de reservar esta cancha en ese horario. Por favor, elegí otro turno."
+                detail="Ya existe una reserva en ese horario para esta cancha.",
             )
-        # Si es otro error de integridad (ej. court_id no existe), lanzamos un 400 genérico
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Error al procesar la reserva. Verifica los datos ingresados."
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Error al crear la reserva.")
+
+    # Fetch court and user to build response
+    court = await db.get(Court, new_res.court_id)
+    user = await db.get(User, new_res.user_id)
+
+    return ReservationOut(
+        id=new_res.id,
+        court_id=new_res.court_id,
+        court_name=court.name if court else "",
+        user_id=new_res.user_id,
+        user_name=f"{user.first_name} {user.last_name}" if user else "",
+        status=new_res.status,
+        starts_at=new_res.starts_at,
+        ends_at=new_res.ends_at,
+        total_price=float(new_res.total_price),
+        paid_amount=float(new_res.paid_amount),
+        notes=new_res.notes,
+    )
+
+
+@router.patch("/{reservation_id}", response_model=ReservationOut)
+async def update_reservation(
+    reservation_id: UUID,
+    payload: ReservationUpdate,
+    club_id: UUID = Depends(get_current_club_id),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.get(Reservation, reservation_id)
+    if not res or res.club_id != club_id:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+
+    if payload.status is not None:
+        res.status = payload.status
+        if payload.status == "cancelled":
+            res.cancelled_at = datetime.utcnow()
+    if payload.notes is not None:
+        res.notes = payload.notes
+
+    await db.commit()
+    await db.refresh(res)
+
+    court = await db.get(Court, res.court_id)
+    user = await db.get(User, res.user_id)
+
+    return ReservationOut(
+        id=res.id,
+        court_id=res.court_id,
+        court_name=court.name if court else "",
+        user_id=res.user_id,
+        user_name=f"{user.first_name} {user.last_name}" if user else "",
+        status=res.status,
+        starts_at=res.starts_at,
+        ends_at=res.ends_at,
+        total_price=float(res.total_price),
+        paid_amount=float(res.paid_amount),
+        notes=res.notes,
+    )

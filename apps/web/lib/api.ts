@@ -169,23 +169,73 @@ export const stockApi = {
     }),
 };
 
+// ── Courts ────────────────────────────────────────────────────
+export const courtsApi = {
+  list: () => request<Court[]>("/api/v1/courts"),
+};
+
 // ── Reservations ──────────────────────────────────────────────
 export const reservationsApi = {
   list: (params?: { date?: string; courtId?: string; status?: string }) => {
     const qs = new URLSearchParams();
-    if (params?.date)     qs.set("date", params.date);
+    if (params?.date)     qs.set("target_date", params.date);
     if (params?.courtId)  qs.set("court_id", params.courtId);
     if (params?.status)   qs.set("status", params.status);
     return request<Reservation[]>(`/api/v1/reservations?${qs}`);
   },
+
+  create: (payload: {
+    court_id: string;
+    user_id: string;
+    starts_at: string;
+    ends_at: string;
+    total_price?: number;
+    notes?: string;
+  }) =>
+    request<Reservation>("/api/v1/reservations", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  update: (id: string, payload: { status?: string; notes?: string }) =>
+    request<Reservation>(`/api/v1/reservations/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
 };
 
 // ── Members ───────────────────────────────────────────────────
+
+export interface MemberOut {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
+  dni: string | null;
+  member_number: string | null;
+  joined_at: string | null;   // YYYY-MM-DD
+  is_active: boolean;
+  role: string;
+  last_login_at: string | null; // ISO 8601
+}
+
+export interface MembersResponse {
+  items: MemberOut[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export const membersApi = {
-  list: (params?: { search?: string; page?: number }) => {
+  list: (params?: { search?: string; isActive?: boolean; page?: number; pageSize?: number }) => {
     const qs = new URLSearchParams();
-    if (params?.search) qs.set("search", params.search);
-    if (params?.page)   qs.set("page", String(params.page));
-    return request<PaginatedResponse<User>>(`/api/v1/users?${qs}`);
+    if (params?.search)             qs.set("search", params.search);
+    if (params?.isActive !== undefined) qs.set("is_active", String(params.isActive));
+    if (params?.page)               qs.set("page", String(params.page));
+    if (params?.pageSize)           qs.set("page_size", String(params.pageSize));
+    return request<MembersResponse>(`/api/v1/users?${qs}`);
   },
+
+  stats: () => request<{ total: number; active: number; inactive: number }>("/api/v1/users/stats"),
 };
