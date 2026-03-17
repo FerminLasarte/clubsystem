@@ -1,5 +1,5 @@
 # backend/app/routers/expenses.py
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 from uuid import UUID
 
@@ -27,7 +27,7 @@ class ExpenseOut(BaseModel):
     anomaly_severity: Optional[str]
     anomaly_reason: Optional[str]
     anomaly_llm_explanation: Optional[str]
-    reviewed_at: Optional[str]
+    reviewed_at: Optional[datetime]
 
     class Config:
         from_attributes = True
