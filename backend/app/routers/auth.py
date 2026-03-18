@@ -18,20 +18,17 @@ El campo 'email' en el JWT permite que switch-club identifique al operador
 cross-club sin necesidad de re-autenticar con contraseña.
 """
 
-from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
 
-import bcrypt as _bcrypt
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import jwt
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.database import get_db
+from app.core.security import create_access_token, hash_password, verify_password
 from app.middleware.tenant import _decode_token
 from app.models.club import Club
 from app.models.club_staff import ClubStaff
@@ -49,6 +46,29 @@ _LEGACY_ROLE_MAP: dict[str, str] = {
 
 
 # ── Schemas ───────────────────────────────────────────────────
+class RegisterRequest(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    password: str
+    club_id: Optional[UUID] = None
+
+
+class UserOut(BaseModel):
+    id: UUID
+    club_id: Optional[UUID] = None
+    email: str
+    first_name: str
+    last_name: str
+    role: str
+    is_active: bool
+    member_number: Optional[str]
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -92,32 +112,6 @@ class LoginResponse(BaseModel):
 
 
 # ── Helpers ───────────────────────────────────────────────────
-def verify_password(plain: str, hashed: str) -> bool:
-    return _bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
-
-
-def hash_password(plain: str) -> str:
-    return _bcrypt.hashpw(plain.encode("utf-8"), _bcrypt.gensalt(12)).decode()
-
-
-def _create_token(user_id: UUID, club_id: UUID, role: str, email: str) -> str:
-    """
-    Crea un JWT con payload multi-club.
-    - sub   : UUID del User (backward compat con get_current_user_id)
-    - email : identidad cross-club del operador (para switch-club)
-    - role  : StaffRole del club activo
-    """
-    expire = datetime.utcnow() + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
-    payload = {
-        "sub": str(user_id),
-        "club_id": str(club_id),
-        "role": role,
-        "email": email,
-        "exp": expire,
-    }
-    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
-
-
 def _club_to_info(club: Club) -> ClubInfo:
     return ClubInfo(
         id=club.id,
@@ -182,6 +176,13 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
 
     # ── Caso legacy: no hay registros ClubStaff ───────────────
     if not staff_rows:
+        # Usuarios sin club (registrados vía app móvil) — aún no pueden iniciar sesión
+        if user.club_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Tu cuenta aún no está asociada a ningún club. Un administrador debe asignarte primero.",
+            )
+
         club_result = await db.execute(
             select(Club).where(Club.id == user.club_id, Club.is_active == True)
         )
@@ -194,7 +195,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
             )
 
         role = _LEGACY_ROLE_MAP.get(user.role, "OWNER")
-        token = _create_token(user.id, club.id, role, user.email)
+        token = create_access_token(sub=str(user.id), club_id=club.id, role=role, email=user.email)
 
         return LoginResponse(
             access_token=token,
@@ -215,7 +216,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         staff_rows[0],
     )
 
-    token = _create_token(user.id, primary_club.id, primary_staff.role, user.email)
+    token = create_access_token(sub=str(user.id), club_id=primary_club.id, role=primary_staff.role, email=user.email)
 
     return LoginResponse(
         access_token=token,
@@ -272,8 +273,8 @@ async def switch_club(
     staff, target_club = row
 
     # Nuevo token: mismo user_id (sub), nuevo club_id + role
-    new_token = _create_token(
-        user_id=UUID(user_id_str),
+    new_token = create_access_token(
+        sub=user_id_str,
         club_id=target_club.id,
         role=staff.role,
         email=email,
@@ -299,6 +300,63 @@ async def switch_club(
         club=_club_to_info(target_club),
         user_role=staff.role,
         available_clubs=available_clubs,
+    )
+
+
+# ── POST /register ────────────────────────────────────────────
+@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Registra un nuevo usuario (member) en un club.
+
+    - Verifica que el club exista y esté activo.
+    - Devuelve HTTP 400 si el email ya está registrado en ese club.
+    - Hashea la contraseña con bcrypt (via passlib).
+    - El rol por defecto es 'member'.
+    """
+    # Verificar club si se proporcionó
+    if payload.club_id is not None:
+        club_result = await db.execute(
+            select(Club).where(Club.id == payload.club_id, Club.is_active == True)
+        )
+        if club_result.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Club no encontrado o inactivo",
+            )
+
+    # Verificar unicidad de email en el mismo club (o sin club)
+    email_filter = [User.email == payload.email, User.club_id == payload.club_id]
+    existing = await db.execute(select(User).where(*email_filter))
+    if existing.scalar_one_or_none() is not None:
+        scope = "en este club" if payload.club_id else "sin club asignado"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El email ya está registrado {scope}",
+        )
+
+    user = User(
+        club_id=payload.club_id,
+        email=payload.email,
+        password_hash=hash_password(payload.password),
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        role="member",
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+
+    return UserOut(
+        id=user.id,
+        club_id=user.club_id,
+        email=user.email,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        role=user.role,
+        is_active=user.is_active,
+        member_number=user.member_number,
+        created_at=user.created_at.isoformat(),
     )
 
 
