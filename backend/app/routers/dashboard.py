@@ -1,5 +1,5 @@
 # backend/app/routers/dashboard.py
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -9,12 +9,102 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.tenant import get_current_club_id
+from app.models.club_staff import ClubStaff
+from app.models.court import Court
 from app.models.expense import Expense
 from app.models.reservation import Reservation
 from app.models.user import User
 
 router = APIRouter()
 
+
+# ── GET /metrics ─────────────────────────────────────────────────────────────
+# Métricas de snapshot del día actual: orientadas al widget superior del dashboard.
+
+class DashboardMetrics(BaseModel):
+    total_revenue: float        # paid_amount confirmadas HOY
+    active_reservations: int    # reservas de HOY no canceladas
+    available_courts: int       # canchas activas − canceladas ocupadas AHORA
+    pending_staff: int          # invitaciones sin aceptar (status=PENDING)
+
+
+@router.get("/metrics", response_model=DashboardMetrics)
+async def get_dashboard_metrics(
+    club_id: UUID = Depends(get_current_club_id),
+    db: AsyncSession = Depends(get_db),
+) -> DashboardMetrics:
+    """
+    Snapshot rápido del estado actual del club para el bloque superior del dashboard.
+
+    - `total_revenue`       → Suma de paid_amount de reservas CONFIRMADAS de hoy.
+    - `active_reservations` → Reservas de hoy en cualquier estado distinto de 'cancelled'.
+    - `available_courts`    → Canchas activas del club menos las que están ocupadas
+                              en este momento exacto (starts_at ≤ now < ends_at).
+    - `pending_staff`       → Invitaciones de staff aún no aceptadas (status='PENDING').
+    """
+    today = date.today()
+    now   = datetime.utcnow()           # Hora actual en UTC para calcular ocupación
+    status_col = cast(Reservation.status, String)
+
+    # ── 1. Ingresos de hoy (reservas confirmadas) ─────────────
+    rev_res = await db.execute(
+        select(func.coalesce(func.sum(Reservation.paid_amount), 0)).where(
+            Reservation.club_id == club_id,
+            func.date(Reservation.starts_at) == today,
+            status_col == "confirmed",
+        )
+    )
+    total_revenue = float(rev_res.scalar() or 0)
+
+    # ── 2. Reservas activas hoy (no canceladas) ───────────────
+    res_today = await db.execute(
+        select(func.count()).where(
+            Reservation.club_id == club_id,
+            func.date(Reservation.starts_at) == today,
+            status_col != "cancelled",
+        )
+    )
+    active_reservations = res_today.scalar() or 0
+
+    # ── 3. Canchas disponibles ────────────────────────────────
+    total_courts_res = await db.execute(
+        select(func.count()).where(
+            Court.club_id == club_id,
+            Court.is_active == True,
+        )
+    )
+    total_courts = total_courts_res.scalar() or 0
+
+    # Canchas ocupadas = reservas que solapan con el momento actual
+    occupied_res = await db.execute(
+        select(func.count(Reservation.court_id.distinct())).where(
+            Reservation.club_id == club_id,
+            Reservation.starts_at <= now,
+            Reservation.ends_at   >  now,
+            status_col != "cancelled",
+        )
+    )
+    occupied = occupied_res.scalar() or 0
+    available_courts = max(0, total_courts - occupied)
+
+    # ── 4. Invitaciones de staff pendientes ───────────────────
+    pending_res = await db.execute(
+        select(func.count()).where(
+            ClubStaff.club_id == club_id,
+            ClubStaff.status  == "PENDING",
+        )
+    )
+    pending_staff = pending_res.scalar() or 0
+
+    return DashboardMetrics(
+        total_revenue=total_revenue,
+        active_reservations=active_reservations,
+        available_courts=available_courts,
+        pending_staff=pending_staff,
+    )
+
+
+# ── Schemas para /kpis ────────────────────────────────────────────────────────
 
 class RecentReservation(BaseModel):
     id: UUID
@@ -112,10 +202,11 @@ async def get_dashboard_kpis(
     )
 
     # ── Socios ────────────────────────────────────────────────
+    # Tras el RBAC, los usuarios no tienen `role` propio.
+    # Todos los Users con club_id == club activo son socios.
     active_members_res = await db.execute(
         select(func.count()).where(
             User.club_id == club_id,
-            User.role == "member",
             User.is_active == True,
         )
     )
@@ -124,7 +215,6 @@ async def get_dashboard_kpis(
     new_members_res = await db.execute(
         select(func.count()).where(
             User.club_id == club_id,
-            User.role == "member",
             User.joined_at >= month_start,
         )
     )
@@ -149,8 +239,6 @@ async def get_dashboard_kpis(
     anomalies_pending = anomalies_res.scalar() or 0
 
     # ── Reservas recientes ────────────────────────────────────
-    from app.models.court import Court
-
     recent_q = await db.execute(
         select(
             Reservation.id,

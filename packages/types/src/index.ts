@@ -2,6 +2,12 @@
 // Shared types between web, mobile, and can be compared against FastAPI OpenAPI output
 
 export type SportType = "tennis" | "padel" | "football" | "basketball" | "other";
+
+/**
+ * @deprecated Los usuarios ya no tienen un rol global.
+ * Los roles son contextuales y existen solo en ClubStaff.
+ * Este tipo se mantiene para retrocompatibilidad con código legacy.
+ */
 export type UserRole = "admin" | "staff" | "member";
 
 // ── RBAC — Staff roles (multi-tenant) ────────────────────────
@@ -28,41 +34,44 @@ export const ROLE_LABELS: Record<StaffRole, string> = {
 /**
  * Representa un club al que el operador tiene acceso.
  * Retornado por el backend en LoginResponse.available_clubs.
+ *
+ * `roles` es un array — un operador puede tener múltiples roles en el mismo club.
+ * Ej: roles=["RESERVATIONS_MANAGER", "STOCK_MANAGER"]
  */
 export interface StaffClub {
-  clubId: string;
-  clubName: string;
-  clubSlug: string;
-  role: StaffRole;
+  clubId:       string;
+  clubName:     string;
+  clubSlug:     string;
+  roles:        StaffRole[];   // array — reemplaza el campo `role` singular
   primaryColor: string;
-  accentColor: string;
-  logoUrl?: string;
-  fontFamily: string;
+  accentColor:  string;
+  logoUrl?:     string;
+  fontFamily:   string;
 }
 
 /** Respuesta completa del endpoint de login. */
 export interface LoginResponse {
   access_token: string;
-  token_type: string;
+  token_type:   string;
   club: {
-    id: string;
-    slug: string;
-    name: string;
+    id:            string;
+    slug:          string;
+    name:          string;
     primary_color: string;
-    accent_color: string;
-    logo_url?: string;
-    font_family: string;
+    accent_color:  string;
+    logo_url?:     string;
+    font_family:   string;
   };
-  user_role: StaffRole;
+  user_roles:      StaffRole[];   // array de roles en el club activo
   available_clubs: Array<{
-    club_id: string;
-    club_name: string;
-    club_slug: string;
-    role: StaffRole;
+    club_id:       string;
+    club_name:     string;
+    club_slug:     string;
+    roles:         StaffRole[];   // array — reemplaza `role`
     primary_color: string;
-    accent_color: string;
-    logo_url?: string;
-    font_family: string;
+    accent_color:  string;
+    logo_url?:     string;
+    font_family:   string;
   }>;
 }
 export type ReservationStatus = "pending" | "confirmed" | "cancelled" | "completed";
@@ -102,18 +111,18 @@ export interface Club {
 }
 
 // ── User ─────────────────────────────────────────────────────
+/** Usuario global de la plataforma. Sin rol propio — los roles van en ClubStaff. */
 export interface User {
-  id: string;
-  clubId: string;
-  role: UserRole;
-  email: string;
-  firstName: string;
-  lastName: string;
-  phone?: string;
-  avatarUrl?: string;
+  id:           string;
+  clubId?:      string;   // deprecated: legacy para usuarios pre-RBAC
+  email:        string;
+  firstName:    string;
+  lastName:     string;
+  phone?:       string;
+  avatarUrl?:   string;
   memberNumber?: string;
-  isActive: boolean;
-  createdAt: string;
+  isActive:     boolean;
+  createdAt:    string;
 }
 
 // ── Court ─────────────────────────────────────────────────────

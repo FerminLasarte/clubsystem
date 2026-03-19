@@ -120,7 +120,7 @@ export function ClubSwitcher() {
                         {club.clubName}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {ROLE_LABELS[club.role] ?? club.role}
+                        {club.roles.map((r) => ROLE_LABELS[r] ?? r).join(" · ")}
                       </p>
                     </div>
 

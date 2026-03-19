@@ -24,7 +24,7 @@ interface TopBarProps {
 export function TopBar({ onOpenSidebar }: TopBarProps) {
   const pathname  = usePathname();
   const title     = ROUTE_TITLES[pathname] ?? "ClubSync";
-  const { activeClub, activeRole, userEmail } = useClubSession();
+  const { activeClub, activeRoles, userEmail } = useClubSession();
 
   // Iniciales del email para el avatar
   const emailInitials = userEmail
@@ -75,9 +75,9 @@ export function TopBar({ onOpenSidebar }: TopBarProps) {
           </div>
           <div className="hidden sm:block text-left">
             <p className="text-xs font-medium text-foreground leading-none">Admin</p>
-            {activeRole && (
+            {activeRoles.length > 0 && (
               <p className={cn("text-[10px] leading-none mt-0.5", "text-muted-foreground")}>
-                {ROLE_LABELS[activeRole]}
+                {activeRoles.map((r) => ROLE_LABELS[r] ?? r).join(" · ")}
               </p>
             )}
           </div>

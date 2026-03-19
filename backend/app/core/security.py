@@ -47,35 +47,41 @@ def verify_password(plain: str, hashed: str) -> bool:
 def create_access_token(
     *,
     sub: str,
-    club_id: UUID,
-    role: str,
     email: str,
+    club_id: UUID | None = None,
+    roles: list[str] | None = None,
 ) -> str:
     """
     Genera un JWT firmado con HS256.
 
     Payload:
       sub     → ID del usuario (string UUID) — estándar RFC 7519
-      club_id → UUID del club activo (string)
-      role    → StaffRole: OWNER | RESERVATIONS_MANAGER | STOCK_MANAGER
       email   → email del operador (permite switch-club sin re-login)
+      club_id → UUID del club activo (omitido en JWTs limitados para usuarios sin club)
+      roles   → lista de StaffRoles del operador en el club activo
+                Ej: ["OWNER"] o ["RESERVATIONS_MANAGER", "STOCK_MANAGER"]
+                Lista vacía en JWTs limitados (usuarios mobile sin club).
       exp     → timestamp UTC de expiración (settings.JWT_EXPIRE_MINUTES)
+
+    JWT limitado: cuando club_id es None (usuarios mobile sin club asignado aún).
+    Solo permite acceder a /notifications y /invitations.
 
     Args:
       sub:     ID del usuario como string.
-      club_id: UUID del club activo.
-      role:    Rol del operador en el club.
       email:   Email del operador.
+      club_id: UUID del club activo (None para JWT limitado).
+      roles:   Lista de StaffRoles. None → [] en el payload.
 
     Returns:
       JWT firmado como string.
     """
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
-    payload: dict[str, str | int] = {
-        "sub":     sub,
-        "club_id": str(club_id),
-        "role":    role,
-        "email":   email,
-        "exp":     int(expire.timestamp()),
+    payload: dict = {
+        "sub":   sub,
+        "email": email,
+        "roles": roles or [],
+        "exp":   int(expire.timestamp()),
     }
+    if club_id is not None:
+        payload["club_id"] = str(club_id)
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)

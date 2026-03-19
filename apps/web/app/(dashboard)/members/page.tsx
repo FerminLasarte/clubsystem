@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
 import {
   Users, UserCheck, AlertTriangle, Sparkles, Copy, Check,
   MessageCircle, X, Search, UserPlus, TrendingDown,
 } from "lucide-react";
 import { membersApi, type MemberOut } from "@/lib/api";
+import { useClubSession } from "@/contexts/ClubSessionContext";
 
 // ── Health Score derivation ────────────────────────────────────
 
@@ -201,23 +201,29 @@ function AIModal({
 // ── Page ──────────────────────────────────────────────────────
 
 export default function MembersPage() {
-  const router = useRouter();
-  const [filter, setFilter] = useState<Filter>("all");
-  const [search, setSearch] = useState("");
-  const [members, setMembers] = useState<MemberOut[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { activeClub, isLoading: sessionLoading } = useClubSession();
+  const [filter, setFilter]     = useState<Filter>("all");
+  const [search, setSearch]     = useState("");
+  const [members, setMembers]   = useState<MemberOut[]>([]);
+  const [loading, setLoading]   = useState(false);
   const [aiTarget, setAiTarget] = useState<MemberOut | null>(null);
 
-  useEffect(() => {
-    if (!localStorage.getItem("token")) {
-      router.push("/login");
-      return;
+  const fetchMembers = useCallback(async () => {
+    if (!activeClub) return;
+    setLoading(true);
+    try {
+      const res = await membersApi.list({ pageSize: 200 });
+      setMembers(res.items);
+    } catch (err) {
+      console.error("Error al cargar socios:", err);
+    } finally {
+      setLoading(false);
     }
-    membersApi.list({ pageSize: 200 })
-      .then((res) => setMembers(res.items))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [router]);
+  }, [activeClub]);
+
+  useEffect(() => {
+    fetchMembers();
+  }, [fetchMembers]);
 
   // Compute health scores for all members
   const membersWithHealth = members.map((m) => ({
@@ -245,6 +251,22 @@ export default function MembersPage() {
     return true;
   });
 
+  const isPageLoading = sessionLoading || loading;
+
+  // ── Empty state when no club is active ────────────────────
+
+  if (!sessionLoading && !activeClub) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 text-center">
+        <div className="rounded-full bg-gray-100 p-4 mb-4">
+          <AlertTriangle className="h-8 w-8 text-gray-400" />
+        </div>
+        <p className="text-sm font-medium text-gray-600">Sin club activo</p>
+        <p className="mt-1 text-xs text-gray-400">Seleccioná un club para ver sus socios.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-5xl space-y-8">
 
@@ -253,7 +275,7 @@ export default function MembersPage() {
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Socios</h1>
           <p className="mt-0.5 text-sm text-gray-400">
-            {loading ? "Cargando…" : `${stats.total} socios registrados`}
+            {isPageLoading ? "Cargando…" : `${stats.total} socios registrados`}
           </p>
         </div>
         <button
@@ -274,7 +296,7 @@ export default function MembersPage() {
               <Users className="h-4 w-4 text-gray-400" />
             </div>
           </div>
-          <p className="mt-3 text-3xl font-bold text-gray-900">{loading ? "—" : stats.total}</p>
+          <p className="mt-3 text-3xl font-bold text-gray-900">{isPageLoading ? "—" : stats.total}</p>
           <p className="mt-1 text-xs text-gray-400">registrados en el club</p>
         </div>
 
@@ -285,9 +307,9 @@ export default function MembersPage() {
               <UserCheck className="h-4 w-4 text-emerald-600" />
             </div>
           </div>
-          <p className="mt-3 text-3xl font-bold text-gray-900">{loading ? "—" : stats.active}</p>
+          <p className="mt-3 text-3xl font-bold text-gray-900">{isPageLoading ? "—" : stats.active}</p>
           <p className="mt-1 text-xs text-gray-400">
-            {loading ? "" : (
+            {isPageLoading ? "" : (
               <span>
                 <span className="font-medium text-gray-600">
                   {stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0}%
@@ -305,9 +327,9 @@ export default function MembersPage() {
               <TrendingDown className="h-4 w-4 text-amber-600" />
             </div>
           </div>
-          <p className="mt-3 text-3xl font-bold text-amber-700">{loading ? "—" : stats.at_risk + stats.inactive}</p>
+          <p className="mt-3 text-3xl font-bold text-amber-700">{isPageLoading ? "—" : stats.at_risk + stats.inactive}</p>
           <p className="mt-1 text-xs text-amber-600">
-            {loading ? "" : `${stats.at_risk} en riesgo · ${stats.inactive} inactivos`}
+            {isPageLoading ? "" : `${stats.at_risk} en riesgo · ${stats.inactive} inactivos`}
           </p>
         </div>
       </div>
@@ -360,7 +382,7 @@ export default function MembersPage() {
                 <th
                   key={h}
                   className={`px-6 py-4 text-xs font-medium uppercase tracking-wide text-gray-400 ${
-                    i >= 2 ? "text-right" : "text-left"
+                    i >= 2 && i < 5 ? "text-right" : "text-left"
                   } ${i === 5 ? "text-center" : ""}`}
                 >
                   {h}
@@ -369,7 +391,7 @@ export default function MembersPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {loading ? (
+            {isPageLoading ? (
               <tr>
                 <td colSpan={6} className="px-6 py-16 text-center text-sm text-gray-400">
                   Cargando socios…

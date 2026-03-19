@@ -4,13 +4,18 @@ ClubSync — Tenant Middleware & Dependencies
 Responsabilidades:
 1. Extraer club_id del JWT en cada request autenticado.
 2. Validar que el club exista y esté activo.
-3. Inyectar `SET LOCAL app.current_club_id = '...'` en la sesión de
-   PostgreSQL para que las Row-Level Security policies funcionen.
+3. Inyectar `SET LOCAL app.current_club_id = '...'` para Row-Level Security.
 4. Exponer dependencias FastAPI reutilizables:
      - get_current_club_id  → UUID del club activo (+ RLS injection)
      - get_current_user_id  → UUID del usuario autenticado
-     - get_current_role     → StaffRole string del JWT
-     - require_role(...)    → Factory que lanza 403 si el rol no está permitido
+     - get_current_roles    → list[str] de roles del JWT
+     - require_role(...)    → Factory que lanza 403 si ningún rol del usuario
+                              está en la lista de roles permitidos
+
+Notas RBAC:
+  Los roles son un ARRAY en el JWT: roles=["OWNER"] o roles=["RM", "SM"].
+  `require_role("OWNER")` autoriza si el usuario tiene "OWNER" entre sus roles.
+  `require_role("OWNER", "RESERVATIONS_MANAGER")` autoriza si tiene cualquiera.
 
 Uso de require_role en un router:
     from app.middleware.tenant import require_role
@@ -19,11 +24,8 @@ Uso de require_role en un router:
     async def delete_expense(
         id: UUID,
         club_id: UUID = Depends(get_current_club_id),
-        _role: str   = Depends(require_role("OWNER")),
+        _roles: list = Depends(require_role("OWNER")),
     ): ...
-
-    # Multi-rol:
-    _role: str = Depends(require_role("OWNER", "RESERVATIONS_MANAGER"))
 """
 
 import logging
@@ -51,14 +53,16 @@ PUBLIC_PATHS = {
     "/docs",
     "/openapi.json",
     "/api/v1/auth/login",
+    "/api/v1/auth/mobile-login",
     "/api/v1/auth/register",
-    "/api/v1/auth/switch-club",  # switch-club valida su propio token internamente
+    "/api/v1/auth/switch-club",
+    "/api/v1/auth/forgot-password",
     "/api/v1/clubs",
 }
 
 
 # ─────────────────────────────────────────────────────────────
-# Starlette Middleware (sets club_id on request.state early)
+# Starlette Middleware
 # ─────────────────────────────────────────────────────────────
 class TenantMiddleware(BaseHTTPMiddleware):
     async def dispatch(
@@ -74,8 +78,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
         else:
             request.state.club_id = None
 
-        response = await call_next(request)
-        return response
+        return await call_next(request)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -87,8 +90,8 @@ async def get_current_club_id(
     db: AsyncSession = Depends(get_db),
 ) -> UUID:
     """
-    Extrae, valida e inyecta club_id en la sesión de PostgreSQL.
-    Usar en TODOS los routers protegidos.
+    Extrae, valida e inyecta club_id en la sesión de PostgreSQL (RLS).
+    Usar en TODOS los routers del panel de administración.
     """
     if credentials is None:
         raise HTTPException(
@@ -106,7 +109,6 @@ async def get_current_club_id(
 
     await _assert_club_active(db, club_id)
 
-    # Inyecta variable de sesión para Row-Level Security
     await db.execute(
         text("SELECT set_config('app.current_club_id', :club_id, true)"),
         {"club_id": str(club_id)},
@@ -122,7 +124,10 @@ async def get_current_user_id(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> UUID:
-    """Retorna el UUID del usuario autenticado (campo 'sub' del JWT)."""
+    """
+    Retorna el UUID del usuario autenticado (campo 'sub' del JWT).
+    Funciona con JWT completo y JWT limitado (usuarios mobile sin club).
+    """
     if credentials is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
     payload = _decode_token(credentials.credentials)
@@ -133,14 +138,15 @@ async def get_current_user_id(
 
 
 # ─────────────────────────────────────────────────────────────
-# Dependency: get_current_role
+# Dependency: get_current_roles
 # ─────────────────────────────────────────────────────────────
-async def get_current_role(
+async def get_current_roles(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-) -> str:
+) -> list[str]:
     """
-    Retorna el StaffRole del JWT ('OWNER', 'RESERVATIONS_MANAGER', 'STOCK_MANAGER').
-    Útil para lógica condicional dentro de un handler sin lanzar 403.
+    Retorna la lista de StaffRoles del JWT.
+    Ej: ["OWNER"] o ["RESERVATIONS_MANAGER", "STOCK_MANAGER"].
+    Lista vacía en JWTs limitados (usuarios mobile sin club asignado).
     """
     if credentials is None:
         raise HTTPException(
@@ -148,13 +154,8 @@ async def get_current_role(
             detail="Authentication required",
         )
     payload = _decode_token(credentials.credentials)
-    role = payload.get("role")
-    if not role:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Role not found in token",
-        )
-    return role
+    roles = payload.get("roles", [])
+    return roles if isinstance(roles, list) else []
 
 
 # ─────────────────────────────────────────────────────────────
@@ -163,34 +164,43 @@ async def get_current_role(
 def require_role(*allowed_roles: str):
     """
     Factory que devuelve una dependencia FastAPI.
-    Lanza HTTP 403 si el rol del JWT no está en `allowed_roles`.
+
+    Autoriza si al menos UNO de los roles del usuario está en `allowed_roles`.
+    Lanza HTTP 403 si ningún rol coincide.
 
     Uso:
         @router.delete("/{id}")
         async def delete(
-            _: str = Depends(require_role("OWNER")),
+            _: list = Depends(require_role("OWNER")),
         ): ...
+
+        # Multi-rol:
+        _: list = Depends(require_role("OWNER", "RESERVATIONS_MANAGER"))
     """
     async def _check(
         credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    ) -> str:
+    ) -> list[str]:
         if credentials is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication required",
             )
-        payload = _decode_token(credentials.credentials)
-        role = payload.get("role")
+        payload  = _decode_token(credentials.credentials)
+        user_roles: list[str] = payload.get("roles", [])
 
-        if not role or role not in allowed_roles:
+        if not isinstance(user_roles, list):
+            user_roles = []
+
+        # Autorizado si hay intersección entre roles del usuario y roles permitidos
+        if not any(r in allowed_roles for r in user_roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
-                    f"Acceso denegado. Tu rol '{role}' no tiene permiso para esta acción. "
-                    f"Roles requeridos: {list(allowed_roles)}"
+                    f"Acceso denegado. Tus roles {user_roles} no tienen permiso "
+                    f"para esta acción. Roles requeridos: {list(allowed_roles)}"
                 ),
             )
-        return role
+        return user_roles
 
     return _check
 

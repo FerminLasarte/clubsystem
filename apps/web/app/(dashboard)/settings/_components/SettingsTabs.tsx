@@ -1,7 +1,7 @@
 "use client";
 // apps/web/app/(dashboard)/settings/_components/SettingsTabs.tsx
 
-import { User, Building2, CreditCard, Bell, type LucideIcon } from "lucide-react";
+import { User, Building2, CreditCard, Bell, Users, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TabId } from "./types";
 
@@ -18,6 +18,7 @@ const TABS: TabConfig[] = [
   { id: "club",          label: "Club",             icon: Building2   },
   { id: "payments",      label: "Pagos",            icon: CreditCard  },
   { id: "notifications", label: "Notificaciones",   icon: Bell        },
+  { id: "staff",         label: "Equipo",           icon: Users       },
 ];
 
 // ── Component ─────────────────────────────────────────────────────────────────

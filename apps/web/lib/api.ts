@@ -3,6 +3,7 @@
 
 import type {
   Club,
+  Court,
   Expense,
   StockItem,
   StockMovement,
@@ -152,35 +153,97 @@ export const expensesApi = {
 };
 
 // ── Stock ─────────────────────────────────────────────────────
+
+/** Ítem de inventario tal como lo devuelve el backend (snake_case). */
+export interface StockItemOut {
+  id:           string;
+  sku:          string | null;
+  name:         string;
+  category:     string | null;
+  unit:         string;
+  quantity:     number;
+  min_quantity: number;
+  unit_cost:    number | null;
+  unit_price:   number | null;
+  supplier:     string | null;
+  is_active:    boolean;
+  /** Calculado por el backend: quantity <= min_quantity */
+  is_low_stock: boolean;
+}
+
+export interface StockItemCreate {
+  name:          string;
+  sku?:          string | null;
+  category?:     string | null;
+  unit?:         string;
+  quantity?:     number;
+  min_quantity?: number;
+  unit_cost?:    number | null;
+  unit_price?:   number | null;
+  supplier?:     string | null;
+}
+
+export type StockItemUpdate = Partial<StockItemCreate>;
+
+export interface StockStats {
+  total_items:     number;
+  low_stock_count: number;
+  total_value:     number;
+}
+
+export interface MovementResult {
+  quantity_before: number;
+  quantity_after:  number;
+}
+
 export const stockApi = {
   list: (params?: { search?: string; category?: string; lowStock?: boolean }) => {
     const qs = new URLSearchParams();
-    if (params?.search)   qs.set("search", params.search);
-    if (params?.category) qs.set("category", params.category);
-    if (params?.lowStock) qs.set("low_stock", "true");
-    return request<StockItem[]>(`/api/v1/stock?${qs}`);
+    if (params?.search)                 qs.set("search",    params.search);
+    if (params?.category)               qs.set("category",  params.category);
+    if (params?.lowStock !== undefined) qs.set("low_stock", String(params.lowStock));
+    return request<StockItemOut[]>(`/api/v1/stock?${qs}`);
   },
 
-  create: (payload: Partial<StockItem>) =>
-    request<StockItem>("/api/v1/stock", {
+  stats: () => request<StockStats>("/api/v1/stock/stats"),
+
+  create: (payload: StockItemCreate) =>
+    request<StockItemOut>("/api/v1/stock", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
 
-  update: (id: string, payload: Partial<StockItem>) =>
-    request<StockItem>(`/api/v1/stock/${id}`, {
-      method: "PATCH",
+  update: (id: string, payload: StockItemUpdate) =>
+    request<StockItemOut>(`/api/v1/stock/${id}`, {
+      method: "PUT",
       body: JSON.stringify(payload),
     }),
 
   movement: (
     itemId: string,
-    payload: { type: "in" | "out" | "adjustment"; quantity_delta: number; reason?: string }
+    payload: { type: "in" | "out" | "adjustment"; quantity_delta: number; reason?: string },
   ) =>
-    request<StockMovement>(`/api/v1/stock/${itemId}/movements`, {
+    request<MovementResult>(`/api/v1/stock/${itemId}/movements`, {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  /**
+   * Ajuste auditado de cantidad (audit trail).
+   * Usa POST /api/v1/stock/{itemId}/adjust.
+   * quantity_change: siempre positivo; movement_type decide la dirección.
+   */
+  adjust: (
+    itemId: string,
+    payload: { quantity_change: number; movement_type: "IN" | "OUT"; notes?: string },
+  ) =>
+    request<MovementResult>(`/api/v1/stock/${itemId}/adjust`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  remove: (id: string) =>
+    request<void>(`/api/v1/stock/${id}`, { method: "DELETE" }),
 };
 
 // ── Courts ────────────────────────────────────────────────────
@@ -190,11 +253,18 @@ export const courtsApi = {
 
 // ── Reservations ──────────────────────────────────────────────
 export const reservationsApi = {
-  list: (params?: { date?: string; courtId?: string; status?: string }) => {
+  list: (params?: {
+    date?: string;
+    courtId?: string;
+    status?: string;
+    /** Si true, ignora target_date y devuelve todas las fechas (historial global). */
+    allDates?: boolean;
+  }) => {
     const qs = new URLSearchParams();
-    if (params?.date)     qs.set("target_date", params.date);
-    if (params?.courtId)  qs.set("court_id", params.courtId);
-    if (params?.status)   qs.set("status", params.status);
+    if (params?.date)                  qs.set("target_date", params.date);
+    if (params?.courtId)               qs.set("court_id", params.courtId);
+    if (params?.status)                qs.set("status", params.status);
+    if (params?.allDates)              qs.set("all_dates", "true");
     return request<Reservation[]>(`/api/v1/reservations?${qs}`);
   },
 
@@ -211,11 +281,92 @@ export const reservationsApi = {
       body: JSON.stringify(payload),
     }),
 
-  update: (id: string, payload: { status?: string; notes?: string }) =>
+  update: (id: string, payload: { status?: string; paid_amount?: number; notes?: string }) =>
     request<Reservation>(`/api/v1/reservations/${id}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
+
+  /** Soft-cancel: sets status → 'cancelled' via DELETE. */
+  cancel: (id: string) =>
+    request<void>(`/api/v1/reservations/${id}`, { method: "DELETE" }),
+};
+
+// ── Staff ─────────────────────────────────────────────────────
+
+export interface StaffMemberOut {
+  id: string;
+  email: string;
+  /** Array de roles del operador en este club. Ej: ["OWNER"] o ["RESERVATIONS_MANAGER", "STOCK_MANAGER"] */
+  roles: string[];
+  status: "PENDING" | "ACTIVE";
+  is_active: boolean;
+  user_first_name: string | null;
+  user_last_name:  string | null;
+  created_at: string;  // ISO 8601
+}
+
+export interface InviteStaffPayload {
+  email: string;
+  /** Lista de roles a asignar. Solo RESERVATIONS_MANAGER y STOCK_MANAGER son invitables. */
+  roles: string[];
+}
+
+export const staffApi = {
+  list: (clubId: string) =>
+    request<StaffMemberOut[]>(`/api/v1/clubs/${clubId}/staff`),
+
+  invite: (clubId: string, payload: InviteStaffPayload) =>
+    request<StaffMemberOut>(`/api/v1/clubs/${clubId}/staff/invite`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+};
+
+// ── Dashboard ─────────────────────────────────────────────────
+
+export interface RecentReservation {
+  id: string;
+  member_name: string;
+  court_name: string;
+  starts_at: string;   // "HH:MM"
+  ends_at: string;     // "HH:MM"
+  status: string;
+  total_price: number;
+}
+
+/** Métricas mensuales para el dashboard — GET /api/v1/dashboard/kpis */
+export interface DashboardKPIs {
+  reservations_today: number;
+  reservations_today_delta: number;
+  reservations_this_month: number;
+  revenue_this_month: number;
+  revenue_last_month: number;
+  revenue_delta_pct: number;
+  active_members: number;
+  new_members_this_month: number;
+  expenses_this_month: number;
+  anomalies_pending: number;
+  recent_reservations: RecentReservation[];
+}
+
+/** Snapshot del día actual — GET /api/v1/dashboard/metrics */
+export interface DashboardMetrics {
+  /** Suma de paid_amount de reservas confirmadas hoy */
+  total_revenue: number;
+  /** Reservas de hoy en cualquier estado distinto de 'cancelled' */
+  active_reservations: number;
+  /** Canchas activas del club − las ocupadas en este momento */
+  available_courts: number;
+  /** Invitaciones de staff sin aceptar (status=PENDING) */
+  pending_staff: number;
+}
+
+export const dashboardApi = {
+  /** KPIs mensuales + lista de reservas recientes */
+  kpis: () => request<DashboardKPIs>("/api/v1/dashboard/kpis"),
+  /** Snapshot del día: ingresos, reservas, canchas disponibles, staff pendiente */
+  metrics: () => request<DashboardMetrics>("/api/v1/dashboard/metrics"),
 };
 
 // ── Members ───────────────────────────────────────────────────
@@ -230,7 +381,7 @@ export interface MemberOut {
   member_number: string | null;
   joined_at: string | null;   // YYYY-MM-DD
   is_active: boolean;
-  role: string;
+  // NOTE: no `role` field — users are global entities; roles only exist in ClubStaff
   last_login_at: string | null; // ISO 8601
 }
 

@@ -1,13 +1,17 @@
 "use client";
 // apps/web/components/layout/Sidebar.tsx
 //
-// Sidebar RBAC-aware: filtra los ítems de navegación según el rol activo
+// Sidebar RBAC-aware: filtra los ítems de navegación según los roles activos
 // del operador (consumido desde ClubSessionContext).
+//
+// Lógica multi-rol: un operador puede tener varios roles simultáneamente.
+// Se muestra la UNIÓN de las rutas permitidas por todos sus roles.
 //
 // Roles y rutas visibles:
 //   OWNER                → todas las rutas
 //   RESERVATIONS_MANAGER → /, /reservations, /members
 //   STOCK_MANAGER        → /, /stock
+//   Combinado RM + SM    → /, /reservations, /members, /stock
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -39,13 +43,17 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router   = useRouter();
 
-  // Datos del club activo y rol — provistos por ClubSessionContext
-  const { activeClub, activeRole, userEmail } = useClubSession();
+  // Datos del club activo y roles — provistos por ClubSessionContext
+  const { activeClub, activeRoles, userEmail } = useClubSession();
 
-  // ── Filtrar nav según el rol activo ───────────────────────
-  // Si activeRole es null (sesión cargando) mostramos todo para evitar
-  // parpadeos; el backend protege igualmente las rutas.
-  const allowedPaths  = activeRole ? ROLE_PERMISSIONS[activeRole] : ALL_NAV_ITEMS.map((n) => n.href);
+  // ── Filtrar nav según los roles activos ───────────────────
+  // Calcula la UNIÓN de rutas permitidas por todos los roles del operador.
+  // Si activeRoles está vacío (sesión cargando) se muestran todos los ítems
+  // para evitar parpadeos — el backend protege las rutas en cualquier caso.
+  const allowedPaths: string[] = activeRoles.length > 0
+    ? [...new Set(activeRoles.flatMap((role) => ROLE_PERMISSIONS[role] ?? []))]
+    : ALL_NAV_ITEMS.map((n) => n.href);
+
   const visibleNavItems = ALL_NAV_ITEMS.filter(({ href }) => allowedPaths.includes(href));
 
   // ── Branding derivado del contexto ────────────────────────
@@ -64,6 +72,8 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
   function handleLogout() {
     localStorage.clear();
+    // Eliminar cookie de sesión para que el middleware redirija al /login.
+    document.cookie = "has_session=; path=/; max-age=0; SameSite=Strict";
     router.push("/login");
   }
 

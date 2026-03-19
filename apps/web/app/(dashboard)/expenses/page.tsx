@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   Plus,
   AlertTriangle,
@@ -19,8 +19,8 @@ import {
   User,
   FileText,
 } from "lucide-react";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { expensesApi } from "@/lib/api";
+import { useClubSession } from "@/contexts/ClubSessionContext";
 
 const CATEGORY_LABELS: Record<string, string> = {
   maintenance: "Mantenimiento",
@@ -58,7 +58,7 @@ interface Stats {
   total_amount: number;
   count: number;
   by_category: Record<string, number>;
-  anomalies_pending: number;
+  anomalies_pending_review: number;
 }
 
 function RowSkeleton() {
@@ -195,7 +195,7 @@ function AnomalyModal({
                 <BarChart3 className="h-3.5 w-3.5" />
                 Score de anomalía
               </span>
-              <span className="text-sm font-bold tabular text-gray-900">
+              <span className="text-sm font-bold tabular-nums text-gray-900">
                 {((expense.anomaly_score ?? 0) * 100).toFixed(0)}%
               </span>
             </div>
@@ -341,11 +341,11 @@ function DetailItem({
 
 /* ── Main Page ───────────────────────────────────────────── */
 export default function ExpensesPage() {
-  const router = useRouter();
+  const { activeClub, isLoading: sessionLoading } = useClubSession();
   const searchParams = useSearchParams();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState(searchParams.get("filter") ?? "all");
 
@@ -355,34 +355,22 @@ export default function ExpensesPage() {
   const [markingReviewed, setMarkingReviewed] = useState(false);
 
   const fetchData = useCallback(async () => {
-    const token = localStorage.getItem("token");
-    if (!token) { router.push("/login"); return; }
-
+    if (!activeClub) return;
     setLoading(true);
     setError(null);
-
-    const params = new URLSearchParams();
-    if (filter === "anomalies") params.set("has_anomaly", "true");
-
     try {
-      const [expRes, statsRes] = await Promise.all([
-        fetch(`${API}/api/v1/expenses?${params}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API}/api/v1/expenses/stats`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+      const [expData, statsData] = await Promise.all([
+        (expensesApi.list(filter === "anomalies" ? { hasAnomaly: true } : undefined) as unknown) as Promise<Expense[]>,
+        (expensesApi.stats() as unknown) as Promise<Stats>,
       ]);
-
-      if (!expRes.ok || !statsRes.ok) throw new Error("Error al cargar gastos");
-      setExpenses(await expRes.json());
-      setStats(await statsRes.json());
-    } catch (e: any) {
-      setError(e.message);
+      setExpenses(expData);
+      setStats(statsData);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Error al cargar gastos");
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [activeClub, filter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -397,32 +385,18 @@ export default function ExpensesPage() {
   };
 
   const handleMarkReviewed = async (expenseId: string) => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
     setMarkingReviewed(true);
     try {
-      const res = await fetch(`${API}/api/v1/expenses/${expenseId}/review`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Error al marcar como revisado");
-
-      // Update local state
+      await expensesApi.markReviewed(expenseId);
+      const now = new Date().toISOString();
       setExpenses((prev) =>
-        prev.map((e) =>
-          e.id === expenseId ? { ...e, reviewed_at: new Date().toISOString() } : e
-        )
+        prev.map((e) => e.id === expenseId ? { ...e, reviewed_at: now } : e)
       );
       setDrawerExpense((prev) =>
-        prev && prev.id === expenseId
-          ? { ...prev, reviewed_at: new Date().toISOString() }
-          : prev
+        prev && prev.id === expenseId ? { ...prev, reviewed_at: now } : prev
       );
-
-      // Decrement pending count
       setStats((prev) =>
-        prev ? { ...prev, anomalies_pending: Math.max(0, prev.anomalies_pending - 1) } : prev
+        prev ? { ...prev, anomalies_pending_review: Math.max(0, prev.anomalies_pending_review - 1) } : prev
       );
     } catch {
       alert("Error al marcar como revisado");
@@ -434,6 +408,20 @@ export default function ExpensesPage() {
   const topCategory = stats
     ? Object.entries(stats.by_category).sort((a, b) => b[1] - a[1])[0]
     : null;
+
+  // ── Empty state when no club active ──────────────────────
+
+  if (!sessionLoading && !activeClub) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 text-center">
+        <div className="rounded-full bg-gray-100 p-4 mb-4">
+          <AlertTriangle className="h-8 w-8 text-gray-400" />
+        </div>
+        <p className="text-sm font-medium text-gray-600">Sin club activo</p>
+        <p className="mt-1 text-xs text-gray-400">Seleccioná un club para ver sus gastos.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -466,17 +454,17 @@ export default function ExpensesPage() {
             <DollarSign className="h-4 w-4 text-gray-300" />
           </div>
           {stats
-            ? <p className="mt-3 text-2xl font-semibold text-gray-900 tabular">${Math.round(stats.total_amount).toLocaleString("es-AR")}</p>
+            ? <p className="mt-3 text-2xl font-semibold text-gray-900 tabular-nums">${Math.round(stats.total_amount).toLocaleString("es-AR")}</p>
             : <div className="mt-3 h-8 w-32 animate-pulse rounded bg-gray-100" />}
         </div>
 
-        <div className={`rounded-xl border p-5 ${stats?.anomalies_pending ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-white"}`}>
+        <div className={`rounded-xl border p-5 ${stats?.anomalies_pending_review ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-white"}`}>
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wide text-gray-400">Anomalías</span>
-            <AlertTriangle className={`h-4 w-4 ${stats?.anomalies_pending ? "text-amber-500" : "text-gray-300"}`} />
+            <AlertTriangle className={`h-4 w-4 ${stats?.anomalies_pending_review ? "text-amber-500" : "text-gray-300"}`} />
           </div>
           {stats
-            ? <p className={`mt-3 text-2xl font-semibold tabular ${stats.anomalies_pending ? "text-amber-700" : "text-gray-900"}`}>{stats.anomalies_pending}</p>
+            ? <p className={`mt-3 text-2xl font-semibold tabular-nums ${stats.anomalies_pending_review ? "text-amber-700" : "text-gray-900"}`}>{stats.anomalies_pending_review}</p>
             : <div className="mt-3 h-8 w-16 animate-pulse rounded bg-gray-100" />}
           {stats && <p className="mt-1 text-xs text-gray-400">pendientes de revisión</p>}
         </div>
@@ -539,7 +527,7 @@ export default function ExpensesPage() {
               )
               : expenses.map(e => (
                 <tr key={e.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 text-xs text-gray-400 tabular w-[12%]">
+                  <td className="px-6 py-4 text-xs text-gray-400 tabular-nums w-[12%]">
                     {new Date(e.expense_date).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}
                   </td>
                   <td className="px-6 py-4 font-medium text-gray-900 w-[30%]">
@@ -553,7 +541,7 @@ export default function ExpensesPage() {
                   <td className="px-6 py-4 text-gray-500 w-[18%] truncate">
                     {e.vendor_name ?? <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="px-6 py-4 text-right tabular font-medium text-gray-900 w-[15%]">
+                  <td className="px-6 py-4 text-right tabular-nums font-medium text-gray-900 w-[15%]">
                     {e.currency} {Math.round(e.amount).toLocaleString("es-AR")}
                   </td>
                   <td className="px-6 py-4 text-center w-[10%]">

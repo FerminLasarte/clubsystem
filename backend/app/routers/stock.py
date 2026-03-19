@@ -1,75 +1,174 @@
-# backend/app/routers/stock.py
+"""
+ClubSync — Stock Router
+========================
+Gestión del inventario del club.
+
+Endpoints:
+  GET    /api/v1/stock/stats              → Estadísticas del inventario.
+  GET    /api/v1/stock                    → Lista de ítems (filtros: search, category, low_stock).
+  POST   /api/v1/stock                    → Crea un nuevo ítem.
+  PUT    /api/v1/stock/{item_id}          → Actualiza campos del ítem (todos opcionales).
+  DELETE /api/v1/stock/{item_id}          → Soft-delete (is_active=False).
+  POST   /api/v1/stock/{item_id}/movements → Registra movimiento de stock (in/out/adjustment).
+
+RBAC:
+  - GET / stats: cualquier rol autenticado con club activo.
+  - POST / PUT / DELETE / movements: OWNER | STOCK_MANAGER.
+
+Multi-tenant:
+  - club_id extraído del JWT vía get_current_club_id (inyecta RLS en Postgres).
+  - Todos los queries incluyen WHERE club_id = <jwt_club_id>.
+  - Se valida que el ítem pertenezca al club antes de cualquier mutación.
+
+Observabilidad:
+  - logger.info()  en cada operación exitosa.
+  - logger.error() + await db.rollback() en cada bloque except.
+"""
+
+import logging
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func, or_
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.middleware.tenant import get_current_club_id, get_current_user_id
+from app.middleware.tenant import (
+    get_current_club_id,
+    get_current_user_id,
+    require_role,
+)
 from app.models.stock import StockItem, StockMovement
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+# ── Schemas ───────────────────────────────────────────────────────────────────
+
 class StockItemOut(BaseModel):
-    id: UUID
-    sku: Optional[str]
-    name: str
-    category: Optional[str]
-    unit: str
-    quantity: float
+    id:           UUID
+    sku:          Optional[str]   = None
+    name:         str
+    category:     Optional[str]   = None
+    unit:         str
+    quantity:     float
     min_quantity: float
-    unit_cost: Optional[float]
-    unit_price: Optional[float]
-    supplier: Optional[str]
-    is_active: bool
+    unit_cost:    Optional[float] = None
+    unit_price:   Optional[float] = None
+    supplier:     Optional[str]   = None
+    is_active:    bool
     is_low_stock: bool = False
 
     class Config:
         from_attributes = True
 
 
+_VALID_UNITS = {"unit", "box", "kg", "liter", "pack"}
+
+
 class StockItemCreate(BaseModel):
-    sku: Optional[str] = None
-    name: str = Field(..., min_length=2)
-    category: Optional[str] = None
-    unit: str = "unit"
-    quantity: float = Field(0, ge=0)
-    min_quantity: float = Field(0, ge=0)
-    unit_cost: Optional[float] = None
-    unit_price: Optional[float] = None
-    supplier: Optional[str] = None
+    name:         str             = Field(..., min_length=2, max_length=255)
+    sku:          Optional[str]   = Field(None, max_length=100)
+    category:     Optional[str]   = Field(None, max_length=100)
+    unit:         str             = Field("unit", pattern=r"^(unit|box|kg|liter|pack)$")
+    quantity:     float           = Field(0, ge=0)
+    min_quantity: float           = Field(0, ge=0)
+    unit_cost:    Optional[float] = Field(None, ge=0)
+    unit_price:   Optional[float] = Field(None, ge=0)
+    supplier:     Optional[str]   = Field(None, max_length=255)
+
+
+class StockItemUpdate(BaseModel):
+    """Todos los campos son opcionales — solo se actualizan los provistos."""
+    name:         Optional[str]   = Field(None, min_length=2, max_length=255)
+    sku:          Optional[str]   = Field(None, max_length=100)
+    category:     Optional[str]   = Field(None, max_length=100)
+    unit:         Optional[str]   = Field(None, pattern=r"^(unit|box|kg|liter|pack)$")
+    quantity:     Optional[float] = Field(None, ge=0)
+    min_quantity: Optional[float] = Field(None, ge=0)
+    unit_cost:    Optional[float] = Field(None, ge=0)
+    unit_price:   Optional[float] = Field(None, ge=0)
+    supplier:     Optional[str]   = Field(None, max_length=255)
+    is_active:    Optional[bool]  = None
 
 
 class MovementCreate(BaseModel):
-    type: str = Field(..., pattern="^(in|out|adjustment)$")
+    type:           str   = Field(..., pattern="^(in|out|adjustment)$")
     quantity_delta: float
-    reason: Optional[str] = None
+    reason:         Optional[str] = None
+
+
+class AdjustPayload(BaseModel):
+    """Payload para el endpoint /adjust — ajuste auditado de cantidad."""
+    quantity_change: float        = Field(..., gt=0, description="Cantidad absoluta a sumar o restar (siempre positivo).")
+    movement_type:   str          = Field(..., pattern="^(IN|OUT)$", description="'IN' para entrada, 'OUT' para salida.")
+    notes:           Optional[str] = None
 
 
 class StockStats(BaseModel):
-    total_items: int
+    total_items:     int
     low_stock_count: int
-    total_value: float
+    total_value:     float
 
+
+# ── Internal helpers ──────────────────────────────────────────────────────────
+
+def _compute_out(item: StockItem) -> StockItemOut:
+    """Convierte un ORM StockItem en StockItemOut calculando is_low_stock."""
+    out = StockItemOut.model_validate(item)
+    out.is_low_stock = float(item.quantity) <= float(item.min_quantity)
+    return out
+
+
+async def _get_item_or_404(
+    db:      AsyncSession,
+    item_id: UUID,
+    club_id: UUID,
+) -> StockItem:
+    """
+    Carga el ítem verificando multi-tenant + que esté activo.
+    Lanza HTTP 404 si no existe o no pertenece al club.
+    """
+    result = await db.execute(
+        select(StockItem).where(
+            StockItem.id        == item_id,
+            StockItem.club_id   == club_id,
+            StockItem.is_active == True,
+        )
+    )
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ítem no encontrado o no pertenece a este club",
+        )
+    return item
+
+
+# ── GET /stats ────────────────────────────────────────────────────────────────
 
 @router.get("/stats", response_model=StockStats)
 async def get_stock_stats(
-    club_id: UUID = Depends(get_current_club_id),
-    db: AsyncSession = Depends(get_db),
-):
+    club_id: UUID         = Depends(get_current_club_id),
+    db:      AsyncSession = Depends(get_db),
+) -> StockStats:
+    """Estadísticas del inventario: total ítems, stock bajo y valor total en costo."""
     result = await db.execute(
-        select(StockItem).where(StockItem.club_id == club_id, StockItem.is_active == True)
+        select(StockItem).where(
+            StockItem.club_id   == club_id,
+            StockItem.is_active == True,
+        )
     )
     items = result.scalars().all()
 
-    low_stock = [i for i in items if float(i.quantity) <= float(i.min_quantity)]
+    low_stock   = [i for i in items if float(i.quantity) <= float(i.min_quantity)]
     total_value = sum(
         float(i.quantity) * float(i.unit_cost)
-        for i in items if i.unit_cost is not None
+        for i in items
+        if i.unit_cost is not None
     )
 
     return StockStats(
@@ -79,16 +178,22 @@ async def get_stock_stats(
     )
 
 
+# ── GET / ─────────────────────────────────────────────────────────────────────
+
 @router.get("/", response_model=list[StockItemOut])
 async def list_stock(
-    search: Optional[str] = Query(None),
-    category: Optional[str] = Query(None),
+    search:    Optional[str]  = Query(None),
+    category:  Optional[str]  = Query(None),
     low_stock: Optional[bool] = Query(None),
-    club_id: UUID = Depends(get_current_club_id),
-    db: AsyncSession = Depends(get_db),
-):
+    club_id:   UUID           = Depends(get_current_club_id),
+    db:        AsyncSession   = Depends(get_db),
+) -> list[StockItemOut]:
+    """
+    Lista los ítems activos del inventario del club.
+    Filtros opcionales: búsqueda por nombre/SKU/categoría, categoría exacta, bajo stock.
+    """
     q = select(StockItem).where(
-        StockItem.club_id == club_id,
+        StockItem.club_id   == club_id,
         StockItem.is_active == True,
     )
 
@@ -101,21 +206,19 @@ async def list_stock(
                 func.lower(StockItem.category).like(term),
             )
         )
+
     if category:
         q = q.where(StockItem.category == category)
 
     q = q.order_by(StockItem.category, StockItem.name)
     result = await db.execute(q)
-    items = result.scalars().all()
+    items  = result.scalars().all()
 
-    # Calcular is_low_stock en Python (evita problemas con NUMERIC)
     out = []
     for item in items:
         is_low = float(item.quantity) <= float(item.min_quantity)
-        if low_stock is True and not is_low:
-            continue
-        if low_stock is False and is_low:
-            continue
+        if low_stock is True  and not is_low: continue
+        if low_stock is False and     is_low: continue
         d = StockItemOut.model_validate(item)
         d.is_low_stock = is_low
         out.append(d)
@@ -123,53 +226,265 @@ async def list_stock(
     return out
 
 
-@router.post("/", response_model=StockItemOut, status_code=201)
+# ── POST / ────────────────────────────────────────────────────────────────────
+
+@router.post("/", response_model=StockItemOut, status_code=status.HTTP_201_CREATED)
 async def create_stock_item(
     payload: StockItemCreate,
-    club_id: UUID = Depends(get_current_club_id),
-    db: AsyncSession = Depends(get_db),
-):
-    item = StockItem(club_id=club_id, **payload.model_dump())
-    db.add(item)
-    await db.commit()
-    await db.refresh(item)
-    d = StockItemOut.model_validate(item)
-    d.is_low_stock = float(item.quantity) <= float(item.min_quantity)
-    return d
+    club_id: UUID         = Depends(get_current_club_id),
+    user_id: UUID         = Depends(get_current_user_id),
+    _roles:  list         = Depends(require_role("OWNER", "STOCK_MANAGER")),
+    db:      AsyncSession = Depends(get_db),
+) -> StockItemOut:
+    """
+    Crea un nuevo ítem en el inventario.
+    Si la cantidad inicial es > 0, registra un movimiento 'in' de inventario inicial
+    en la misma transacción (audit trail).
+    Requiere OWNER o STOCK_MANAGER.
+    """
+    try:
+        item = StockItem(club_id=club_id, **payload.model_dump())
+        db.add(item)
+        # flush para obtener item.id sin hacer commit aún
+        await db.flush()
+
+        initial_qty = float(item.quantity)
+        if initial_qty > 0:
+            movement = StockMovement(
+                club_id         = club_id,
+                item_id         = item.id,
+                performed_by    = user_id,
+                type            = "in",
+                quantity_delta  = initial_qty,
+                quantity_before = 0.0,
+                quantity_after  = initial_qty,
+                reason          = "Inventario Inicial",
+            )
+            db.add(movement)
+            logger.info(
+                "Stock: [pre-commit] movimiento inicial — ítem '%s' item_id=%s qty=%.2f user=%s",
+                item.name, item.id, initial_qty, user_id,
+            )
+
+        await db.commit()
+        await db.refresh(item)
+        logger.info(
+            "Stock: ítem '%s' creado [club=%s id=%s qty_inicial=%s]",
+            item.name, club_id, item.id, initial_qty,
+        )
+        return _compute_out(item)
+
+    except Exception as exc:
+        logger.error(
+            "Stock: error al crear ítem '%s' [club=%s]: %s",
+            payload.name, club_id, exc,
+        )
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al guardar el ítem. Intente de nuevo.",
+        )
 
 
-@router.post("/{item_id}/movements", status_code=201)
+# ── PUT /{item_id} ────────────────────────────────────────────────────────────
+
+@router.put("/{item_id}", response_model=StockItemOut)
+async def update_stock_item(
+    item_id: UUID,
+    payload: StockItemUpdate,
+    club_id: UUID         = Depends(get_current_club_id),
+    _roles:  list         = Depends(require_role("OWNER", "STOCK_MANAGER")),
+    db:      AsyncSession = Depends(get_db),
+) -> StockItemOut:
+    """
+    Actualiza campos del ítem. Solo se modifican los incluidos en el payload.
+    Requiere OWNER o STOCK_MANAGER.
+    """
+    item = await _get_item_or_404(db, item_id, club_id)
+
+    try:
+        updates = payload.model_dump(exclude_unset=True)
+        for field, value in updates.items():
+            setattr(item, field, value)
+
+        await db.commit()
+        await db.refresh(item)
+        logger.info(
+            "Stock: ítem '%s' actualizado [club=%s id=%s campos=%s]",
+            item.name, club_id, item_id, list(updates.keys()),
+        )
+        return _compute_out(item)
+
+    except Exception as exc:
+        logger.error(
+            "Stock: error al actualizar ítem [club=%s id=%s]: %s",
+            club_id, item_id, exc,
+        )
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al actualizar el ítem. Intente de nuevo.",
+        )
+
+
+# ── DELETE /{item_id} ─────────────────────────────────────────────────────────
+
+@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_stock_item(
+    item_id: UUID,
+    club_id: UUID         = Depends(get_current_club_id),
+    _roles:  list         = Depends(require_role("OWNER", "STOCK_MANAGER")),
+    db:      AsyncSession = Depends(get_db),
+) -> None:
+    """
+    Soft-delete del ítem (is_active=False).
+    Se preserva el historial de movimientos para auditoría.
+    Requiere OWNER o STOCK_MANAGER.
+    """
+    item = await _get_item_or_404(db, item_id, club_id)
+    item_name = item.name   # capturar antes del commit
+
+    try:
+        item.is_active = False
+        await db.commit()
+        logger.info(
+            "Stock: ítem '%s' eliminado (soft) [club=%s id=%s]",
+            item_name, club_id, item_id,
+        )
+
+    except Exception as exc:
+        logger.error(
+            "Stock: error al eliminar ítem '%s' [club=%s id=%s]: %s",
+            item_name, club_id, item_id, exc,
+        )
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al eliminar el ítem. Intente de nuevo.",
+        )
+
+
+# ── POST /{item_id}/movements ─────────────────────────────────────────────────
+
+@router.post("/{item_id}/movements", status_code=status.HTTP_201_CREATED)
 async def register_movement(
     item_id: UUID,
     payload: MovementCreate,
-    club_id: UUID = Depends(get_current_club_id),
-    user_id: UUID = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(StockItem).where(StockItem.id == item_id, StockItem.club_id == club_id)
-    )
-    item = result.scalar_one_or_none()
-    if not item:
-        raise HTTPException(status_code=404, detail="Ítem no encontrado")
+    club_id: UUID         = Depends(get_current_club_id),
+    user_id: UUID         = Depends(get_current_user_id),
+    _roles:  list         = Depends(require_role("OWNER", "STOCK_MANAGER")),
+    db:      AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Registra un movimiento de stock y actualiza `quantity` del ítem atómicamente.
+    Requiere OWNER o STOCK_MANAGER.
+    """
+    item = await _get_item_or_404(db, item_id, club_id)
 
     before = float(item.quantity)
-    after = before + payload.quantity_delta
+    after  = before + payload.quantity_delta
 
     if after < 0:
-        raise HTTPException(status_code=400, detail="Stock insuficiente")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Stock insuficiente. Actual: {before}, variación: {payload.quantity_delta}",
+        )
 
-    movement = StockMovement(
-        club_id=club_id,
-        item_id=item_id,
-        performed_by=user_id,
-        type=payload.type,
-        quantity_delta=payload.quantity_delta,
-        quantity_before=before,
-        quantity_after=after,
-        reason=payload.reason,
-    )
-    item.quantity = after
-    db.add(movement)
-    await db.commit()
-    return {"quantity_before": before, "quantity_after": after}
+    try:
+        movement = StockMovement(
+            club_id         = club_id,
+            item_id         = item_id,
+            performed_by    = user_id,
+            type            = payload.type,
+            quantity_delta  = payload.quantity_delta,
+            quantity_before = before,
+            quantity_after  = after,
+            reason          = payload.reason,
+        )
+        item.quantity = after
+        db.add(movement)
+        await db.commit()
+        logger.info(
+            "Stock: movimiento '%s' en '%s' [Δ=%s %s→%s club=%s]",
+            payload.type, item.name, payload.quantity_delta, before, after, club_id,
+        )
+        return {"quantity_before": before, "quantity_after": after}
+
+    except Exception as exc:
+        logger.error(
+            "Stock: error al registrar movimiento [club=%s item=%s]: %s",
+            club_id, item_id, exc,
+        )
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al registrar el movimiento. Intente de nuevo.",
+        )
+
+
+# ── POST /{item_id}/adjust ────────────────────────────────────────────────────
+
+@router.post("/{item_id}/adjust", status_code=status.HTTP_200_OK)
+async def adjust_stock(
+    item_id: UUID,
+    payload: AdjustPayload,
+    club_id: UUID         = Depends(get_current_club_id),
+    user_id: UUID         = Depends(get_current_user_id),
+    _roles:  list         = Depends(require_role("OWNER", "STOCK_MANAGER")),
+    db:      AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Ajusta la cantidad de un ítem (entrada o salida) y registra el movimiento
+    de auditoría en la misma transacción.
+
+    - movement_type='IN'  → suma quantity_change al stock.
+    - movement_type='OUT' → resta quantity_change al stock (falla si resulta negativo).
+
+    Requiere OWNER o STOCK_MANAGER.
+    """
+    item = await _get_item_or_404(db, item_id, club_id)
+
+    before = float(item.quantity)
+    delta  = payload.quantity_change if payload.movement_type == "IN" else -payload.quantity_change
+    after  = before + delta
+
+    if after < 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Stock insuficiente. Actual: {before}, variación: {delta}",
+        )
+
+    try:
+        movement = StockMovement(
+            club_id         = club_id,
+            item_id         = item_id,
+            performed_by    = user_id,
+            type            = payload.movement_type.lower(),  # "in" | "out"
+            quantity_delta  = delta,
+            quantity_before = before,
+            quantity_after  = after,
+            reason          = payload.notes,
+        )
+        item.quantity = after
+        db.add(movement)
+        logger.info(
+            "Stock: [pre-commit] ajuste %s — ítem=%s Δ=%.2f %.2f→%.2f club=%s user=%s",
+            payload.movement_type, item_id, delta, before, after, club_id, user_id,
+        )
+        await db.commit()
+        logger.info(
+            "Stock: ajuste '%s' en '%s' [Δ=%s %s→%s club=%s]",
+            payload.movement_type, item.name, delta, before, after, club_id,
+        )
+        return {"quantity_before": before, "quantity_after": after}
+
+    except Exception as exc:
+        logger.error(
+            "Stock: error al ajustar stock [club=%s item=%s]: %s",
+            club_id, item_id, exc,
+        )
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al ajustar el stock. Intente de nuevo.",
+        )

@@ -34,7 +34,7 @@ export default function LoginPage() {
       }
 
       const data = await res.json();
-      const { access_token, club, user_role, available_clubs } = data;
+      const { access_token, club, user_roles, available_clubs } = data;
 
       // ── Persistir sesión en localStorage ──────────────────
       localStorage.setItem("token",              access_token);
@@ -44,19 +44,19 @@ export default function LoginPage() {
       localStorage.setItem("club_primary_color", club.primary_color);
       localStorage.setItem("club_accent_color",  club.accent_color);
       localStorage.setItem("user_email",         email);
-      // RBAC: rol activo y lista completa de clubs del operador
-      localStorage.setItem("user_role",          user_role ?? "OWNER");
+      // RBAC: roles activos como JSON array (multi-rol por operador)
+      localStorage.setItem("user_roles", JSON.stringify(user_roles ?? []));
 
-      // Normalizar available_clubs de snake_case (API) → camelCase (frontend)
+      // Normalizar available_clubs: snake_case (API) → camelCase (frontend)
       if (Array.isArray(available_clubs)) {
         const normalizedClubs = available_clubs.map((c: {
-          club_id: string; club_name: string; club_slug: string; role: string;
+          club_id: string; club_name: string; club_slug: string; roles: string[];
           primary_color: string; accent_color: string; logo_url?: string; font_family: string;
         }) => ({
           clubId:       c.club_id,
           clubName:     c.club_name,
           clubSlug:     c.club_slug,
-          role:         c.role,
+          roles:        c.roles ?? [],   // array de roles
           primaryColor: c.primary_color,
           accentColor:  c.accent_color,
           logoUrl:      c.logo_url,
@@ -65,8 +65,13 @@ export default function LoginPage() {
         localStorage.setItem("available_clubs", JSON.stringify(normalizedClubs));
       }
 
+      // Cookie para el middleware de Next.js (guard de rutas del dashboard).
+      // HttpOnly no es posible desde JS del cliente; la cookie sirve solo para
+      // el guard de UX — la seguridad real la garantiza el backend (401/403).
+      document.cookie = "has_session=1; path=/; max-age=86400; SameSite=Strict";
+
       // Aplicar variables CSS de branding
-      document.documentElement.style.setProperty("--color-brand",      club.primary_color);
+      document.documentElement.style.setProperty("--color-brand",       club.primary_color);
       document.documentElement.style.setProperty("--color-accent-club", club.accent_color);
 
       router.push("/");

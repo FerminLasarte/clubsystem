@@ -11,6 +11,9 @@ from app.middleware.tenant import TenantMiddleware
 from app.routers import clubs, users, courts, reservations, expenses, stock
 from app.routers import auth
 from app.routers import dashboard
+from app.routers import staff
+from app.routers import notifications
+from app.routers import invitations
 
 
 @asynccontextmanager
@@ -49,13 +52,16 @@ app.add_middleware(TenantMiddleware)
 API_V1 = "/api/v1"
 
 app.include_router(clubs.router,        prefix=f"{API_V1}/clubs",        tags=["Clubs"])
+app.include_router(staff.router,        prefix=f"{API_V1}/clubs",        tags=["Staff"])
 app.include_router(users.router,        prefix=f"{API_V1}/users",        tags=["Users"])
 app.include_router(courts.router,       prefix=f"{API_V1}/courts",       tags=["Courts"])
 app.include_router(reservations.router, prefix=f"{API_V1}/reservations", tags=["Reservations"])
 app.include_router(expenses.router,     prefix=f"{API_V1}/expenses",     tags=["Expenses"])
 app.include_router(stock.router,        prefix=f"{API_V1}/stock",        tags=["Stock"])
-app.include_router(auth.router,         prefix="/api/v1/auth",           tags=["Auth"])
-app.include_router(dashboard.router,    prefix="/api/v1/dashboard",      tags=["Dashboard"])
+app.include_router(auth.router,          prefix="/api/v1/auth",              tags=["Auth"])
+app.include_router(dashboard.router,     prefix="/api/v1/dashboard",         tags=["Dashboard"])
+app.include_router(notifications.router, prefix=f"{API_V1}/notifications",   tags=["Notifications"])
+app.include_router(invitations.router,   prefix=f"{API_V1}/invitations",     tags=["Invitations"])
 
 
 @app.get("/health", tags=["Health"])

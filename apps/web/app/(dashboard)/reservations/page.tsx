@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import {
   CalendarDays, ChevronLeft, ChevronRight, Plus,
   CheckCircle2, Clock, XCircle, LayoutGrid, X,
   User, FileText, DollarSign, AlertTriangle, Ban,
   Timer, History,
 } from "lucide-react";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { courtsApi, reservationsApi, membersApi } from "@/lib/api";
+import { useClubSession } from "@/contexts/ClubSessionContext";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -190,7 +189,7 @@ function GridSkeleton({ cols }: { cols: number }) {
 // ── Page ──────────────────────────────────────────────────────
 
 export default function ReservationsPage() {
-  const router = useRouter();
+  const { activeClub, isLoading: sessionLoading } = useClubSession();
 
   // ── Data state ─────────────────────────────────────────────
   const [courts,       setCourts]       = useState<Court[]>([]);
@@ -229,63 +228,46 @@ export default function ReservationsPage() {
   // ── Data fetching ──────────────────────────────────────────
 
   const fetchData = useCallback(async () => {
-    const token = localStorage.getItem("token");
-    if (!token) { router.push("/login"); return; }
+    if (!activeClub) return;
     setLoading(true);
     setError(null);
     try {
-      const [courtsRes, reservationsRes, usersRes] = await Promise.all([
-        fetch(`${API}/api/v1/courts`,    { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API}/api/v1/reservations?target_date=${toDateString(selectedDate)}`,
-              { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API}/api/v1/users`,     { headers: { Authorization: `Bearer ${token}` } }),
+      const [courtsData, resData, membersData] = await Promise.all([
+        (courtsApi.list() as unknown) as Promise<Court[]>,
+        (reservationsApi.list({ date: toDateString(selectedDate) }) as unknown) as Promise<Reservation[]>,
+        membersApi.list({ pageSize: 200 }),
       ]);
-      if (!courtsRes.ok)       throw new Error("Error al cargar las canchas");
-      if (!reservationsRes.ok) throw new Error("Error al cargar las reservas");
-
-      const courtsData: Court[]       = await courtsRes.json();
-      const resData:    Reservation[] = await reservationsRes.json();
 
       setCourts(courtsData);
       setReservations(resData.filter((r) => r.status !== "cancelled"));
-
-      if (usersRes.ok) {
-        const data: { items: MemberUser[] } = await usersRes.json();
-        setMemberUsers(
-          (data.items ?? []).map((u) => ({
-            id:            u.id,
-            first_name:    u.first_name,
-            last_name:     u.last_name,
-            member_number: u.member_number ?? null,
-          }))
-        );
-      }
+      setMemberUsers(
+        membersData.items.map((u) => ({
+          id:            u.id,
+          first_name:    u.first_name,
+          last_name:     u.last_name,
+          member_number: u.member_number ?? null,
+        }))
+      );
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Error desconocido");
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, router]);
+  }, [selectedDate, activeClub]);
 
   const fetchHistorial = useCallback(async () => {
-    const token = localStorage.getItem("token");
-    if (!token) { router.push("/login"); return; }
+    if (!activeClub) return;
     setHistorialLoading(true);
     setHistorialError(null);
     try {
-      const res = await fetch(
-        `${API}/api/v1/reservations?status=completed&all_dates=true`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (!res.ok) throw new Error("Error al cargar el historial");
-      const data: Reservation[] = await res.json();
+      const data = (await reservationsApi.list({ status: "completed", allDates: true }) as unknown) as Reservation[];
       setHistorialData(data);
     } catch (e: unknown) {
       setHistorialError(e instanceof Error ? e.message : "Error desconocido");
     } finally {
       setHistorialLoading(false);
     }
-  }, [router]);
+  }, [activeClub]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -339,53 +321,35 @@ export default function ReservationsPage() {
       setModalError("Seleccioná un socio para la reserva.");
       return;
     }
-    const token = localStorage.getItem("token");
-    if (!token) { router.push("/login"); return; }
 
     const startsDate = buildSlotDate(selectedDate, selectedSlot.slot);
     const endsDate   = addMinutes(startsDate, slotDuration);
-    const payload = {
-      court_id:    selectedSlot.courtId,
-      user_id:     selectedUserId,
-      starts_at:   startsDate.toISOString(),
-      ends_at:     endsDate.toISOString(),
-      total_price: parseFloat((selectedSlot.hourlyRate * slotDuration / 60).toFixed(2)),
-      notes:       notes.trim() || null,
-    };
 
-    console.log("Intentando reservar:", payload);
     setIsSaving(true);
     setModalError(null);
 
     try {
-      const response = await fetch(`${API}/api/v1/reservations/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(payload),
+      await reservationsApi.create({
+        court_id:    selectedSlot.courtId,
+        user_id:     selectedUserId,
+        starts_at:   startsDate.toISOString(),
+        ends_at:     endsDate.toISOString(),
+        total_price: parseFloat((selectedSlot.hourlyRate * slotDuration / 60).toFixed(2)),
+        notes:       notes.trim() || undefined,
       });
-      console.log("Respuesta:", response);
-
-      if (response.ok) {
-        const created = await response.json();
-        console.log("Reserva creada:", created);
-        handleCloseModal();
-        const member = memberUsers.find((u) => u.id === selectedUserId);
-        const memberName = member ? `${member.first_name} ${member.last_name}` : "Socio";
-        setSuccessMsg(`Turno reservado · ${selectedSlot.courtName} ${selectedSlot.slot} · ${memberName}`);
-        setTimeout(() => setSuccessMsg(null), 4000);
-        await fetchData();
+      handleCloseModal();
+      const member = memberUsers.find((u) => u.id === selectedUserId);
+      const memberName = member ? `${member.first_name} ${member.last_name}` : "Socio";
+      setSuccessMsg(`Turno reservado · ${selectedSlot.courtName} ${selectedSlot.slot} · ${memberName}`);
+      setTimeout(() => setSuccessMsg(null), 4000);
+      await fetchData();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error inesperado";
+      if (msg.includes("409") || msg.toLowerCase().includes("overlap") || msg.toLowerCase().includes("ocupado")) {
+        setModalError("Horario ocupado: ese slot ya tiene una reserva.");
       } else {
-        const errBody = await response.json().catch(() => ({})) as { detail?: string };
-        if (response.status === 409) {
-          setModalError("Horario ocupado: ese slot ya tiene una reserva.");
-        } else if (response.status === 422) {
-          setModalError("Datos inválidos. Revisá el horario seleccionado.");
-        } else {
-          setModalError(errBody?.detail ?? `Error ${response.status}`);
-        }
+        setModalError(msg);
       }
-    } catch {
-      setModalError("Error de red. Verificá la conexión con el servidor.");
     } finally {
       setIsSaving(false);
     }
@@ -408,26 +372,16 @@ export default function ReservationsPage() {
 
   async function handleCancelReservation() {
     if (!detailRes) return;
-    const token = localStorage.getItem("token");
-    if (!token) { router.push("/login"); return; }
     setIsCancelling(true);
     setCancelError(null);
     try {
-      const response = await fetch(`${API}/api/v1/reservations/${detailRes.id}`, {
-        method:  "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        handleCloseDetail();
-        setSuccessMsg(`Turno cancelado · ${detailRes.court_name} · ${detailRes.user_name}`);
-        setTimeout(() => setSuccessMsg(null), 4000);
-        await fetchData();
-      } else {
-        const errBody = await response.json().catch(() => ({})) as { detail?: string };
-        setCancelError(errBody?.detail ?? `Error ${response.status}`);
-      }
-    } catch {
-      setCancelError("Error de red. Verificá la conexión con el servidor.");
+      await reservationsApi.cancel(detailRes.id);
+      handleCloseDetail();
+      setSuccessMsg(`Turno cancelado · ${detailRes.court_name} · ${detailRes.user_name}`);
+      setTimeout(() => setSuccessMsg(null), 4000);
+      await fetchData();
+    } catch (e: unknown) {
+      setCancelError(e instanceof Error ? e.message : "Error al cancelar la reserva.");
     } finally {
       setIsCancelling(false);
     }
@@ -443,6 +397,20 @@ export default function ReservationsPage() {
   const totalPrice = selectedSlot
     ? parseFloat((selectedSlot.hourlyRate * slotDuration / 60).toFixed(2))
     : 0;
+
+  // ── Empty state when no club active ────────────────────────
+
+  if (!sessionLoading && !activeClub) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 text-center">
+        <div className="rounded-full bg-gray-100 p-4 mb-4">
+          <AlertTriangle className="h-8 w-8 text-gray-400" />
+        </div>
+        <p className="text-sm font-medium text-gray-600">Sin club activo</p>
+        <p className="mt-1 text-xs text-gray-400">Seleccioná un club para ver sus reservas.</p>
+      </div>
+    );
+  }
 
   // ── Render ─────────────────────────────────────────────────
 

@@ -4,8 +4,14 @@
  * Responsabilidades:
  *  - Guardar el JWT de forma segura con expo-secure-store.
  *  - Restaurar la sesión automáticamente al abrir la app.
- *  - Exponer login(), register() y logout() a todas las pantallas.
- *  - Exponer el usuario actual (email, nombre, rol, club).
+ *  - Exponer login(), register(), acceptInvitation() y logout().
+ *  - Distinguir entre usuarios con club activo y usuarios en espera de invitación.
+ *
+ * Estados posibles del usuario:
+ *   isLoading = true                  → restaurando sesión desde SecureStore
+ *   token = null                      → no autenticado → pantalla de login
+ *   token ≠ null, user.hasClub=false  → JWT limitado, esperando aceptar invitación
+ *   token ≠ null, user.hasClub=true   → sesión completa → panel principal (tabs)
  */
 
 import * as SecureStore from "expo-secure-store";
@@ -24,10 +30,12 @@ import { API_URL } from "@/config/api";
 export interface AuthUser {
   email: string;
   role: string;
-  clubId: string;
-  clubName: string;
-  clubSlug: string;
-  primaryColor: string;
+  /** true cuando el usuario tiene un club activo asignado */
+  hasClub: boolean;
+  clubId: string | null;
+  clubName: string | null;
+  clubSlug: string | null;
+  primaryColor: string | null;
 }
 
 interface AuthState {
@@ -45,6 +53,12 @@ interface AuthContextValue extends AuthState {
     email: string,
     password: string
   ) => Promise<void>;
+  /**
+   * Acepta una invitación pendiente usando el staff_id del ClubStaff PENDING.
+   * Reemplaza el JWT limitado con un token completo (con club_id y role).
+   * Tras llamar a esta función, user.hasClub pasará a true.
+   */
+  acceptInvitation: (staffId: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -86,10 +100,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  // ── Helper: persistir sesión ──────────────────────────────────
+
+  const _saveSession = useCallback(async (token: string, user: AuthUser) => {
+    await Promise.all([
+      SecureStore.setItemAsync(STORE_TOKEN, token),
+      SecureStore.setItemAsync(STORE_USER, JSON.stringify(user)),
+    ]);
+    setState({ token, user, isLoading: false });
+  }, []);
+
   // ── login ────────────────────────────────────────────────────
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await fetch(`${API_URL}/auth/login`, {
+    const res = await fetch(`${API_URL}/auth/mobile-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -102,22 +126,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const data = await res.json();
 
+    // club es null cuando el usuario aún no tiene club activo
+    const hasClub = data.club !== null && data.club !== undefined;
+
     const user: AuthUser = {
       email,
-      role: data.user_role,
-      clubId: data.club.id,
-      clubName: data.club.name,
-      clubSlug: data.club.slug,
-      primaryColor: data.club.primary_color,
+      role:         data.user_role,
+      hasClub,
+      clubId:       hasClub ? data.club.id            : null,
+      clubName:     hasClub ? data.club.name           : null,
+      clubSlug:     hasClub ? data.club.slug           : null,
+      primaryColor: hasClub ? data.club.primary_color  : null,
     };
 
-    await Promise.all([
-      SecureStore.setItemAsync(STORE_TOKEN, data.access_token),
-      SecureStore.setItemAsync(STORE_USER, JSON.stringify(user)),
-    ]);
-
-    setState({ token: data.access_token, user, isLoading: false });
-  }, []);
+    await _saveSession(data.access_token, user);
+  }, [_saveSession]);
 
   // ── register ─────────────────────────────────────────────────
 
@@ -133,7 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           first_name: firstName,
-          last_name: lastName,
+          last_name:  lastName,
           email,
           password,
         }),
@@ -143,10 +166,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail ?? "Error al registrarse");
       }
-      // El register screen muestra un estado de éxito y deja al usuario
-      // iniciar sesión manualmente una vez que el admin lo asigne a un club.
+      // El register screen muestra éxito y el usuario inicia sesión manualmente.
     },
     []
+  );
+
+  // ── acceptInvitation ─────────────────────────────────────────
+
+  const acceptInvitation = useCallback(
+    async (staffId: string) => {
+      const currentToken = state.token;
+      if (!currentToken) throw new Error("No autenticado");
+
+      const res = await fetch(`${API_URL}/invitations/${staffId}/accept`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${currentToken}`,
+        },
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail ?? "Error al aceptar la invitación");
+      }
+
+      const data = await res.json();
+
+      // El servidor emite un nuevo JWT completo (con club_id y role)
+      const user: AuthUser = {
+        email:        state.user?.email ?? "",
+        role:         data.user_role,
+        hasClub:      true,
+        clubId:       data.club_id,
+        clubName:     data.club_name,
+        clubSlug:     data.club_slug,
+        primaryColor: data.primary_color,
+      };
+
+      await _saveSession(data.access_token, user);
+    },
+    [state.token, state.user, _saveSession]
   );
 
   // ── logout ───────────────────────────────────────────────────
@@ -160,7 +220,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ ...state, login, register, acceptInvitation, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );
