@@ -4,6 +4,7 @@ ClubSync — FastAPI Application Entry Point
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import engine, Base
@@ -21,6 +22,33 @@ async def lifespan(app: FastAPI):
     # Startup: create tables if needed (use Alembic in production)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        # ── Migración idempotente: stock_items.unit ENUM → VARCHAR ────────────
+        # asyncpg envía SIEMPRE strings como $N::VARCHAR. PostgreSQL rechaza
+        # ese cast implícito sobre columnas de tipo ENUM user-defined.
+        # Convertir a VARCHAR(20) + CHECK constraint resuelve el problema
+        # de raíz sin necesitar codecs asyncpg ni PgEnum en SQLAlchemy.
+        # Este bloque es idempotente: si la columna ya es VARCHAR, el DO $$
+        # detecta que data_type != 'USER-DEFINED' y no hace nada.
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name  = 'stock_items'
+                      AND column_name = 'unit'
+                      AND data_type   = 'USER-DEFINED'
+                ) THEN
+                    ALTER TABLE stock_items
+                        ALTER COLUMN unit TYPE VARCHAR(20) USING unit::text;
+
+                    ALTER TABLE stock_items
+                        ADD CONSTRAINT chk_stock_unit_values
+                        CHECK (unit IN ('unit', 'box', 'kg', 'liter', 'pack'));
+                END IF;
+            END $$;
+        """))
+
     yield
     # Shutdown
     await engine.dispose()

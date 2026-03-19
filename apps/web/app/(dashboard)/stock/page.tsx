@@ -19,7 +19,10 @@ import {
   AlertCircle,
   Check,
   CheckCircle,
+  ChevronDown,
+  Clock,
   DollarSign,
+  Download,
   Loader2,
   Minus,
   Package,
@@ -34,6 +37,7 @@ import { useClubSession } from "@/contexts/ClubSessionContext";
 import {
   stockApi,
   type StockItemCreate,
+  type StockItemHistory,
   type StockItemOut,
   type StockItemUpdate,
   type StockStats,
@@ -58,6 +62,7 @@ const UNIT_LABELS: Record<string, string> = {
 interface FormState {
   name:         string;
   sku:          string;
+  description:  string;
   category:     string;
   unit:         string;
   quantity:     string;
@@ -74,7 +79,7 @@ type ModalState =
 type ToastState = { message: string; type: "success" | "error" } | null;
 
 const EMPTY_FORM: FormState = {
-  name: "", sku: "", category: "", unit: "unit",
+  name: "", sku: "", description: "", category: "", unit: "unit",
   quantity: "0", min_quantity: "0", unit_cost: "", supplier: "",
 };
 
@@ -115,6 +120,276 @@ function StatCard({
   );
 }
 
+// ── Helpers de formato ────────────────────────────────────────────────────────
+
+/**
+ * Formatea una cantidad según la unidad:
+ * - Unidades discretas (box, unit, pack): siempre entero, sin decimales.
+ * - Unidades continuas (kg, liter): máximo 1 decimal.
+ */
+function fmtQty(qty: number, unit: string): string {
+  const isDiscrete = unit !== "kg" && unit !== "liter";
+  return isDiscrete
+    ? Math.round(qty).toLocaleString("es-AR")
+    : Number(qty).toLocaleString("es-AR", { maximumFractionDigits: 1 });
+}
+
+// ── Modal historial / trazabilidad ────────────────────────────────────────────
+
+function HistoryModal({
+  item,
+  onClose,
+}: {
+  item:    StockItemOut;
+  onClose: () => void;
+}) {
+  const [history,   setHistory]   = useState<StockItemHistory | null>(null);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    stockApi
+      .history(item.id)
+      .then(setHistory)
+      .catch((err) => setError(err instanceof Error ? err.message : "Error al cargar historial"))
+      .finally(() => setLoading(false));
+  }, [item.id]);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await stockApi.exportCsv({ itemId: item.id });
+    } catch (err) {
+      // el error es menor; no bloqueamos el modal
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const typeConfig = (type: string) => {
+    if (type === "in")
+      return { label: "Ingreso", dotCls: "bg-emerald-500", cardCls: "border-emerald-100 bg-emerald-50", textCls: "text-emerald-700", sign: "+" };
+    if (type === "out")
+      return { label: "Egreso",  dotCls: "bg-red-400",     cardCls: "border-red-100 bg-red-50",     textCls: "text-red-700",     sign: "" };
+    return { label: "Ajuste",   dotCls: "bg-blue-400",    cardCls: "border-blue-100 bg-blue-50",    textCls: "text-blue-700",    sign: "" };
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="flex w-full max-w-2xl flex-col rounded-2xl border border-gray-100 bg-white shadow-xl" style={{ maxHeight: "85vh" }}>
+
+        {/* Header */}
+        <div className="flex shrink-0 items-start justify-between border-b border-gray-50 px-6 py-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-gray-400" />
+              <h2 className="text-sm font-semibold text-gray-900">{item.name}</h2>
+              {item.sku && (
+                <span className="rounded-md border border-gray-100 bg-gray-50 px-2 py-0.5 font-mono text-xs text-gray-500">
+                  {item.sku}
+                </span>
+              )}
+            </div>
+            {item.description && (
+              <p className="mt-2 max-w-lg rounded-md border border-gray-100 bg-gray-50 px-3 py-2 text-xs leading-relaxed text-gray-500">
+                {item.description}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition cursor-pointer"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Body — scrollable */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {loading && (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-gray-300" />
+            </div>
+          )}
+          {error && (
+            <p className="py-8 text-center text-sm text-red-500">{error}</p>
+          )}
+          {history && history.movements.length === 0 && (
+            <p className="py-10 text-center text-sm text-gray-400">
+              No hay movimientos registrados para este ítem.
+            </p>
+          )}
+          {history && history.movements.length > 0 && (
+            <ol className="relative ml-3 space-y-0 border-l border-gray-100">
+              {history.movements.map((m) => {
+                const { label, dotCls, cardCls, textCls, sign } = typeConfig(m.type);
+                const date = new Date(m.created_at);
+                const delta = Math.abs(m.quantity_delta);
+                return (
+                  <li key={m.id} className="mb-5 ml-6">
+                    {/* dot */}
+                    <span className="absolute -left-2 flex h-4 w-4 items-center justify-center rounded-full border border-gray-200 bg-white ring-4 ring-white">
+                      <span className={`h-2 w-2 rounded-full ${dotCls}`} />
+                    </span>
+
+                    <div className={`rounded-lg border px-4 py-3 ${cardCls}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className={`text-xs font-semibold uppercase tracking-wide ${textCls}`}>
+                          {label}
+                        </span>
+                        <span className={`tabular-nums text-sm font-bold ${textCls}`}>
+                          {sign}{delta} {history.item.unit}
+                        </span>
+                      </div>
+
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                        <span className="font-medium">{m.performed_by_name}</span>
+                        <span className="text-gray-300">·</span>
+                        <span>
+                          {date.toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })}
+                        </span>
+                        <span className="text-gray-300">·</span>
+                        <span>{date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}</span>
+                      </div>
+
+                      {m.reason && (
+                        <p className="mt-1 text-xs italic text-gray-500">&ldquo;{m.reason}&rdquo;</p>
+                      )}
+
+                      <p className="mt-0.5 text-[10px] text-gray-400">
+                        Stock: {m.quantity_before} → {m.quantity_after}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex shrink-0 items-center justify-between border-t border-gray-50 px-6 py-4">
+          <span className="text-xs text-gray-400">
+            {history
+              ? `${history.movements.length} movimiento${history.movements.length !== 1 ? "s" : ""}`
+              : ""}
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={handleExport}
+              disabled={exporting || loading || !!error}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition cursor-pointer"
+            >
+              {exporting
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Download className="h-3.5 w-3.5" />}
+              Descargar CSV
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition cursor-pointer"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ── Modal confirmar ajuste ────────────────────────────────────────────────────
+
+function AdjustConfirmModal({
+  itemName,
+  unit,
+  delta,
+  reasonInput,
+  onReasonChange,
+  onConfirm,
+  onCancel,
+  saving,
+}: {
+  itemName:       string;
+  unit:           string;
+  delta:          number;
+  reasonInput:    string;
+  onReasonChange: (v: string) => void;
+  onConfirm:      () => void;
+  onCancel:       () => void;
+  saving:         boolean;
+}) {
+  const sign     = delta > 0 ? "+" : "";
+  const deltaFmt = delta === Math.round(delta) ? Math.round(delta) : delta;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white shadow-xl">
+
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-gray-50 px-6 py-4">
+          <h2 className="text-sm font-semibold text-gray-900">Confirmar ajuste de stock</h2>
+          <button
+            onClick={onCancel}
+            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition cursor-pointer"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="space-y-4 px-6 py-5">
+          <p className="text-sm text-gray-600">
+            Estás ajustando{" "}
+            <span className="font-semibold text-gray-900">{itemName}</span>
+            {" "}—{" "}
+            <span className={`font-semibold tabular-nums ${delta > 0 ? "text-emerald-600" : "text-red-600"}`}>
+              {sign}{deltaFmt} {UNIT_LABELS[unit] ?? unit}
+            </span>
+            . ¿Cuál es el motivo?
+          </p>
+
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-600">
+              Motivo{" "}
+              <span className="font-normal text-gray-400">(opcional)</span>
+            </label>
+            <textarea
+              rows={2}
+              autoFocus
+              value={reasonInput}
+              onChange={(e) => onReasonChange(e.target.value)}
+              placeholder="Ej: Compra a proveedor, Baja por rotura, Inventario físico…"
+              className="w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-400 transition"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-3 border-t border-gray-50 px-6 py-4">
+          <button
+            onClick={onCancel}
+            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition cursor-pointer"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition cursor-pointer"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            Confirmar ajuste
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // ── Modal crear / editar ──────────────────────────────────────────────────────
 
 function StockFormModal({
@@ -139,6 +414,7 @@ function StockFormModal({
       setForm({
         name:         editItem.name,
         sku:          editItem.sku          ?? "",
+        description:  editItem.description  ?? "",
         category:     editItem.category     ?? "",
         unit:         editItem.unit,
         quantity:     String(editItem.quantity),
@@ -160,15 +436,24 @@ function StockFormModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+
+    // Unidades discretas (box, unit, pack) solo admiten enteros
+    const isDiscrete = form.unit !== "kg" && form.unit !== "liter";
+    const parseQty = (raw: string) => {
+      const v = parseFloat(raw) || 0;
+      return isDiscrete ? Math.round(v) : v;
+    };
+
     const payload: StockItemCreate = {
       name:         form.name.trim(),
-      sku:          form.sku.trim()      || null,
-      category:     form.category.trim() || null,
+      sku:          form.sku.trim()          || null,
+      description:  form.description.trim()  || null,
+      category:     form.category.trim()     || null,
       unit:         form.unit,
-      quantity:     parseFloat(form.quantity)     || 0,
-      min_quantity: parseFloat(form.min_quantity) || 0,
+      quantity:     parseQty(form.quantity),
+      min_quantity: parseQty(form.min_quantity),
       unit_cost:    form.unit_cost ? parseFloat(form.unit_cost) : null,
-      supplier:     form.supplier.trim() || null,
+      supplier:     form.supplier.trim()     || null,
     };
     setSaving(true);
     try {
@@ -188,7 +473,6 @@ function StockFormModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="w-full max-w-lg rounded-2xl border border-gray-100 bg-white shadow-xl">
         {/* Header */}
@@ -234,6 +518,18 @@ function StockFormModal({
             </div>
           </div>
 
+          {/* Descripción */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-600">Descripción</label>
+            <textarea
+              rows={2}
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              placeholder="Descripción opcional del ítem…"
+              className={`${inputCls} resize-none`}
+            />
+          </div>
+
           {/* Unidad + Costo */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -255,22 +551,30 @@ function StockFormModal({
           </div>
 
           {/* Cantidad + Mínimo */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-600">Stock actual</label>
-              <input
-                type="number" min="0" step="0.01"
-                value={form.quantity} onChange={set("quantity")} className={inputCls}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-600">Stock mínimo</label>
-              <input
-                type="number" min="0" step="0.01"
-                value={form.min_quantity} onChange={set("min_quantity")} className={inputCls}
-              />
-            </div>
-          </div>
+          {(() => {
+            const discrete = form.unit !== "kg" && form.unit !== "liter";
+            const step     = discrete ? "1" : "0.5";
+            return (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-600">Stock actual</label>
+                  <input
+                    type="number" min="0" step={step}
+                    value={form.quantity} onChange={set("quantity")}
+                    className={inputCls}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-600">Stock mínimo</label>
+                  <input
+                    type="number" min="0" step={step}
+                    value={form.min_quantity} onChange={set("min_quantity")}
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Proveedor */}
           <div className="space-y-1">
@@ -329,6 +633,11 @@ export default function StockPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [movingId,        setMovingId]        = useState<string | null>(null);
   const [toast,           setToast]           = useState<ToastState>(null);
+  const [historyItem,     setHistoryItem]     = useState<StockItemOut | null>(null);
+  const [exportOpen,      setExportOpen]      = useState(false);
+  const [exporting,       setExporting]       = useState(false);
+  const [adjustingItem,   setAdjustingItem]   = useState<{ id: string; name: string; unit: string; newQuantity: number; delta: number } | null>(null);
+  const [reasonInput,     setReasonInput]     = useState("");
 
   /**
    * Cantidades en borrador: las ediciones de +/- se guardan aquí antes de
@@ -374,30 +683,18 @@ export default function StockPage() {
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
-  /** Crear o editar desde el modal. Actualiza estado local sin re-fetch. */
+  /** Crear o editar desde el modal. Re-fetch para garantizar consistencia. */
   const handleSave = async (
     payload: StockItemCreate | StockItemUpdate,
     editId?: string,
   ) => {
     if (editId) {
       const updated = await stockApi.update(editId, payload);
-      setItems((prev) => prev.map((i) => (i.id === editId ? updated : i)));
-      setStats((prev) =>
-        prev ? { ...prev, low_stock_count: prev.low_stock_count + (updated.is_low_stock ? 1 : 0) } : prev
-      );
+      await fetchData();
       showToast(`"${updated.name}" actualizado`);
     } else {
       const created = await stockApi.create(payload as StockItemCreate);
-      setItems((prev) => [...prev, created]);
-      setStats((prev) =>
-        prev
-          ? {
-              ...prev,
-              total_items:     prev.total_items + 1,
-              low_stock_count: created.is_low_stock ? prev.low_stock_count + 1 : prev.low_stock_count,
-            }
-          : prev
-      );
+      await fetchData();
       showToast(`"${created.name}" agregado al inventario`);
     }
   };
@@ -432,11 +729,12 @@ export default function StockPage() {
   );
 
   /**
-   * Guarda el borrador: calcula la diferencia exacta y llama a POST /adjust.
+   * Intercepta el guardado del borrador: calcula la diferencia y abre el
+   * modal de confirmación (con campo de motivo) en lugar de llamar a la API.
    * Si la diferencia es 0, simplemente descarta el borrador.
    */
   const handleSaveDraft = useCallback(
-    async (item: StockItemOut) => {
+    (item: StockItemOut) => {
       const draftQty = draftQuantities[item.id];
       if (draftQty === undefined) return;
 
@@ -446,58 +744,77 @@ export default function StockPage() {
         return;
       }
 
-      setMovingId(item.id);
-      try {
-        const result = await stockApi.adjust(item.id, {
-          quantity_change: Math.abs(diff),
-          movement_type:   diff > 0 ? "IN" : "OUT",
-        });
-        setItems((prev) =>
-          prev.map((i) =>
-            i.id === item.id
-              ? {
-                  ...i,
-                  quantity:     result.quantity_after,
-                  is_low_stock: result.quantity_after <= i.min_quantity,
-                }
-              : i,
-          ),
-        );
-        setDraftQuantities((prev) => { const n = { ...prev }; delete n[item.id]; return n; });
-        showToast(`Stock de "${item.name}" actualizado`);
-      } catch (err) {
-        showToast(err instanceof Error ? err.message : "Error al guardar", "error");
-      } finally {
-        setMovingId(null);
-      }
+      // Abre el modal de confirmación con motivo — la API se llama en handleConfirmAdjust.
+      setReasonInput("");
+      setAdjustingItem({ id: item.id, name: item.name, unit: item.unit, newQuantity: draftQty, delta: diff });
     },
-    [draftQuantities, showToast],
+    [draftQuantities],
   );
+
+  /**
+   * Ejecuta el ajuste real tras confirmar en el modal.
+   * Llama a POST /adjust con el motivo capturado, luego sincroniza el estado local.
+   */
+  const handleConfirmAdjust = useCallback(async () => {
+    if (!adjustingItem) return;
+    const { id, name, delta } = adjustingItem;
+
+    setMovingId(id);
+    try {
+      const result = await stockApi.adjust(id, {
+        quantity_change: Math.abs(delta),
+        movement_type:   delta > 0 ? "IN" : "OUT",
+        reason:          reasonInput.trim() || undefined,
+      });
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === id
+            ? { ...i, quantity: result.quantity_after, is_low_stock: result.quantity_after <= i.min_quantity }
+            : i,
+        ),
+      );
+      setDraftQuantities((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      // Re-fetch stats para mantener total_value y low_stock_count sincronizados
+      stockApi.stats().then((s) => setStats(s)).catch(() => {/* silencioso */});
+      showToast(`Stock de "${name}" actualizado`);
+      setAdjustingItem(null);
+      setReasonInput("");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Error al guardar", "error");
+    } finally {
+      setMovingId(null);
+    }
+  }, [adjustingItem, reasonInput, showToast]);
 
   /** Descarta el borrador sin tocar la API. */
   const handleCancelDraft = useCallback((itemId: string) => {
     setDraftQuantities((prev) => { const n = { ...prev }; delete n[itemId]; return n; });
   }, []);
 
-  /** Eliminar con confirmación inline. */
+  /** Eliminar con confirmación inline. Elimina del estado local al instante y sincroniza stats. */
   const handleDelete = async (item: StockItemOut) => {
     try {
       await stockApi.remove(item.id);
       setItems((prev) => prev.filter((i) => i.id !== item.id));
-      setStats((prev) =>
-        prev
-          ? {
-              ...prev,
-              total_items:     prev.total_items - 1,
-              low_stock_count: item.is_low_stock ? prev.low_stock_count - 1 : prev.low_stock_count,
-            }
-          : prev
-      );
+      // Re-fetch stats para que total_value, total_items y low_stock_count sean exactos
+      stockApi.stats().then((s) => setStats(s)).catch(() => {/* silencioso */});
       showToast(`"${item.name}" eliminado`);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Error al eliminar", "error");
     } finally {
       setConfirmDeleteId(null);
+    }
+  };
+
+  const handleExportGlobal = async (period: "day" | "month" | "year") => {
+    setExportOpen(false);
+    setExporting(true);
+    try {
+      await stockApi.exportCsv({ period });
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Error al exportar", "error");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -525,14 +842,59 @@ export default function StockPage() {
             {stats ? `${stats.total_items} producto${stats.total_items !== 1 ? "s" : ""}` : "Cargando…"}
           </p>
         </div>
-        <button
-          onClick={() => setModal({ mode: "create" })}
-          className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90 cursor-pointer"
-          style={{ backgroundColor: "var(--color-brand, #111827)" }}
-        >
-          <Plus className="h-4 w-4" />
-          Agregar ítem
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Export dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setExportOpen((o) => !o)}
+              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 hover:border-gray-300 transition cursor-pointer"
+            >
+              {exporting
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <Download className="h-4 w-4" />}
+              Exportar
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+            {exportOpen && (
+              <>
+                {/* Backdrop para cerrar al click fuera */}
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setExportOpen(false)}
+                />
+                <div className="absolute right-0 top-full z-20 mt-1 w-44 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-lg">
+                  <button
+                    onClick={() => handleExportGlobal("day")}
+                    className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition cursor-pointer"
+                  >
+                    Del día
+                  </button>
+                  <button
+                    onClick={() => handleExportGlobal("month")}
+                    className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition cursor-pointer"
+                  >
+                    Del mes
+                  </button>
+                  <button
+                    onClick={() => handleExportGlobal("year")}
+                    className="w-full rounded-b-xl px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition cursor-pointer"
+                  >
+                    Del año
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <button
+            onClick={() => setModal({ mode: "create" })}
+            className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90 cursor-pointer"
+            style={{ backgroundColor: "var(--color-brand, #111827)" }}
+          >
+            <Plus className="h-4 w-4" />
+            Agregar ítem
+          </button>
+        </div>
       </div>
 
       {/* Error */}
@@ -647,8 +1009,8 @@ export default function StockPage() {
                         {item.sku ?? <span className="text-gray-200">—</span>}
                       </td>
                       {/* Nombre */}
-                      <td className="px-4 py-3.5 font-medium text-gray-900 max-w-[160px]">
-                        <span className="line-clamp-1">{item.name}</span>
+                      <td className="px-4 py-3.5 font-medium text-gray-900">
+                        {item.name}
                       </td>
                       {/* Categoría */}
                       <td className="px-4 py-3.5">
@@ -660,26 +1022,20 @@ export default function StockPage() {
                       <td className="px-4 py-3.5 text-xs capitalize text-gray-500">
                         {UNIT_LABELS[item.unit] ?? item.unit}
                       </td>
-                      {/* Stock */}
+                      {/* Stock — siempre muestra el valor comprometido (servidor).
+                          En draft se atenúa porque el nuevo valor está en el stepper. */}
                       <td className="px-4 py-3.5 text-right">
-                        {hasDraft ? (
-                          <span className="inline-flex flex-col items-end gap-0.5">
-                            <span className="tabular-nums font-semibold text-amber-600">
-                              {Number(displayQty).toLocaleString("es-AR")}
-                            </span>
-                            <span className="tabular-nums text-[10px] text-gray-300 line-through">
-                              {Number(item.quantity).toLocaleString("es-AR")}
-                            </span>
-                          </span>
-                        ) : (
-                          <span className={`tabular-nums font-semibold ${item.is_low_stock ? "text-orange-600" : "text-gray-900"}`}>
-                            {Number(item.quantity).toLocaleString("es-AR")}
-                          </span>
-                        )}
+                        <span className={`tabular-nums font-semibold ${
+                          hasDraft        ? "text-gray-300"
+                          : item.is_low_stock ? "text-orange-600"
+                          : "text-gray-900"
+                        }`}>
+                          {fmtQty(item.quantity, item.unit)}
+                        </span>
                       </td>
                       {/* Mínimo */}
                       <td className="px-4 py-3.5 text-right tabular-nums text-xs text-gray-400">
-                        {Number(item.min_quantity).toLocaleString("es-AR")}
+                        {fmtQty(item.min_quantity, item.unit)}
                       </td>
                       {/* Costo */}
                       <td className="px-4 py-3.5 text-right tabular-nums text-xs text-gray-600">
@@ -715,68 +1071,97 @@ export default function StockPage() {
                           </div>
                         ) : (
                           <div className="flex items-center justify-end gap-1">
-                            {/* − paso */}
+                            {/* Stepper: [−][+] juntos — el span antes→después se desliza entre ellos al entrar en draft */}
                             <button
                               onClick={() => handleDraftChange(item, -1)}
                               disabled={displayQty <= 0 || isMoving}
                               title={`Restar ${getStep(item.unit)} ${item.unit}`}
-                              className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600 disabled:opacity-30 transition cursor-pointer"
+                              className="flex h-7 w-7 items-center justify-center rounded-l border border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600 disabled:opacity-30 transition cursor-pointer"
                             >
                               <Minus className="h-3 w-3" />
                             </button>
-                            {/* + paso */}
+
+                            {/*
+                              Span animado — se expande de w-0 a w-24 cuando hasDraft es true.
+                              overflow-hidden + transition-all generan el efecto de "correrse".
+                            */}
+                            <span className={`inline-flex shrink-0 select-none items-center justify-center gap-0.5 text-xs tabular-nums font-semibold overflow-hidden transition-all duration-200 ease-in-out border-y border-gray-200 ${
+                              hasDraft ? "w-24 opacity-100 py-1" : "w-0 opacity-0 py-1"
+                            }`}>
+                              <span className="text-gray-400">{fmtQty(item.quantity, item.unit)}</span>
+                              <span className="text-gray-300 mx-0.5">→</span>
+                              <span className={draftQty !== undefined && draftQty > item.quantity ? "text-emerald-600" : "text-red-500"}>
+                                {fmtQty(draftQty ?? item.quantity, item.unit)}
+                              </span>
+                            </span>
+
                             <button
                               onClick={() => handleDraftChange(item, 1)}
                               disabled={isMoving}
                               title={`Sumar ${getStep(item.unit)} ${item.unit}`}
-                              className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600 disabled:opacity-30 transition cursor-pointer"
+                              className="flex h-7 w-7 items-center justify-center rounded-r border border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600 disabled:opacity-30 transition cursor-pointer"
                             >
                               <Plus className="h-3 w-3" />
                             </button>
 
-                            {hasDraft ? (
-                              <>
-                                {/* Guardar borrador */}
-                                <button
-                                  onClick={() => handleSaveDraft(item)}
-                                  disabled={isMoving}
-                                  title="Guardar cambios de stock"
-                                  className="flex h-7 w-7 items-center justify-center rounded border border-emerald-300 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 disabled:opacity-40 transition cursor-pointer"
-                                >
-                                  {isMoving
-                                    ? <Loader2 className="h-3 w-3 animate-spin" />
-                                    : <Check className="h-3 w-3" />}
-                                </button>
-                                {/* Cancelar borrador */}
-                                <button
-                                  onClick={() => handleCancelDraft(item.id)}
-                                  disabled={isMoving}
-                                  title="Descartar cambios"
-                                  className="flex h-7 w-7 items-center justify-center rounded border border-red-200 bg-red-50 text-red-400 hover:bg-red-100 disabled:opacity-40 transition cursor-pointer"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                {/* Editar */}
-                                <button
-                                  onClick={() => setModal({ mode: "edit", item })}
-                                  title="Editar ítem"
-                                  className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 text-gray-400 hover:border-blue-300 hover:text-blue-600 transition cursor-pointer"
-                                >
-                                  <Pencil className="h-3 w-3" />
-                                </button>
-                                {/* Eliminar */}
-                                <button
-                                  onClick={() => setConfirmDeleteId(item.id)}
-                                  title="Eliminar ítem"
-                                  className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 text-gray-400 hover:border-red-200 hover:text-red-500 transition cursor-pointer"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </>
-                            )}
+                            {/* Separador */}
+                            <div className="mx-0.5 h-4 w-px bg-gray-100" />
+
+                            {/*
+                              Área secundaria: siempre 3 slots × h-7 w-7.
+                              Cuando hay draft: 1 div vacío + Save + Cancel.
+                              Cuando no hay draft: History + Edit + Delete.
+                              El ancho total es siempre idéntico → cero CLS horizontal.
+                            */}
+                            <div className="flex items-center gap-1">
+                              {hasDraft ? (
+                                <>
+                                  <div className="h-7 w-7" />
+                                  <button
+                                    onClick={() => handleSaveDraft(item)}
+                                    disabled={isMoving}
+                                    title="Confirmar ajuste"
+                                    className="flex h-7 w-7 items-center justify-center rounded border border-emerald-300 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 disabled:opacity-40 transition cursor-pointer"
+                                  >
+                                    {isMoving
+                                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                                      : <Check className="h-3 w-3" />}
+                                  </button>
+                                  <button
+                                    onClick={() => handleCancelDraft(item.id)}
+                                    disabled={isMoving}
+                                    title="Descartar cambios"
+                                    className="flex h-7 w-7 items-center justify-center rounded border border-red-200 bg-red-50 text-red-400 hover:bg-red-100 disabled:opacity-40 transition cursor-pointer"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => setHistoryItem(item)}
+                                    title="Ver historial"
+                                    className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 text-gray-400 hover:border-purple-300 hover:text-purple-600 transition cursor-pointer"
+                                  >
+                                    <Clock className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => setModal({ mode: "edit", item })}
+                                    title="Editar ítem"
+                                    className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 text-gray-400 hover:border-blue-300 hover:text-blue-600 transition cursor-pointer"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDeleteId(item.id)}
+                                    title="Eliminar ítem"
+                                    className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 text-gray-400 hover:border-red-200 hover:text-red-500 transition cursor-pointer"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
                         )}
                       </td>
@@ -796,12 +1181,34 @@ export default function StockPage() {
         )}
       </div>
 
+      {/* Modal confirmar ajuste */}
+      {adjustingItem && (
+        <AdjustConfirmModal
+          itemName={adjustingItem.name}
+          unit={adjustingItem.unit}
+          delta={adjustingItem.delta}
+          reasonInput={reasonInput}
+          onReasonChange={setReasonInput}
+          onConfirm={handleConfirmAdjust}
+          onCancel={() => { setAdjustingItem(null); setReasonInput(""); }}
+          saving={movingId === adjustingItem.id}
+        />
+      )}
+
       {/* Modal crear / editar */}
       {modal && (
         <StockFormModal
           modal={modal}
           onClose={() => setModal(null)}
           onSave={handleSave}
+        />
+      )}
+
+      {/* Modal historial */}
+      {historyItem && (
+        <HistoryModal
+          item={historyItem}
+          onClose={() => setHistoryItem(null)}
         />
       )}
 

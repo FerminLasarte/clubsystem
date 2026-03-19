@@ -2,19 +2,16 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import Boolean, DateTime, Numeric, String, Text, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID, ENUM as PgEnum
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
 
-# stock_unit ya existe en la DB — create_type=False evita que SQLAlchemy
-# intente hacer CREATE TYPE y además le dice a asyncpg el tipo correcto
-# para que no envíe ::VARCHAR en el INSERT.
-_STOCK_UNIT = PgEnum(
-    "unit", "box", "kg", "liter", "pack",
-    name="stock_unit",
-    create_type=False,
-)
+# NOTA: La columna `unit` fue originalmente un PostgreSQL ENUM (stock_unit).
+# asyncpg envía SIEMPRE los strings como $N::VARCHAR, lo que PostgreSQL
+# rechaza para columnas ENUM. La migración en main.py (lifespan) convierte
+# la columna a VARCHAR(20) + CHECK constraint en el primer arranque.
+# Aquí mapeamos como String(20) que coincide exactamente con VARCHAR(20).
 
 
 class StockItem(Base):
@@ -27,7 +24,7 @@ class StockItem(Base):
     name:         Mapped[str]        = mapped_column(String(255), nullable=False)
     description:  Mapped[str | None] = mapped_column(Text)
     category:     Mapped[str | None] = mapped_column(String(100))
-    unit:         Mapped[str]        = mapped_column(_STOCK_UNIT, default="unit")
+    unit:         Mapped[str]        = mapped_column(String(20), default="unit")
     quantity:     Mapped[float]      = mapped_column(Numeric(10, 2), default=0)
     min_quantity: Mapped[float]      = mapped_column(Numeric(10, 2), default=0)
     unit_cost:    Mapped[float|None] = mapped_column(Numeric(10, 2))

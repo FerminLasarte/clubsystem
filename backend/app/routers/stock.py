@@ -25,13 +25,18 @@ Observabilidad:
   - logger.error() + await db.rollback() en cada bloque except.
 """
 
+import csv
+import io
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -52,6 +57,7 @@ class StockItemOut(BaseModel):
     id:           UUID
     sku:          Optional[str]   = None
     name:         str
+    description:  Optional[str]   = None
     category:     Optional[str]   = None
     unit:         str
     quantity:     float
@@ -72,6 +78,7 @@ _VALID_UNITS = {"unit", "box", "kg", "liter", "pack"}
 class StockItemCreate(BaseModel):
     name:         str             = Field(..., min_length=2, max_length=255)
     sku:          Optional[str]   = Field(None, max_length=100)
+    description:  Optional[str]   = Field(None)
     category:     Optional[str]   = Field(None, max_length=100)
     unit:         str             = Field("unit", pattern=r"^(unit|box|kg|liter|pack)$")
     quantity:     float           = Field(0, ge=0)
@@ -85,6 +92,7 @@ class StockItemUpdate(BaseModel):
     """Todos los campos son opcionales — solo se actualizan los provistos."""
     name:         Optional[str]   = Field(None, min_length=2, max_length=255)
     sku:          Optional[str]   = Field(None, max_length=100)
+    description:  Optional[str]   = Field(None)
     category:     Optional[str]   = Field(None, max_length=100)
     unit:         Optional[str]   = Field(None, pattern=r"^(unit|box|kg|liter|pack)$")
     quantity:     Optional[float] = Field(None, ge=0)
@@ -105,13 +113,32 @@ class AdjustPayload(BaseModel):
     """Payload para el endpoint /adjust — ajuste auditado de cantidad."""
     quantity_change: float        = Field(..., gt=0, description="Cantidad absoluta a sumar o restar (siempre positivo).")
     movement_type:   str          = Field(..., pattern="^(IN|OUT)$", description="'IN' para entrada, 'OUT' para salida.")
-    notes:           Optional[str] = None
+    reason:          Optional[str] = None
 
 
 class StockStats(BaseModel):
     total_items:     int
     low_stock_count: int
     total_value:     float
+
+
+class MovementWithUser(BaseModel):
+    id:                UUID
+    type:              str
+    quantity_delta:    float
+    quantity_before:   float
+    quantity_after:    float
+    reason:            Optional[str] = None
+    performed_by_name: str
+    created_at:        datetime
+
+    class Config:
+        from_attributes = True
+
+
+class StockItemHistory(BaseModel):
+    item:      StockItemOut
+    movements: list[MovementWithUser]
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -245,7 +272,8 @@ async def create_stock_item(
     try:
         item = StockItem(club_id=club_id, **payload.model_dump())
         db.add(item)
-        # flush para obtener item.id sin hacer commit aún
+        # flush() envía el INSERT a la BD (dentro de la transacción abierta)
+        # para que item.id quede disponible en Python antes de crear el movimiento.
         await db.flush()
 
         initial_qty = float(item.quantity)
@@ -261,10 +289,6 @@ async def create_stock_item(
                 reason          = "Inventario Inicial",
             )
             db.add(movement)
-            logger.info(
-                "Stock: [pre-commit] movimiento inicial — ítem '%s' item_id=%s qty=%.2f user=%s",
-                item.name, item.id, initial_qty, user_id,
-            )
 
         await db.commit()
         await db.refresh(item)
@@ -274,15 +298,27 @@ async def create_stock_item(
         )
         return _compute_out(item)
 
+    except IntegrityError as exc:
+        await db.rollback()
+        logger.error(
+            "Stock: IntegrityError al crear ítem '%s' [club=%s]: %s",
+            payload.name, club_id, exc,
+        )
+        orig = str(exc.orig) if exc.orig else str(exc)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Error de integridad al guardar: {orig}",
+        )
+
     except Exception as exc:
+        await db.rollback()
         logger.error(
             "Stock: error al crear ítem '%s' [club=%s]: %s",
             payload.name, club_id, exc,
         )
-        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al guardar el ítem. Intente de nuevo.",
+            detail=f"Error al guardar el ítem: {type(exc).__name__}: {exc}",
         )
 
 
@@ -463,7 +499,7 @@ async def adjust_stock(
             quantity_delta  = delta,
             quantity_before = before,
             quantity_after  = after,
-            reason          = payload.notes,
+            reason          = payload.reason,
         )
         item.quantity = after
         db.add(movement)
@@ -488,3 +524,130 @@ async def adjust_stock(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error al ajustar el stock. Intente de nuevo.",
         )
+
+
+# ── GET /export/csv ───────────────────────────────────────────────────────────
+
+@router.get("/export/csv")
+async def export_stock_csv(
+    item_id: Optional[UUID] = Query(None),
+    period:  Optional[str]  = Query(None, pattern="^(day|month|year)$"),
+    club_id: UUID           = Depends(get_current_club_id),
+    db:      AsyncSession   = Depends(get_db),
+) -> StreamingResponse:
+    """
+    Exporta los movimientos de stock como CSV con columnas financieras.
+    Filtros opcionales: item_id (ítem concreto) y period (day | month | year).
+    Incluye Descripción y Gasto del Movimiento (quantity_delta * unit_cost para ingresos).
+    Última fila: GASTO TOTAL REALIZADO.
+    """
+    from app.models.user import User
+
+    q = (
+        select(
+            StockMovement,
+            StockItem.name,
+            StockItem.description,
+            StockItem.unit_cost,
+            User.first_name,
+            User.last_name,
+        )
+        .join(StockItem, StockMovement.item_id == StockItem.id)
+        .join(User, StockMovement.performed_by == User.id)
+        .where(StockMovement.club_id == club_id)
+    )
+
+    if item_id:
+        q = q.where(StockMovement.item_id == item_id)
+
+    if period:
+        now = datetime.now(timezone.utc)
+        if period == "day":
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == "month":
+            start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        else:  # year
+            start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        q = q.where(StockMovement.created_at >= start)
+
+    q = q.order_by(StockMovement.created_at.desc())
+    result = await db.execute(q)
+    rows = result.all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Fecha", "Producto", "Descripción", "Acción", "Cantidad", "Usuario", "Razón", "Gasto del Movimiento"])
+
+    total_expense = 0.0
+    for movement, item_name, item_desc, unit_cost, first_name, last_name in rows:
+        delta = float(movement.quantity_delta)
+        # Solo los ingresos generan gasto de compra
+        expense = round(delta * float(unit_cost), 2) if delta > 0 and unit_cost is not None else ""
+        if isinstance(expense, float):
+            total_expense += expense
+
+        writer.writerow([
+            movement.created_at.strftime("%Y-%m-%d %H:%M"),
+            item_name,
+            item_desc or "",
+            movement.type,
+            delta,
+            f"{first_name} {last_name}",
+            movement.reason or "",
+            expense,
+        ])
+
+    # Fila de total financiero
+    writer.writerow(["", "", "", "", "", "", "GASTO TOTAL REALIZADO", round(total_expense, 2)])
+
+    output.seek(0)
+    filename = f"stock_{datetime.now().strftime('%Y%m%d')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ── GET /{item_id}/history ────────────────────────────────────────────────────
+
+@router.get("/{item_id}/history", response_model=StockItemHistory)
+async def get_item_history(
+    item_id: UUID,
+    club_id: UUID         = Depends(get_current_club_id),
+    db:      AsyncSession = Depends(get_db),
+) -> StockItemHistory:
+    """
+    Devuelve el ítem con su historial completo de movimientos, incluyendo
+    el nombre del usuario que realizó cada uno (JOIN con users).
+    """
+    from app.models.user import User
+
+    item = await _get_item_or_404(db, item_id, club_id)
+
+    result = await db.execute(
+        select(StockMovement, User.first_name, User.last_name)
+        .join(User, StockMovement.performed_by == User.id)
+        .where(
+            StockMovement.item_id == item_id,
+            StockMovement.club_id == club_id,
+        )
+        .order_by(StockMovement.created_at.desc())
+    )
+    rows = result.all()
+
+    movements = [
+        MovementWithUser(
+            id                = m.id,
+            type              = m.type,
+            quantity_delta    = float(m.quantity_delta),
+            quantity_before   = float(m.quantity_before),
+            quantity_after    = float(m.quantity_after),
+            reason            = m.reason,
+            performed_by_name = f"{first_name} {last_name}",
+            created_at        = m.created_at,
+        )
+        for m, first_name, last_name in rows
+    ]
+
+    return StockItemHistory(item=_compute_out(item), movements=movements)

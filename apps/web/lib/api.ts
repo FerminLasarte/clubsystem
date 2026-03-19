@@ -159,6 +159,7 @@ export interface StockItemOut {
   id:           string;
   sku:          string | null;
   name:         string;
+  description:  string | null;
   category:     string | null;
   unit:         string;
   quantity:     number;
@@ -174,6 +175,7 @@ export interface StockItemOut {
 export interface StockItemCreate {
   name:          string;
   sku?:          string | null;
+  description?:  string | null;
   category?:     string | null;
   unit?:         string;
   quantity?:     number;
@@ -194,6 +196,22 @@ export interface StockStats {
 export interface MovementResult {
   quantity_before: number;
   quantity_after:  number;
+}
+
+export interface StockMovementWithUser {
+  id:                string;
+  type:              "in" | "out" | "adjustment";
+  quantity_delta:    number;
+  quantity_before:   number;
+  quantity_after:    number;
+  reason:            string | null;
+  performed_by_name: string;
+  created_at:        string;
+}
+
+export interface StockItemHistory {
+  item:      StockItemOut;
+  movements: StockMovementWithUser[];
 }
 
 export const stockApi = {
@@ -235,7 +253,7 @@ export const stockApi = {
    */
   adjust: (
     itemId: string,
-    payload: { quantity_change: number; movement_type: "IN" | "OUT"; notes?: string },
+    payload: { quantity_change: number; movement_type: "IN" | "OUT"; reason?: string },
   ) =>
     request<MovementResult>(`/api/v1/stock/${itemId}/adjust`, {
       method: "POST",
@@ -244,6 +262,36 @@ export const stockApi = {
 
   remove: (id: string) =>
     request<void>(`/api/v1/stock/${id}`, { method: "DELETE" }),
+
+  history: (itemId: string) =>
+    request<StockItemHistory>(`/api/v1/stock/${itemId}/history`),
+
+  exportCsv: async (params?: { itemId?: string; period?: "day" | "month" | "year" }) => {
+    const token = getToken();
+    const qs = new URLSearchParams();
+    if (params?.itemId) qs.set("item_id", params.itemId);
+    if (params?.period) qs.set("period",  params.period);
+
+    const res = await fetch(`${BASE_URL}/api/v1/stock/export/csv?${qs}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!res.ok) {
+      let detail = "Error al exportar";
+      try { const err = await res.json(); detail = err.detail ?? detail; } catch {}
+      throw new Error(detail);
+    }
+
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `stock_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
 };
 
 // ── Courts ────────────────────────────────────────────────────

@@ -18,7 +18,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Calendar, DollarSign,
-  Package, Users, Settings, ChevronRight, LogOut, X,
+  Package, Users, Settings, ChevronRight, LogOut, X, Bell,
 } from "lucide-react";
 import { useClubSession } from "@/contexts/ClubSessionContext";
 import { ROLE_PERMISSIONS } from "@clubsync/types";
@@ -161,6 +161,17 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             <p className="truncate text-xs text-muted-foreground">{userEmail}</p>
           </div>
         </div>
+
+        <button
+          className="relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+          aria-label="Notificaciones"
+        >
+          <div className="relative">
+            <Bell className="h-3.5 w-3.5" />
+            <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-destructive" />
+          </div>
+          Notificaciones
+        </button>
 
         <button
           onClick={handleLogout}
