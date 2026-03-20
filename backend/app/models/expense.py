@@ -1,7 +1,7 @@
 # backend/models/expense.py
 import uuid
 from datetime import datetime, date
-from sqlalchemy import Date, DateTime, Float, Numeric, String, Text, ForeignKey, ARRAY
+from sqlalchemy import Boolean, Date, DateTime, Float, Numeric, String, Text, ForeignKey, ARRAY
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from .base import Base
@@ -28,6 +28,11 @@ class Expense(Base):
 
     vendor_name:      Mapped[str | None]     = mapped_column(String(255))
     vendor_tax_id:    Mapped[str | None]     = mapped_column(String(50))
+
+    # ── Soft-delete ───────────────────────────────────────────────────────────
+    is_active:        Mapped[bool]           = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
 
     anomaly_score:    Mapped[float | None]   = mapped_column(Float)
     anomaly_severity: Mapped[str | None] = mapped_column(

@@ -106,50 +106,120 @@ export const clubApi = {
 };
 
 // ── Expenses ──────────────────────────────────────────────────
+
+/** Gasto tal como lo devuelve el backend (snake_case). */
+export interface ExpenseOut {
+  id:                      string;
+  category:                string;
+  description:             string;
+  amount:                  number;
+  currency:                string;
+  /** "YYYY-MM-DD" */
+  expense_date:            string;
+  vendor_name:             string | null;
+  is_active:               boolean;
+  anomaly_score:           number | null;
+  anomaly_severity:        string | null;
+  anomaly_reason:          string | null;
+  anomaly_llm_explanation: string | null;
+  reviewed_at:             string | null;
+  created_at:              string;
+}
+
+export interface ExpenseCreate {
+  category:     string;
+  description:  string;
+  amount:       number;
+  /** "YYYY-MM-DD" */
+  expense_date: string;
+  currency?:    string;
+  vendor_name?: string | null;
+  notes?:       string | null;
+}
+
+export type ExpenseUpdate = Partial<Omit<ExpenseCreate, "currency">>;
+
+export interface ExpenseStats {
+  total_amount:      number;
+  count:             number;
+  by_category:       Record<string, number>;
+  anomalies_pending: number;
+}
+
 export const expensesApi = {
   list: (params?: {
-    category?: string;
-    dateFrom?: string;
-    dateTo?: string;
-    hasAnomaly?: boolean;
-    page?: number;
-    pageSize?: number;
+    category?:    string;
+    dateFrom?:    string;
+    dateTo?:      string;
+    hasAnomaly?:  boolean;
+    page?:        number;
+    pageSize?:    number;
   }) => {
     const qs = new URLSearchParams();
-    if (params?.category)    qs.set("category", params.category);
-    if (params?.dateFrom)    qs.set("date_from", params.dateFrom);
-    if (params?.dateTo)      qs.set("date_to", params.dateTo);
-    if (params?.hasAnomaly !== undefined)
-      qs.set("has_anomaly", String(params.hasAnomaly));
-    if (params?.page)        qs.set("page", String(params.page));
-    if (params?.pageSize)    qs.set("page_size", String(params.pageSize));
-
-    return request<Expense[]>(`/api/v1/expenses?${qs}`);
+    if (params?.category)                 qs.set("category",   params.category);
+    if (params?.dateFrom)                 qs.set("date_from",  params.dateFrom);
+    if (params?.dateTo)                   qs.set("date_to",    params.dateTo);
+    if (params?.hasAnomaly !== undefined) qs.set("has_anomaly", String(params.hasAnomaly));
+    if (params?.page)                     qs.set("page",       String(params.page));
+    if (params?.pageSize)                 qs.set("page_size",  String(params.pageSize));
+    return request<ExpenseOut[]>(`/api/v1/expenses?${qs}`);
   },
-
-  create: (payload: Omit<Expense, "id" | "clubId" | "createdBy" | "createdAt">) =>
-    request<Expense>("/api/v1/expenses", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
 
   stats: (dateFrom?: string, dateTo?: string) => {
     const qs = new URLSearchParams();
     if (dateFrom) qs.set("date_from", dateFrom);
-    if (dateTo)   qs.set("date_to", dateTo);
-    return request<{
-      total_amount: number;
-      count: number;
-      by_category: Record<string, number>;
-      anomalies_pending_review: number;
-    }>(`/api/v1/expenses/stats?${qs}`);
+    if (dateTo)   qs.set("date_to",   dateTo);
+    return request<ExpenseStats>(`/api/v1/expenses/stats?${qs}`);
   },
+
+  create: (payload: ExpenseCreate) =>
+    request<ExpenseOut>("/api/v1/expenses", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  update: (id: string, payload: ExpenseUpdate) =>
+    request<ExpenseOut>(`/api/v1/expenses/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  remove: (id: string) =>
+    request<void>(`/api/v1/expenses/${id}`, { method: "DELETE" }),
 
   analyze: (expenseId: string) =>
     request(`/api/v1/expenses/${expenseId}/analyze`, { method: "POST" }),
 
   markReviewed: (expenseId: string) =>
     request(`/api/v1/expenses/${expenseId}/review`, { method: "PATCH" }),
+
+  /**
+   * Descarga el CSV de gastos del período como archivo.
+   * period: "day" | "month" | "year"
+   */
+  exportCsv: async (period: "day" | "month" | "year") => {
+    const token = getToken();
+    const res   = await fetch(`${BASE_URL}/api/v1/expenses/export/csv?period=${period}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!res.ok) {
+      let detail = "Error al exportar";
+      try { const err = await res.json(); detail = err.detail ?? detail; } catch {}
+      throw new Error(detail);
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const blob  = await res.blob();
+    const url   = URL.createObjectURL(blob);
+    const a     = document.createElement("a");
+    a.href      = url;
+    a.download  = `gastos_${today}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
 };
 
 // ── Stock ─────────────────────────────────────────────────────
@@ -295,8 +365,55 @@ export const stockApi = {
 };
 
 // ── Courts ────────────────────────────────────────────────────
+
+/** Cancha tal como la devuelve el backend (snake_case). */
+export interface CourtOut {
+  id:          string;
+  club_id:     string;
+  name:        string;
+  sport:       string;
+  surface:     string | null;
+  is_indoor:   boolean;
+  is_active:   boolean;
+  capacity:    number;
+  hourly_rate: number;
+  description: string | null;
+  image_url:   string | null;
+  created_at:  string;
+  updated_at:  string;
+}
+
+export interface CourtCreate {
+  name:         string;
+  sport:        string;
+  surface?:     string | null;
+  is_indoor?:   boolean;
+  capacity?:    number;
+  hourly_rate:  number;
+  description?: string | null;
+  image_url?:   string | null;
+}
+
+export type CourtUpdate = Partial<CourtCreate>;
+
 export const courtsApi = {
-  list: () => request<Court[]>("/api/v1/courts"),
+  list: () =>
+    request<CourtOut[]>("/api/v1/courts"),
+
+  create: (payload: CourtCreate) =>
+    request<CourtOut>("/api/v1/courts", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  update: (id: string, payload: CourtUpdate) =>
+    request<CourtOut>(`/api/v1/courts/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  remove: (id: string) =>
+    request<void>(`/api/v1/courts/${id}`, { method: "DELETE" }),
 };
 
 // ── Reservations ──────────────────────────────────────────────
@@ -420,35 +537,162 @@ export const dashboardApi = {
 // ── Members ───────────────────────────────────────────────────
 
 export interface MemberOut {
-  id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  phone: string | null;
-  dni: string | null;
-  member_number: string | null;
-  joined_at: string | null;   // YYYY-MM-DD
-  is_active: boolean;
-  // NOTE: no `role` field — users are global entities; roles only exist in ClubStaff
-  last_login_at: string | null; // ISO 8601
+  id:              string;
+  email:           string;
+  first_name:      string;
+  last_name:       string;
+  phone:           string | null;
+  dni:             string | null;
+  member_number:   string | null;
+  birth_date:      string | null;  // YYYY-MM-DD
+  joined_at:       string | null;  // YYYY-MM-DD
+  gender:          string | null;
+  membership_plan: string | null;
+  is_active:       boolean;
+  last_login_at:   string | null;  // ISO 8601
+  created_at:      string;         // ISO 8601
 }
 
 export interface MembersResponse {
-  items: MemberOut[];
-  total: number;
-  page: number;
+  items:     MemberOut[];
+  total:     number;
+  page:      number;
   page_size: number;
 }
 
+export interface MemberCreate {
+  first_name:       string;
+  last_name:        string;
+  email:            string;
+  phone?:           string | null;
+  dni?:             string | null;
+  member_number?:   string | null;
+  birth_date?:      string | null;  // YYYY-MM-DD
+  joined_at?:       string | null;  // YYYY-MM-DD
+  gender?:          string | null;
+  membership_plan?: string | null;
+}
+
+export type MemberUpdate = Partial<Omit<MemberCreate, "email"> & { is_active: boolean }>;
+
 export const membersApi = {
-  list: (params?: { search?: string; isActive?: boolean; page?: number; pageSize?: number }) => {
+  list: (params?: {
+    search?:    string;
+    isActive?:  boolean;
+    page?:      number;
+    pageSize?:  number;
+  }) => {
     const qs = new URLSearchParams();
-    if (params?.search)             qs.set("search", params.search);
-    if (params?.isActive !== undefined) qs.set("is_active", String(params.isActive));
-    if (params?.page)               qs.set("page", String(params.page));
-    if (params?.pageSize)           qs.set("page_size", String(params.pageSize));
-    return request<MembersResponse>(`/api/v1/users?${qs}`);
+    if (params?.search)                  qs.set("search",    params.search);
+    if (params?.isActive !== undefined)  qs.set("is_active", String(params.isActive));
+    if (params?.page)                    qs.set("page",      String(params.page));
+    if (params?.pageSize)                qs.set("page_size", String(params.pageSize));
+    return request<MembersResponse>(`/api/v1/members?${qs}`);
   },
 
-  stats: () => request<{ total: number; active: number; inactive: number }>("/api/v1/users/stats"),
+  stats: () =>
+    request<{ total: number; active: number; inactive: number }>("/api/v1/users/stats"),
+
+  create: (payload: MemberCreate) =>
+    request<MemberOut>("/api/v1/members", {
+      method: "POST",
+      body:   JSON.stringify(payload),
+    }),
+
+  update: (id: string, payload: MemberUpdate) =>
+    request<MemberOut>(`/api/v1/members/${id}`, {
+      method: "PUT",
+      body:   JSON.stringify(payload),
+    }),
+
+  remove: (id: string) =>
+    request<void>(`/api/v1/members/${id}`, { method: "DELETE" }),
+
+  exportCsv: async (params?: { isActive?: boolean; }) => {
+    const token = getToken();
+    const qs    = new URLSearchParams();
+    if (params?.isActive !== undefined) qs.set("is_active", String(params.isActive));
+
+    const res = await fetch(`${BASE_URL}/api/v1/members/export/csv?${qs}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!res.ok) {
+      let detail = "Error al exportar";
+      try { const err = await res.json(); detail = err.detail ?? detail; } catch {}
+      throw new Error(detail);
+    }
+
+    const blob     = await res.blob();
+    const url      = URL.createObjectURL(blob);
+    const a        = document.createElement("a");
+    a.href         = url;
+    a.download     = `socios_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+};
+
+// ── Payments ──────────────────────────────────────────────────
+
+/** Cobro tal como lo devuelve el backend (snake_case). */
+export interface PaymentOut {
+  id:             string;
+  amount:         number;
+  payment_method: string;
+  description:    string;
+  /** ISO 8601 datetime con timezone */
+  payment_date:   string;
+  member_id:      string | null;
+  reservation_id: string | null;
+  is_active:      boolean;
+  created_at:     string;
+}
+
+export interface PaymentCreate {
+  amount:          number;
+  /** EFECTIVO | TARJETA | TRANSFERENCIA | MERCADOPAGO */
+  payment_method:  string;
+  description:     string;
+  member_id?:      string | null;
+  reservation_id?: string | null;
+  /** ISO 8601 — si se omite el backend usa now() */
+  payment_date?:   string | null;
+}
+
+export const paymentsApi = {
+  list: (date?: string) => {
+    const qs = new URLSearchParams();
+    if (date) qs.set("date", date);
+    return request<PaymentOut[]>(`/api/v1/payments?${qs}`);
+  },
+
+  create: (payload: PaymentCreate) =>
+    request<PaymentOut>("/api/v1/payments", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  remove: (id: string) =>
+    request<void>(`/api/v1/payments/${id}`, { method: "DELETE" }),
+};
+
+// ── Finance ───────────────────────────────────────────────────
+
+export interface DailySummary {
+  date:             string;
+  total_income:     number;
+  total_expenses:   number;
+  net_balance:      number;
+  income_by_method: Record<string, number>;
+}
+
+export const financeApi = {
+  dailySummary: (date?: string) => {
+    const qs = new URLSearchParams();
+    if (date) qs.set("date", date);
+    return request<DailySummary>(`/api/v1/finance/daily-summary?${qs}`);
+  },
 };

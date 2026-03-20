@@ -107,15 +107,21 @@ function StatCard({
   warn?: boolean;
 }) {
   return (
-    <div className={`rounded-xl border p-5 ${warn ? "border-orange-200 bg-orange-50" : "border-gray-100 bg-white"}`}>
+    <div className={`rounded-xl border p-5 ${warn ? "border-orange-100 bg-orange-50" : "border-gray-100 bg-white"}`}>
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-wide text-gray-400">{label}</span>
-        <Icon className={`h-4 w-4 ${warn ? "text-orange-400" : "text-gray-300"}`} />
+        <p className={`text-xs font-medium uppercase tracking-wide ${warn ? "text-orange-600" : "text-gray-400"}`}>
+          {label}
+        </p>
+        <div className={`rounded-lg p-2 ${warn ? "bg-orange-100" : "bg-gray-50"}`}>
+          <Icon className={`h-4 w-4 ${warn ? "text-orange-600" : "text-gray-400"}`} />
+        </div>
       </div>
-      <div className={`mt-3 text-2xl font-semibold tabular-nums ${warn ? "text-orange-700" : "text-gray-900"}`}>
+      <p className={`mt-3 text-3xl font-bold tabular-nums ${warn ? "text-orange-700" : "text-gray-900"}`}>
         {value}
-      </div>
-      {sub && <p className="mt-1 text-xs text-gray-400">{sub}</p>}
+      </p>
+      {sub && (
+        <p className={`mt-1 text-xs ${warn ? "text-orange-600" : "text-gray-400"}`}>{sub}</p>
+      )}
     </div>
   );
 }

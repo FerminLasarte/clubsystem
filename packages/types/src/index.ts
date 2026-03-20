@@ -19,8 +19,8 @@ export type StaffRole =
 
 /** Permisos por ruta de cada StaffRole. */
 export const ROLE_PERMISSIONS: Record<StaffRole, string[]> = {
-  OWNER:                ["/" , "/reservations", "/expenses", "/stock", "/members", "/settings"],
-  RESERVATIONS_MANAGER: ["/", "/reservations", "/members"],
+  OWNER:                ["/", "/courts", "/reservations", "/expenses", "/stock", "/members", "/cash", "/settings"],
+  RESERVATIONS_MANAGER: ["/", "/courts", "/reservations", "/members"],
   STOCK_MANAGER:        ["/", "/stock"],
 };
 

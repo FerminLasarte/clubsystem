@@ -9,12 +9,14 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.middleware.tenant import TenantMiddleware
-from app.routers import clubs, users, courts, reservations, expenses, stock
+from app.routers import clubs, users, courts, reservations, expenses, stock, members
 from app.routers import auth
 from app.routers import dashboard
 from app.routers import staff
 from app.routers import notifications
 from app.routers import invitations
+from app.routers import payments
+from app.routers import finance
 
 
 @asynccontextmanager
@@ -45,6 +47,71 @@ async def lifespan(app: FastAPI):
                     ALTER TABLE stock_items
                         ADD CONSTRAINT chk_stock_unit_values
                         CHECK (unit IN ('unit', 'box', 'kg', 'liter', 'pack'));
+                END IF;
+            END $$;
+        """))
+
+        # ── Migración idempotente: expenses.is_active ─────────────────────────
+        # Agrega la columna is_active (soft-delete) si no existe todavía.
+        # Si ya existe, el bloque IF NOT EXISTS la omite sin error.
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name  = 'expenses'
+                      AND column_name = 'is_active'
+                ) THEN
+                    ALTER TABLE expenses
+                        ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE;
+                END IF;
+            END $$;
+        """))
+
+        # ── Migración idempotente: users.gender ───────────────────────────────
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name  = 'users'
+                      AND column_name = 'gender'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN gender VARCHAR(20);
+                END IF;
+            END $$;
+        """))
+
+        # ── Migración idempotente: users.membership_plan ──────────────────────
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name  = 'users'
+                      AND column_name = 'membership_plan'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN membership_plan VARCHAR(100);
+                END IF;
+            END $$;
+        """))
+
+        # ── Migración idempotente: tabla payments ─────────────────────────────
+        # Base.metadata.create_all crea la tabla si no existe.
+        # Este bloque es un guard adicional para entornos donde la tabla
+        # ya puede existir con columnas faltantes (e.g. staging antiguo).
+        # En la práctica create_all ya la crea arriba; este bloque no hace nada
+        # si la tabla ya tiene la estructura correcta.
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_name = 'payments'
+                ) THEN
+                    -- La tabla se crea vía Base.metadata.create_all arriba.
+                    -- Este bloque sólo existe como documentación del guard.
+                    NULL;
                 END IF;
             END $$;
         """))
@@ -82,6 +149,7 @@ API_V1 = "/api/v1"
 app.include_router(clubs.router,        prefix=f"{API_V1}/clubs",        tags=["Clubs"])
 app.include_router(staff.router,        prefix=f"{API_V1}/clubs",        tags=["Staff"])
 app.include_router(users.router,        prefix=f"{API_V1}/users",        tags=["Users"])
+app.include_router(members.router,      prefix=f"{API_V1}/members",      tags=["Members"])
 app.include_router(courts.router,       prefix=f"{API_V1}/courts",       tags=["Courts"])
 app.include_router(reservations.router, prefix=f"{API_V1}/reservations", tags=["Reservations"])
 app.include_router(expenses.router,     prefix=f"{API_V1}/expenses",     tags=["Expenses"])
@@ -90,6 +158,8 @@ app.include_router(auth.router,          prefix="/api/v1/auth",              tag
 app.include_router(dashboard.router,     prefix="/api/v1/dashboard",         tags=["Dashboard"])
 app.include_router(notifications.router, prefix=f"{API_V1}/notifications",   tags=["Notifications"])
 app.include_router(invitations.router,   prefix=f"{API_V1}/invitations",     tags=["Invitations"])
+app.include_router(payments.router,      prefix=f"{API_V1}/payments",        tags=["Payments"])
+app.include_router(finance.router,       prefix=f"{API_V1}/finance",         tags=["Finance"])
 
 
 @app.get("/health", tags=["Health"])

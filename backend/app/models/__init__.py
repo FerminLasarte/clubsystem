@@ -7,3 +7,4 @@ from app.models.court import Court
 from app.models.reservation import Reservation
 from app.models.expense import Expense
 from app.models.stock import StockItem, StockMovement
+from app.models.payment import Payment

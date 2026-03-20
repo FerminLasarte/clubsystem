@@ -58,9 +58,11 @@ class User(Base):
     birth_date: Mapped[date | None] = mapped_column(Date)
 
     # ── Membership ────────────────────────────────────────────
-    member_number: Mapped[str | None]  = mapped_column(String(50))
-    joined_at:     Mapped[date | None] = mapped_column(Date)
-    is_active:     Mapped[bool]        = mapped_column(Boolean, nullable=False, default=True)
+    member_number:   Mapped[str | None]  = mapped_column(String(50))
+    joined_at:       Mapped[date | None] = mapped_column(Date)
+    is_active:       Mapped[bool]        = mapped_column(Boolean, nullable=False, default=True)
+    gender:          Mapped[str | None]  = mapped_column(String(20))
+    membership_plan: Mapped[str | None]  = mapped_column(String(100))
 
     # ── Auth state ────────────────────────────────────────────
     email_verified: Mapped[bool]           = mapped_column(Boolean, nullable=False, default=False)
