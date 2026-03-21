@@ -1,7 +1,7 @@
 "use client";
 // apps/web/app/(dashboard)/settings/_components/ClubTab.tsx
 
-import { Building2, Clock, MapPin, Phone } from "lucide-react";
+import { Building2, Clock, MapPin, Phone, ShieldAlert } from "lucide-react";
 import { FieldInput } from "./FieldInput";
 import type { ClubData } from "./types";
 
@@ -165,8 +165,63 @@ function OperatingHoursCard({ data, onChange }: OperatingHoursCardProps) {
           <span className="font-semibold text-gray-900">{data.openTime}</span>
           {" "}a{" "}
           <span className="font-semibold text-gray-900">{data.closeTime}</span>{" "}hs.
+          {" "}Las reservas fuera de este rango serán rechazadas automáticamente.
         </div>
       )}
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface CancellationPolicyCardProps {
+  data:     ClubData;
+  onChange: (data: ClubData) => void;
+}
+
+function CancellationPolicyCard({ data, onChange }: CancellationPolicyCardProps) {
+  return (
+    <section
+      aria-labelledby="cancellation-heading"
+      className="rounded-xl border border-gray-100 bg-white p-6"
+    >
+      <h2
+        id="cancellation-heading"
+        className="mb-1 flex items-center gap-2 text-sm font-semibold text-gray-900"
+      >
+        <ShieldAlert className="h-4 w-4 text-accent" aria-hidden="true" />
+        Política de Cancelación
+      </h2>
+      <p className="mb-5 text-xs text-gray-400">
+        Horas mínimas de anticipación para cancelar una reserva sin penalidad.
+      </p>
+
+      <div className="max-w-xs">
+        <label htmlFor="cancelHours" className="block text-xs font-medium text-gray-700 mb-1.5">
+          Horas de anticipación
+        </label>
+        <div className="flex items-center gap-2">
+          <input
+            id="cancelHours"
+            type="number"
+            min={0}
+            max={168}
+            value={data.cancellationPolicyHours}
+            onChange={(e) =>
+              onChange({ ...data, cancellationPolicyHours: Number(e.target.value) })
+            }
+            className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400/20"
+          />
+          <span className="text-sm text-gray-500">horas</span>
+        </div>
+        {data.cancellationPolicyHours > 0 && (
+          <p className="mt-2 text-xs text-gray-400">
+            Los socios podrán cancelar hasta{" "}
+            <span className="font-semibold text-gray-700">{data.cancellationPolicyHours} hs</span>{" "}
+            antes del turno sin penalidad.
+          </p>
+        )}
+      </div>
     </section>
   );
 }
@@ -186,9 +241,10 @@ export function ClubTab({ data, onChange }: ClubTabProps) {
       aria-labelledby="tab-club"
       className="space-y-4"
     >
-      <ClubInfoCard       data={data} onChange={onChange} />
-      <AddressCard        data={data} onChange={onChange} />
-      <OperatingHoursCard data={data} onChange={onChange} />
+      <ClubInfoCard          data={data} onChange={onChange} />
+      <AddressCard           data={data} onChange={onChange} />
+      <OperatingHoursCard    data={data} onChange={onChange} />
+      <CancellationPolicyCard data={data} onChange={onChange} />
     </div>
   );
 }

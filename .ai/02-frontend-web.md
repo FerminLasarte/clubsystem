@@ -17,3 +17,10 @@
 - Diseño Mobile-First 100% fluido.
 - Utiliza los modificadores de Tailwind (`sm:`, `md:`, `lg:`) para garantizar que la interfaz se adapte desde un celular hasta un monitor ultrawide.
 - Prioriza el uso de Flexbox y CSS Grid para las estructuras principales.
+
+## 4. Reusabilidad de Componentes y Botones (DRY)
+- ESTÁ ESTRICTAMENTE PROHIBIDO usar etiquetas HTML crudas como `<button className="...">` para acciones principales.
+- Usa SIEMPRE el componente `<Button>` importado de Shadcn UI (`@/components/ui/button`).
+- Para los botones de acción principal en las cabeceras (ej. "Agregar Socio", "Registrar Cobro"), utiliza SIEMPRE esta estructura estándar: 
+  `<Button><Plus className="w-4 h-4 mr-2" /> Nombre de Acción</Button>`.
+- No inventes variantes de Tailwind sueltas. Si necesitas un botón secundario, usa `variant="outline"` o `variant="secondary"`.

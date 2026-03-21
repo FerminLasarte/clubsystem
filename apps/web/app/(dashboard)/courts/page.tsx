@@ -34,6 +34,7 @@ import {
   X,
 } from "lucide-react";
 
+import { ActionButton } from "@/components/ui/action-button";
 import { useClubSession } from "@/contexts/ClubSessionContext";
 import {
   courtsApi,
@@ -51,13 +52,13 @@ interface SportConfig {
 }
 
 const SPORTS: Record<string, SportConfig> = {
-  tennis:     { label: "Tenis",    icon: <Activity className="h-4 w-4" />, badgeCls: "border-blue-200 bg-blue-50 text-blue-700"       },
+  tennis:     { label: "Tenis",    icon: <Activity className="h-4 w-4" />, badgeCls: "border-blue-200 bg-blue-50 text-blue-700"         },
   padel:      { label: "Pádel",   icon: <Layers   className="h-4 w-4" />, badgeCls: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-  football:   { label: "Fútbol",  icon: <Trophy   className="h-4 w-4" />, badgeCls: "border-green-200 bg-green-50 text-green-700"      },
-  rugby:      { label: "Rugby",   icon: <Shield   className="h-4 w-4" />, badgeCls: "border-orange-200 bg-orange-50 text-orange-700"   },
-  hockey:     { label: "Hockey",  icon: <Wind     className="h-4 w-4" />, badgeCls: "border-red-200 bg-red-50 text-red-700"            },
-  basketball: { label: "Básquet", icon: <Sun      className="h-4 w-4" />, badgeCls: "border-yellow-200 bg-yellow-50 text-yellow-700"   },
-  other:      { label: "Otro",    icon: <Activity className="h-4 w-4" />, badgeCls: "border-gray-200 bg-gray-50 text-gray-600"         },
+  football:   { label: "Fútbol",  icon: <Trophy   className="h-4 w-4" />, badgeCls: "border-green-200 bg-green-50 text-green-700"       },
+  rugby:      { label: "Rugby",   icon: <Shield   className="h-4 w-4" />, badgeCls: "border-orange-200 bg-orange-50 text-orange-700"    },
+  hockey:     { label: "Hockey",  icon: <Wind     className="h-4 w-4" />, badgeCls: "border-red-200 bg-red-50 text-red-700"             },
+  basketball: { label: "Básquet", icon: <Sun      className="h-4 w-4" />, badgeCls: "border-yellow-200 bg-yellow-50 text-yellow-700"    },
+  other:      { label: "Otro",    icon: <Activity className="h-4 w-4" />, badgeCls: "border-border bg-muted text-muted-foreground"      },
 };
 
 const SPORT_OPTIONS = Object.entries(SPORTS).map(([value, { label }]) => ({ value, label }));
@@ -109,7 +110,7 @@ function Toast({ state }: { state: ToastState }) {
       className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium shadow-lg transition-all ${
         state.type === "success"
           ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-          : "border-red-200 bg-red-50 text-red-800"
+          : "border-destructive/20 bg-destructive/10 text-destructive"
       }`}
     >
       {state.type === "success" ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
@@ -185,7 +186,7 @@ function CourtFormModal({
 
     const rate = parseFloat(form.hourly_rate);
     const cap  = parseInt(form.capacity, 10);
-    if (!form.name.trim())      return setFormError("El nombre es obligatorio");
+    if (!form.name.trim())       return setFormError("El nombre es obligatorio");
     if (isNaN(rate) || rate < 0) return setFormError("Ingresá un precio por hora válido");
     if (isNaN(cap)  || cap  < 1) return setFormError("La capacidad debe ser al menos 1");
 
@@ -211,16 +212,16 @@ function CourtFormModal({
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          <h2 className="text-base font-semibold text-gray-900">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <h2 className="text-base font-semibold text-foreground">
             {isEdit ? "Editar cancha" : "Nueva cancha"}
           </h2>
           <button
             onClick={onClose}
-            className="cursor-pointer rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
@@ -230,24 +231,24 @@ function CourtFormModal({
         <form onSubmit={handleSubmit} className="space-y-4 px-6 py-5">
           {/* Nombre */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-500">Nombre</label>
+            <label className="text-xs font-medium text-muted-foreground">Nombre</label>
             <input
               ref={firstRef}
               value={form.name}
               onChange={set("name")}
               placeholder="Ej: Cancha 1"
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
             />
           </div>
 
           {/* Deporte + Superficie */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-500">Deporte</label>
+              <label className="text-xs font-medium text-muted-foreground">Deporte</label>
               <select
                 value={form.sport}
                 onChange={set("sport")}
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-400 focus:outline-none"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none"
               >
                 {SPORT_OPTIONS.map(({ value, label }) => (
                   <option key={value} value={value}>{label}</option>
@@ -255,11 +256,11 @@ function CourtFormModal({
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-500">Superficie</label>
+              <label className="text-xs font-medium text-muted-foreground">Superficie</label>
               <select
                 value={form.surface}
                 onChange={set("surface")}
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-400 focus:outline-none"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none"
               >
                 {SURFACE_OPTIONS.map(({ value, label }) => (
                   <option key={value} value={value}>{label}</option>
@@ -271,7 +272,7 @@ function CourtFormModal({
           {/* Precio + Capacidad */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-500">Precio / hora (ARS)</label>
+              <label className="text-xs font-medium text-muted-foreground">Precio / hora (ARS)</label>
               <input
                 type="number"
                 min="0"
@@ -279,18 +280,18 @@ function CourtFormModal({
                 value={form.hourly_rate}
                 onChange={set("hourly_rate")}
                 placeholder="0"
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-500">Capacidad</label>
+              <label className="text-xs font-medium text-muted-foreground">Capacidad</label>
               <input
                 type="number"
                 min="1"
                 step="1"
                 value={form.capacity}
                 onChange={set("capacity")}
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-400 focus:outline-none"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none"
               />
             </div>
           </div>
@@ -305,30 +306,30 @@ function CourtFormModal({
                 className="sr-only"
               />
               <div
-                className={`h-5 w-9 rounded-full transition-colors ${form.is_indoor ? "bg-gray-900" : "bg-gray-200"}`}
+                className={`h-5 w-9 rounded-full transition-colors ${form.is_indoor ? "bg-primary" : "bg-muted"}`}
               />
               <div
-                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${form.is_indoor ? "translate-x-4" : "translate-x-0.5"}`}
+                className={`absolute top-0.5 h-4 w-4 rounded-full bg-background shadow transition-transform ${form.is_indoor ? "translate-x-4" : "translate-x-0.5"}`}
               />
             </div>
-            <span className="text-sm text-gray-700">Cancha cubierta (indoor)</span>
+            <span className="text-sm text-foreground">Cancha cubierta (indoor)</span>
           </label>
 
           {/* Descripción */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-500">Descripción (opcional)</label>
+            <label className="text-xs font-medium text-muted-foreground">Descripción (opcional)</label>
             <textarea
               value={form.description}
               onChange={set("description")}
               rows={2}
               placeholder="Notas adicionales sobre esta cancha…"
-              className="w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none"
+              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
             />
           </div>
 
           {/* Error */}
           {formError && (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+            <p className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {formError}
             </p>
           )}
@@ -338,14 +339,14 @@ function CourtFormModal({
             <button
               type="button"
               onClick={onClose}
-              className="cursor-pointer rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
+              className="rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               {isEdit ? "Guardar cambios" : "Crear cancha"}
@@ -380,7 +381,7 @@ function CourtCard({
   const isPendingDelete = confirmId === court.id;
 
   return (
-    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white transition hover:border-gray-200 hover:shadow-sm">
+    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition hover:border-border/80 hover:shadow-sm">
       {/* Sport color bar */}
       <div className={`h-1 w-full ${sport.badgeCls.split(" ")[1]}`} />
 
@@ -388,7 +389,7 @@ function CourtCard({
         {/* Header row */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <h3 className="truncate text-base font-semibold text-gray-900">{court.name}</h3>
+            <h3 className="truncate text-base font-semibold text-foreground">{court.name}</h3>
             <span
               className={`mt-1 inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium ${sport.badgeCls}`}
             >
@@ -402,16 +403,16 @@ function CourtCard({
             <div className="flex shrink-0 items-center gap-1">
               {isPendingDelete ? (
                 <>
-                  <span className="mr-1 text-xs text-gray-500">¿Eliminar?</span>
+                  <span className="mr-1 text-xs text-muted-foreground">¿Eliminar?</span>
                   <button
                     onClick={() => onConfirmDelete(court)}
-                    className="cursor-pointer rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-100 transition"
+                    className="rounded border border-destructive/20 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/20 transition cursor-pointer"
                   >
                     Sí
                   </button>
                   <button
                     onClick={onCancelDelete}
-                    className="cursor-pointer rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-50 transition"
+                    className="rounded border border-border bg-background px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted transition cursor-pointer"
                   >
                     No
                   </button>
@@ -420,14 +421,14 @@ function CourtCard({
                 <>
                   <button
                     onClick={() => onEdit(court)}
-                    className="cursor-pointer rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
+                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
                     aria-label="Editar"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => onDelete(court)}
-                    className="cursor-pointer rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition"
+                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition cursor-pointer"
                     aria-label="Eliminar"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -440,41 +441,41 @@ function CourtCard({
 
         {/* Details */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
-            <Layers className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5">
+            <Layers className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <div className="min-w-0">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">Superficie</p>
-              <p className="truncate text-xs font-medium text-gray-700">{surfaceLabel(court.surface)}</p>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Superficie</p>
+              <p className="truncate text-xs font-medium text-foreground">{surfaceLabel(court.surface)}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
-            <Users className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5">
+            <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">Capacidad</p>
-              <p className="text-xs font-medium text-gray-700">{court.capacity} personas</p>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Capacidad</p>
+              <p className="text-xs font-medium text-foreground">{court.capacity} personas</p>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-gray-50 pt-3">
+        <div className="flex items-center justify-between border-t border-border pt-3">
           <div className="flex items-center gap-1.5">
             <div
               className={`h-1.5 w-1.5 rounded-full ${court.is_indoor ? "bg-blue-400" : "bg-emerald-400"}`}
             />
-            <span className="text-xs text-gray-500">{court.is_indoor ? "Cubierta" : "Al aire libre"}</span>
+            <span className="text-xs text-muted-foreground">{court.is_indoor ? "Cubierta" : "Al aire libre"}</span>
           </div>
-          <div className="flex items-center gap-1 text-gray-900">
-            <DollarSign className="h-3.5 w-3.5 text-gray-400" />
+          <div className="flex items-center gap-1 text-foreground">
+            <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-sm font-semibold">{fmtRate(court.hourly_rate)}</span>
-            <span className="text-xs text-gray-400">/h</span>
+            <span className="text-xs text-muted-foreground">/h</span>
           </div>
         </div>
 
         {/* Optional description */}
         {court.description && (
-          <p className="text-xs text-gray-400 leading-relaxed -mt-1 line-clamp-2">
+          <p className="text-xs text-muted-foreground leading-relaxed -mt-1 line-clamp-2">
             {court.description}
           </p>
         )}
@@ -493,19 +494,16 @@ export default function CourtsPage() {
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState<string | null>(null);
 
-  // UI state
   const [modal,        setModal]        = useState<ModalState>(null);
   const [confirmId,    setConfirmId]    = useState<string | null>(null);
   const [toast,        setToast]        = useState<ToastState>(null);
   const [filterSport,  setFilterSport]  = useState<string | null>(null);
 
-  // ── Toast ───────────────────────────────────────────────────────────────
   const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   }, []);
 
-  // ── Fetch ───────────────────────────────────────────────────────────────
   const fetchCourts = useCallback(async () => {
     if (!activeClub) return;
     setLoading(true);
@@ -521,8 +519,6 @@ export default function CourtsPage() {
   }, [activeClub?.clubId]);
 
   useEffect(() => { fetchCourts(); }, [fetchCourts]);
-
-  // ── Handlers ─────────────────────────────────────────────────────────────
 
   const handleSave = async (payload: CourtCreate | CourtUpdate, editId?: string) => {
     if (editId) {
@@ -551,24 +547,23 @@ export default function CourtsPage() {
     }
   };
 
-  // ── Empty: sin club ───────────────────────────────────────────────────────
   if (!sessionLoading && !activeClub) {
     return (
       <div className="mx-auto max-w-5xl">
-        <h1 className="text-xl font-semibold text-gray-900">Canchas</h1>
-        <p className="mt-8 text-center text-sm text-gray-400">No hay ningún club activo.</p>
+        <h1 className="text-xl font-semibold text-foreground">Canchas</h1>
+        <p className="mt-8 text-center text-sm text-muted-foreground">No hay ningún club activo.</p>
       </div>
     );
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="mx-auto max-w-5xl space-y-6">
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Canchas</h1>
-          <p className="mt-0.5 text-sm text-gray-400">
+          <h1 className="text-xl font-semibold text-foreground">Canchas</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
             {loading
               ? "Cargando…"
               : `${courts.length} cancha${courts.length !== 1 ? "s" : ""} registrada${courts.length !== 1 ? "s" : ""}`
@@ -577,19 +572,15 @@ export default function CourtsPage() {
         </div>
 
         {isOwner && (
-          <button
-            onClick={() => setModal({ mode: "create" })}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-700 transition"
-          >
-            <Plus className="h-4 w-4" />
+          <ActionButton icon={Plus} onClick={() => setModal({ mode: "create" })}>
             Nueva cancha
-          </button>
+          </ActionButton>
         )}
       </div>
 
       {/* Error */}
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -598,10 +589,7 @@ export default function CourtsPage() {
       {loading && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-52 animate-pulse rounded-2xl border border-gray-100 bg-gray-50"
-            />
+            <div key={i} className="h-52 animate-pulse rounded-2xl border border-border bg-muted" />
           ))}
         </div>
       )}
@@ -611,24 +599,25 @@ export default function CourtsPage() {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setFilterSport(null)}
-            className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
               filterSport === null
-                ? "border-gray-900 bg-gray-900 text-white"
-                : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
             Todos
           </button>
           {[...new Set(courts.map((c) => c.sport))].map((sport) => {
             const { label, badgeCls } = sportConfig(sport);
+            const isActive = filterSport === sport;
             return (
               <button
                 key={sport}
-                onClick={() => { if (filterSport !== sport) setFilterSport(sport); }}
-                className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
-                  filterSport === sport
+                onClick={() => { if (!isActive) setFilterSport(sport); }}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
+                  isActive
                     ? badgeCls + " ring-1 ring-inset ring-current"
-                    : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                    : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
                 {label}
@@ -658,22 +647,18 @@ export default function CourtsPage() {
 
       {/* Empty state */}
       {!loading && courts.length === 0 && !error && (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white py-16 text-center">
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-            <Layers className="h-6 w-6 text-gray-400" />
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-background py-16 text-center">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Layers className="h-6 w-6 text-muted-foreground" />
           </div>
-          <p className="text-sm font-medium text-gray-600">No hay canchas registradas</p>
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="text-sm font-medium text-foreground">No hay canchas registradas</p>
+          <p className="mt-1 text-xs text-muted-foreground">
             {isOwner ? "Agregá la primera cancha para comenzar." : "El propietario aún no registró canchas."}
           </p>
           {isOwner && (
-            <button
-              onClick={() => setModal({ mode: "create" })}
-              className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-700 transition"
-            >
-              <Plus className="h-4 w-4" />
+            <ActionButton icon={Plus} className="mt-5" onClick={() => setModal({ mode: "create" })}>
               Nueva cancha
-            </button>
+            </ActionButton>
           )}
         </div>
       )}
@@ -687,7 +672,6 @@ export default function CourtsPage() {
         />
       )}
 
-      {/* Toast */}
       <Toast state={toast} />
     </div>
   );

@@ -1,16 +1,17 @@
 "use client";
 // apps/web/app/(dashboard)/settings/page.tsx
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, Loader2, Save } from "lucide-react";
 
-import { Button }            from "@/components/ui/button";
+import { ActionButton }      from "@/components/ui/action-button";
 import { SettingsTabs }      from "./_components/SettingsTabs";
 import { ProfileTab }        from "./_components/ProfileTab";
 import { ClubTab }           from "./_components/ClubTab";
 import { PaymentsTab }       from "./_components/PaymentsTab";
 import { NotificationsTab }  from "./_components/NotificationsTab";
 import { StaffTab }          from "./_components/StaffTab";
+import { clubApi }           from "@/lib/api";
 
 import {
   MOCK_SETTINGS,
@@ -23,19 +24,74 @@ import {
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("profile");
   const [settings,  setSettings]  = useState<SettingsState>(MOCK_SETTINGS);
+  const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);
   const [saved,     setSaved]     = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // ── Carga inicial — datos reales del club ──────────────────────────────────
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadClub() {
+      try {
+        const data = await clubApi.getSettings();
+        if (cancelled) return;
+        setSettings((prev) => ({
+          ...prev,
+          club: {
+            name:                    data.name,
+            phone:                   data.phone    ?? "",
+            address:                 data.address  ?? "",
+            city:                    data.city     ?? "",
+            province:                prev.club.province,    // no está en el backend todavía
+            openTime:                data.open_time  ? data.open_time.slice(0, 5)  : "",
+            closeTime:               data.close_time ? data.close_time.slice(0, 5) : "",
+            cancellationPolicyHours: data.cancellation_policy_hours,
+          },
+        }));
+      } catch {
+        // Si falla (403, red, etc.) se muestran los MOCK_SETTINGS como fallback
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    loadClub();
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
     setSaving(true);
-    // TODO: replace with real API call
-    // await api.clubs.updateSettings(clubId, settings);
-    await new Promise<void>((resolve) => setTimeout(resolve, 900));
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setSaveError(null);
+
+    try {
+      if (activeTab === "club") {
+        // Guardar configuración real del club vía API
+        await clubApi.updateSettings({
+          name:                       settings.club.name       || undefined,
+          phone:                      settings.club.phone      || null,
+          address:                    settings.club.address    || null,
+          city:                       settings.club.city       || null,
+          open_time:                  settings.club.openTime   || null,
+          close_time:                 settings.club.closeTime  || null,
+          cancellation_policy_hours:  settings.club.cancellationPolicyHours,
+        });
+      } else {
+        // Otros tabs: simular guardado (TODO: conectar sus propias APIs)
+        await new Promise<void>((resolve) => setTimeout(resolve, 700));
+      }
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      setSaveError(
+        err instanceof Error ? err.message : "Error al guardar los cambios."
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const patchSettings = <K extends keyof SettingsState>(
@@ -44,6 +100,14 @@ export default function SettingsPage() {
   ) => setSettings((prev) => ({ ...prev, [section]: value }));
 
   // ── Render ───────────────────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -58,38 +122,44 @@ export default function SettingsPage() {
 
         {/* Save button — oculto en la pestaña Equipo (las invitaciones son inmediatas) */}
         {activeTab !== "staff" && (
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            variant={saved ? "outline" : "default"}
-            size="sm"
-            className="gap-2"
-            aria-live="polite"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Guardando…
-              </>
-            ) : saved ? (
-              <>
-                <CheckCircle2 className="h-4 w-4 text-foreground" aria-hidden="true" />
-                Guardado
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" aria-hidden="true" />
-                Guardar cambios
-              </>
+          <div className="flex items-center gap-3">
+            {saveError && (
+              <p className="text-xs text-red-600">{saveError}</p>
             )}
-          </Button>
+            <ActionButton
+              onClick={handleSave}
+              disabled={saving}
+              variant={saved ? "outline" : "primary"}
+              aria-live="polite"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  Guardando…
+                </>
+              ) : saved ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  Guardado
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" aria-hidden="true" />
+                  Guardar cambios
+                </>
+              )}
+            </ActionButton>
+          </div>
         )}
       </header>
 
       {/* ── Tab navigation ── */}
       <SettingsTabs
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={(tab) => {
+          setActiveTab(tab);
+          setSaveError(null);
+        }}
       />
 
       {/* ── Tab panels ── */}

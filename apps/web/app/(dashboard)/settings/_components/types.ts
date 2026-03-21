@@ -19,13 +19,14 @@ export interface AdminProfile {
 }
 
 export interface ClubData {
-  name:      string;
-  phone:     string;
-  address:   string;
-  city:      string;
-  province:  string;
-  openTime:  string;
-  closeTime: string;
+  name:                     string;
+  phone:                    string;
+  address:                  string;
+  city:                     string;
+  province:                 string;
+  openTime:                 string;
+  closeTime:                string;
+  cancellationPolicyHours:  number;
 }
 
 export interface PaymentSettings {
@@ -55,13 +56,14 @@ export const MOCK_SETTINGS: SettingsState = {
     avatarUrl: "",
   },
   club: {
-    name:      "Club de Tenis Tandil",
-    phone:     "+54 249 442-1234",
-    address:   "Av. del Valle 1200",
-    city:      "Tandil",
-    province:  "Buenos Aires",
-    openTime:  "07:00",
-    closeTime: "23:00",
+    name:                    "Club de Tenis Tandil",
+    phone:                   "+54 249 442-1234",
+    address:                 "Av. del Valle 1200",
+    city:                    "Tandil",
+    province:                "Buenos Aires",
+    openTime:                "07:00",
+    closeTime:               "23:00",
+    cancellationPolicyHours: 24,
   },
   payments: {
     requireDeposit:   true,

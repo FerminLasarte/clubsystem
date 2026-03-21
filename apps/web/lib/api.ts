@@ -101,8 +101,48 @@ export const authApi = {
 };
 
 // ── Club ──────────────────────────────────────────────────────
+
+/** Configuración operativa del club — GET/PUT /api/v1/clubs/me */
+export interface ClubSettingsOut {
+  id:                        string;
+  slug:                      string;
+  name:                      string;
+  phone:                     string | null;
+  address:                   string | null;
+  city:                      string | null;
+  country:                   string;
+  /** "HH:MM" o null si no está configurado */
+  open_time:                 string | null;
+  /** "HH:MM" o null si no está configurado */
+  close_time:                string | null;
+  cancellation_policy_hours: number;
+}
+
+export interface ClubSettingsUpdate {
+  name?:                       string;
+  phone?:                      string | null;
+  address?:                    string | null;
+  city?:                       string | null;
+  /** "HH:MM" */
+  open_time?:                  string | null;
+  /** "HH:MM" */
+  close_time?:                 string | null;
+  cancellation_policy_hours?:  number;
+}
+
 export const clubApi = {
+  /** @deprecated Usa getSettings() — este endpoint no existe aún. */
   getCurrent: () => request<Club>("/api/v1/clubs/me"),
+
+  /** Devuelve la configuración completa del club activo del JWT. */
+  getSettings: () => request<ClubSettingsOut>("/api/v1/clubs/me"),
+
+  /** Actualiza la configuración del club. Solo OWNER. */
+  updateSettings: (payload: ClubSettingsUpdate) =>
+    request<ClubSettingsOut>("/api/v1/clubs/me", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
 };
 
 // ── Expenses ──────────────────────────────────────────────────
@@ -477,6 +517,11 @@ export interface InviteStaffPayload {
   roles: string[];
 }
 
+export interface UpdateStaffRolesPayload {
+  /** Nuevo array de roles. Solo RESERVATIONS_MANAGER y STOCK_MANAGER. */
+  roles: string[];
+}
+
 export const staffApi = {
   list: (clubId: string) =>
     request<StaffMemberOut[]>(`/api/v1/clubs/${clubId}/staff`),
@@ -484,6 +529,13 @@ export const staffApi = {
   invite: (clubId: string, payload: InviteStaffPayload) =>
     request<StaffMemberOut>(`/api/v1/clubs/${clubId}/staff/invite`, {
       method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  /** Actualiza los roles de un miembro existente. Solo OWNER. */
+  updateRoles: (clubId: string, staffId: string, payload: UpdateStaffRolesPayload) =>
+    request<StaffMemberOut>(`/api/v1/clubs/${clubId}/staff/${staffId}`, {
+      method: "PUT",
       body: JSON.stringify(payload),
     }),
 };
@@ -532,6 +584,8 @@ export const dashboardApi = {
   kpis: () => request<DashboardKPIs>("/api/v1/dashboard/kpis"),
   /** Snapshot del día: ingresos, reservas, canchas disponibles, staff pendiente */
   metrics: () => request<DashboardMetrics>("/api/v1/dashboard/metrics"),
+  /** Resumen gerencial mensual — solo OWNER (HTTP 403 si no lo es) */
+  summary: () => request<ManagerSummary>("/api/v1/dashboard/summary"),
 };
 
 // ── Members ───────────────────────────────────────────────────
@@ -639,27 +693,31 @@ export const membersApi = {
 
 /** Cobro tal como lo devuelve el backend (snake_case). */
 export interface PaymentOut {
-  id:             string;
-  amount:         number;
-  payment_method: string;
-  description:    string;
+  id:               string;
+  amount:           number;
+  payment_method:   string;
+  description:      string;
+  /** INCOME | OUTFLOW */
+  transaction_type: string;
   /** ISO 8601 datetime con timezone */
-  payment_date:   string;
-  member_id:      string | null;
-  reservation_id: string | null;
-  is_active:      boolean;
-  created_at:     string;
+  payment_date:     string;
+  member_id:        string | null;
+  reservation_id:   string | null;
+  is_active:        boolean;
+  created_at:       string;
 }
 
 export interface PaymentCreate {
-  amount:          number;
+  amount:            number;
   /** EFECTIVO | TARJETA | TRANSFERENCIA | MERCADOPAGO */
-  payment_method:  string;
-  description:     string;
-  member_id?:      string | null;
-  reservation_id?: string | null;
+  payment_method:    string;
+  description:       string;
+  /** INCOME (cobro) | OUTFLOW (retiro/caja chica) — default INCOME */
+  transaction_type?: string;
+  member_id?:        string | null;
+  reservation_id?:   string | null;
   /** ISO 8601 — si se omite el backend usa now() */
-  payment_date?:   string | null;
+  payment_date?:     string | null;
 }
 
 export const paymentsApi = {
@@ -684,8 +742,9 @@ export const paymentsApi = {
 export interface DailySummary {
   date:             string;
   total_income:     number;
+  total_outflow:    number;   // retiros / caja chica del día
   total_expenses:   number;
-  net_balance:      number;
+  net_balance:      number;   // income - outflow - expenses
   income_by_method: Record<string, number>;
 }
 
@@ -695,4 +754,84 @@ export const financeApi = {
     if (date) qs.set("date", date);
     return request<DailySummary>(`/api/v1/finance/daily-summary?${qs}`);
   },
+};
+
+// ── Dashboard — Manager Summary ───────────────────────────────
+
+export interface ManagerSummary {
+  total_members:      number;
+  today_reservations: number;
+  monthly_income:     number;
+  monthly_expenses:   number;   // gastos operativos + retiros OUTFLOW del mes
+  net_profit:         number;
+}
+
+// ── Fees (Cuotas Societarias) ──────────────────────────────────
+
+export interface FeeMember {
+  id:              string;
+  first_name:      string;
+  last_name:       string;
+  email:           string;
+  member_number:   string | null;
+  membership_plan: string | null;
+}
+
+export interface FeeOut {
+  id:         string;
+  club_id:    string;
+  member_id:  string;
+  fee_name:   string;
+  month:      number;
+  year:       number;
+  amount:     number;
+  status:     "PENDING" | "PAID" | "CANCELLED";
+  due_date:   string;          // "YYYY-MM-DD"
+  payment_id: string | null;
+  is_active:  boolean;
+  created_at: string;
+  member:     FeeMember | null;
+}
+
+export interface GenerateFeesPayload {
+  month:        number;
+  year:         number;
+  plan_amounts: Record<string, number>;   // plan_name → monto
+  due_day?:     number;                   // default 10
+  overwrite?:   boolean;                  // default false
+}
+
+export interface GenerateFeesResult {
+  generated: number;
+  skipped:   number;
+  message:   string;
+}
+
+export const feesApi = {
+  /** Lista cuotas del club con datos del socio embebidos. */
+  list: (params?: { month?: number; year?: number; status?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.month)  qs.set("month",  String(params.month));
+    if (params?.year)   qs.set("year",   String(params.year));
+    if (params?.status) qs.set("status", params.status);
+    return request<FeeOut[]>(`/api/v1/fees/?${qs}`);
+  },
+
+  /** Genera cuotas masivas para todos los socios activos del mes. */
+  generate: (payload: GenerateFeesPayload) =>
+    request<GenerateFeesResult>("/api/v1/fees/generate", {
+      method: "POST",
+      body:   JSON.stringify(payload),
+    }),
+
+  /** Cobra una cuota PENDING → PAID + crea Payment en caja. */
+  pay: (feeId: string) =>
+    request<FeeOut>(`/api/v1/fees/${feeId}/pay`, { method: "POST" }),
+
+  /** Cancela una cuota PENDING → CANCELLED. */
+  cancel: (feeId: string) =>
+    request<void>(`/api/v1/fees/${feeId}/cancel`, { method: "POST" }),
+
+  /** Devuelve los membership_plan distintos de los socios activos. */
+  plans: () => request<string[]>("/api/v1/fees/plans"),
 };

@@ -17,6 +17,7 @@ from app.routers import notifications
 from app.routers import invitations
 from app.routers import payments
 from app.routers import finance
+from app.routers import fees
 
 
 @asynccontextmanager
@@ -96,22 +97,57 @@ async def lifespan(app: FastAPI):
             END $$;
         """))
 
-        # ── Migración idempotente: tabla payments ─────────────────────────────
-        # Base.metadata.create_all crea la tabla si no existe.
-        # Este bloque es un guard adicional para entornos donde la tabla
-        # ya puede existir con columnas faltantes (e.g. staging antiguo).
-        # En la práctica create_all ya la crea arriba; este bloque no hace nada
-        # si la tabla ya tiene la estructura correcta.
+        # ── Migración idempotente: payments.transaction_type ─────────────────
+        # La tabla payments se crea vía create_all si no existe.
+        # Si ya existía sin la columna transaction_type (deployments anteriores),
+        # este bloque la agrega con DEFAULT 'INCOME' para todos los registros.
         await conn.execute(text("""
             DO $$ BEGIN
                 IF NOT EXISTS (
                     SELECT 1
-                    FROM information_schema.tables
-                    WHERE table_name = 'payments'
+                    FROM information_schema.columns
+                    WHERE table_name  = 'payments'
+                      AND column_name = 'transaction_type'
                 ) THEN
-                    -- La tabla se crea vía Base.metadata.create_all arriba.
-                    -- Este bloque sólo existe como documentación del guard.
-                    NULL;
+                    ALTER TABLE payments
+                        ADD COLUMN transaction_type VARCHAR(10) NOT NULL DEFAULT 'INCOME';
+                END IF;
+            END $$;
+        """))
+
+        # ── Migración idempotente: clubs — horarios y política de cancelación ──
+        # Agrega open_time, close_time (TIME) y cancellation_policy_hours (INT)
+        # si no existen. Seguro para re-ejecución (IF NOT EXISTS).
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name  = 'clubs'
+                      AND column_name = 'open_time'
+                ) THEN
+                    ALTER TABLE clubs ADD COLUMN open_time  TIME;
+                    ALTER TABLE clubs ADD COLUMN close_time TIME;
+                    ALTER TABLE clubs ADD COLUMN cancellation_policy_hours INTEGER NOT NULL DEFAULT 24;
+                END IF;
+            END $$;
+        """))
+
+        # ── Migración idempotente: membership_fees.status CHECK constraint ────
+        # La tabla se crea vía create_all; este bloque agrega el CHECK si no
+        # existe todavía (por ejemplo en bases creadas con versiones anteriores).
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.table_constraints
+                    WHERE table_name       = 'membership_fees'
+                      AND constraint_name  = 'chk_fee_status_values'
+                      AND constraint_type  = 'CHECK'
+                ) THEN
+                    ALTER TABLE membership_fees
+                        ADD CONSTRAINT chk_fee_status_values
+                        CHECK (status IN ('PENDING', 'PAID', 'CANCELLED'));
                 END IF;
             END $$;
         """))
@@ -160,6 +196,7 @@ app.include_router(notifications.router, prefix=f"{API_V1}/notifications",   tag
 app.include_router(invitations.router,   prefix=f"{API_V1}/invitations",     tags=["Invitations"])
 app.include_router(payments.router,      prefix=f"{API_V1}/payments",        tags=["Payments"])
 app.include_router(finance.router,       prefix=f"{API_V1}/finance",         tags=["Finance"])
+app.include_router(fees.router,          prefix=f"{API_V1}/fees",            tags=["Fees"])
 
 
 @app.get("/health", tags=["Health"])

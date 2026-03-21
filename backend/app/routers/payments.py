@@ -3,9 +3,13 @@ ClubSync — Payments Router
 ==========================
 Gestión de cobros e ingresos del club (Caja Diaria).
 
+Tipos de transacción:
+  INCOME  → Cobro entrante (turno, mensualidad, etc.)
+  OUTFLOW → Retiro / vale de caja chica
+
 Endpoints:
-  GET    /api/v1/payments          → Lista cobros activos (filtro: ?date=YYYY-MM-DD)
-  POST   /api/v1/payments          → Registra un nuevo cobro
+  GET    /api/v1/payments          → Lista cobros y retiros activos (filtro: ?date=YYYY-MM-DD)
+  POST   /api/v1/payments          → Registra un cobro (INCOME) o retiro (OUTFLOW)
   DELETE /api/v1/payments/{id}     → Soft-delete (is_active = False) — requiere OWNER
 
 Multi-tenant:
@@ -29,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.tenant import get_current_club_id, require_role
-from app.models.payment import Payment, VALID_PAYMENT_METHODS
+from app.models.payment import Payment, VALID_PAYMENT_METHODS, VALID_TRANSACTION_TYPES
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -38,27 +42,29 @@ router = APIRouter()
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 class PaymentOut(BaseModel):
-    id:             UUID
-    amount:         float
-    payment_method: str
-    description:    str
-    payment_date:   datetime
-    member_id:      Optional[UUID]
-    reservation_id: Optional[UUID]
-    is_active:      bool
-    created_at:     datetime
+    id:               UUID
+    amount:           float
+    payment_method:   str
+    description:      str
+    transaction_type: str
+    payment_date:     datetime
+    member_id:        Optional[UUID]
+    reservation_id:   Optional[UUID]
+    is_active:        bool
+    created_at:       datetime
 
     class Config:
         from_attributes = True
 
 
 class PaymentCreate(BaseModel):
-    amount:         float       = Field(..., gt=0, description="Monto del cobro (positivo)")
-    payment_method: str         = Field(..., description="EFECTIVO|TARJETA|TRANSFERENCIA|MERCADOPAGO")
-    description:    str         = Field(..., min_length=1, max_length=255)
-    member_id:      Optional[UUID] = None
-    reservation_id: Optional[UUID] = None
-    payment_date:   Optional[datetime] = None
+    amount:           float        = Field(..., gt=0, description="Monto (positivo siempre)")
+    payment_method:   str          = Field(..., description="EFECTIVO|TARJETA|TRANSFERENCIA|MERCADOPAGO")
+    description:      str          = Field(..., min_length=1, max_length=255)
+    transaction_type: str          = Field("INCOME", description="INCOME|OUTFLOW")
+    member_id:        Optional[UUID] = None
+    reservation_id:   Optional[UUID] = None
+    payment_date:     Optional[datetime] = None
 
 
 # ── GET / ─────────────────────────────────────────────────────────────────────
@@ -103,17 +109,24 @@ async def create_payment(
             detail=f"Método de pago inválido. Opciones: {', '.join(sorted(VALID_PAYMENT_METHODS))}",
         )
 
+    if payload.transaction_type not in VALID_TRANSACTION_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Tipo de transacción inválido. Opciones: {', '.join(sorted(VALID_TRANSACTION_TYPES))}",
+        )
+
     payment_date = payload.payment_date or datetime.now(timezone.utc)
 
     try:
         payment = Payment(
-            club_id        = club_id,
-            amount         = payload.amount,
-            payment_method = payload.payment_method,
-            description    = payload.description,
-            member_id      = payload.member_id,
-            reservation_id = payload.reservation_id,
-            payment_date   = payment_date,
+            club_id          = club_id,
+            amount           = payload.amount,
+            payment_method   = payload.payment_method,
+            description      = payload.description,
+            transaction_type = payload.transaction_type,
+            member_id        = payload.member_id,
+            reservation_id   = payload.reservation_id,
+            payment_date     = payment_date,
         )
         db.add(payment)
         await db.commit()

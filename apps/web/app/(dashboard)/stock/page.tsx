@@ -33,6 +33,7 @@ import {
   X,
 } from "lucide-react";
 
+import { ActionButton } from "@/components/ui/action-button";
 import { useClubSession } from "@/contexts/ClubSessionContext";
 import {
   stockApi,
@@ -116,9 +117,9 @@ function StatCard({
           <Icon className={`h-4 w-4 ${warn ? "text-orange-600" : "text-gray-400"}`} />
         </div>
       </div>
-      <p className={`mt-3 text-3xl font-bold tabular-nums ${warn ? "text-orange-700" : "text-gray-900"}`}>
+      <div className={`mt-3 text-3xl font-bold tabular-nums ${warn ? "text-orange-700" : "text-gray-900"}`}>
         {value}
-      </p>
+      </div>
       {sub && (
         <p className={`mt-1 text-xs ${warn ? "text-orange-600" : "text-gray-400"}`}>{sub}</p>
       )}
@@ -205,7 +206,7 @@ function HistoryModal({
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition cursor-pointer"
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
@@ -285,7 +286,7 @@ function HistoryModal({
             <button
               onClick={handleExport}
               disabled={exporting || loading || !!error}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 transition cursor-pointer"
             >
               {exporting
                 ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -294,7 +295,7 @@ function HistoryModal({
             </button>
             <button
               onClick={onClose}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition cursor-pointer"
+              className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
             >
               Cerrar
             </button>
@@ -339,7 +340,7 @@ function AdjustConfirmModal({
           <h2 className="text-sm font-semibold text-gray-900">Confirmar ajuste de stock</h2>
           <button
             onClick={onCancel}
-            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition cursor-pointer"
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
@@ -377,14 +378,14 @@ function AdjustConfirmModal({
         <div className="flex justify-end gap-3 border-t border-gray-50 px-6 py-4">
           <button
             onClick={onCancel}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition cursor-pointer"
+            className="rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
           >
             Cancelar
           </button>
           <button
             onClick={onConfirm}
             disabled={saving}
-            className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition cursor-pointer"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             Confirmar ajuste
@@ -488,7 +489,7 @@ function StockFormModal({
           </h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition cursor-pointer"
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
@@ -601,13 +602,13 @@ function StockFormModal({
           <div className="flex justify-end gap-3 pt-1">
             <button
               type="button" onClick={onClose}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition cursor-pointer"
+              className="rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit" disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition cursor-pointer"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               {isEdit ? "Guardar cambios" : "Agregar ítem"}
@@ -851,16 +852,16 @@ export default function StockPage() {
         <div className="flex items-center gap-2">
           {/* Export dropdown */}
           <div className="relative">
-            <button
+            <ActionButton
+              variant="outline"
               onClick={() => setExportOpen((o) => !o)}
-              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 hover:border-gray-300 transition cursor-pointer"
             >
               {exporting
                 ? <Loader2 className="h-4 w-4 animate-spin" />
                 : <Download className="h-4 w-4" />}
               Exportar
               <ChevronDown className="h-3.5 w-3.5" />
-            </button>
+            </ActionButton>
             {exportOpen && (
               <>
                 {/* Backdrop para cerrar al click fuera */}
@@ -871,19 +872,19 @@ export default function StockPage() {
                 <div className="absolute right-0 top-full z-20 mt-1 w-44 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-lg">
                   <button
                     onClick={() => handleExportGlobal("day")}
-                    className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition cursor-pointer"
+                    className="w-full px-4 py-2.5 text-left text-sm text-foreground hover:bg-muted transition cursor-pointer"
                   >
                     Del día
                   </button>
                   <button
                     onClick={() => handleExportGlobal("month")}
-                    className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition cursor-pointer"
+                    className="w-full px-4 py-2.5 text-left text-sm text-foreground hover:bg-muted transition cursor-pointer"
                   >
                     Del mes
                   </button>
                   <button
                     onClick={() => handleExportGlobal("year")}
-                    className="w-full rounded-b-xl px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition cursor-pointer"
+                    className="w-full rounded-b-xl px-4 py-2.5 text-left text-sm text-foreground hover:bg-muted transition cursor-pointer"
                   >
                     Del año
                   </button>
@@ -892,14 +893,9 @@ export default function StockPage() {
             )}
           </div>
 
-          <button
-            onClick={() => setModal({ mode: "create" })}
-            className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90 cursor-pointer"
-            style={{ backgroundColor: "var(--color-brand, #111827)" }}
-          >
-            <Plus className="h-4 w-4" />
+          <ActionButton icon={Plus} onClick={() => setModal({ mode: "create" })}>
             Agregar ítem
-          </button>
+          </ActionButton>
         </div>
       </div>
 
@@ -954,7 +950,7 @@ export default function StockPage() {
           className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition cursor-pointer ${
             filterLow === true
               ? "border-orange-300 bg-orange-50 text-orange-700"
-              : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+              : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
           }`}
         >
           <AlertCircle className="h-4 w-4" />
@@ -1068,11 +1064,11 @@ export default function StockPage() {
                             <span className="text-xs text-red-600">¿Eliminar?</span>
                             <button
                               onClick={() => handleDelete(item)}
-                              className="rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-200 transition cursor-pointer"
+                              className="rounded border border-destructive/20 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/20 transition cursor-pointer"
                             >Sí</button>
                             <button
                               onClick={() => setConfirmDeleteId(null)}
-                              className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 transition cursor-pointer"
+                              className="rounded border border-border bg-background px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted transition cursor-pointer"
                             >No</button>
                           </div>
                         ) : (

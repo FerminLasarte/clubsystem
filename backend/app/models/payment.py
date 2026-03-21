@@ -2,7 +2,7 @@
 """
 ClubSync — Payment ORM Model
 ============================
-Registra cada cobro/ingreso del club.
+Registra cada cobro/ingreso (INCOME) o retiro/vale de caja chica (OUTFLOW).
 Soft-delete via is_active = False.
 """
 import uuid
@@ -13,7 +13,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from .base import Base
 
 
-VALID_PAYMENT_METHODS = frozenset({"EFECTIVO", "TARJETA", "TRANSFERENCIA", "MERCADOPAGO"})
+VALID_PAYMENT_METHODS   = frozenset({"EFECTIVO", "TARJETA", "TRANSFERENCIA", "MERCADOPAGO"})
+VALID_TRANSACTION_TYPES = frozenset({"INCOME", "OUTFLOW"})
 
 
 class Payment(Base):
@@ -24,6 +25,11 @@ class Payment(Base):
     )
     club_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("clubs.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # Tipo de transacción: INCOME (cobro entrante) | OUTFLOW (retiro/caja chica)
+    transaction_type: Mapped[str] = mapped_column(
+        String(10), default="INCOME", server_default="INCOME", nullable=False
     )
 
     # Importes

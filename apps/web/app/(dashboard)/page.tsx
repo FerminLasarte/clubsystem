@@ -1,27 +1,40 @@
 "use client";
 // apps/web/app/(dashboard)/page.tsx
 //
-// Pantalla principal del panel de administración.
+// Dashboard principal del panel de administración.
 //
-// Datos:   GET /api/v1/dashboard/kpis  (via dashboardApi — typed, auth injected)
-// Sesión:  useClubSession() → activeClub, activeRoles
-// Tipos:   DashboardKPIs, RecentReservation (de lib/api.ts)
-// Estado:  loading → skeleton | error → banner | data → cards + table
+// Vistas:
+//   OWNER                    → Dashboard gerencial completo (KPIs + chart + reservas)
+//   Multi-rol no-OWNER       → WelcomeView con accesos rápidos
+//   Solo RESERVATIONS_MANAGER → redirect /reservations
+//   Solo STOCK_MANAGER        → redirect /stock
+//
+// Datos (OWNER):  GET /api/v1/dashboard/summary  + GET /api/v1/dashboard/kpis
+// Datos (resto):  GET /api/v1/dashboard/kpis
+// Sesión:        useClubSession() → activeClub, activeRoles
 
 import { useEffect, useState } from "react";
-import { Calendar, DollarSign, Users, TrendingUp, AlertTriangle, Package } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  Calendar, DollarSign, Users, TrendingUp,
+  AlertTriangle, Package, TrendingDown, BarChart2,
+} from "lucide-react";
 
-import { useClubSession }                      from "@/contexts/ClubSessionContext";
-import { dashboardApi, type DashboardKPIs }    from "@/lib/api";
+import { useClubSession }                                         from "@/contexts/ClubSessionContext";
+import { dashboardApi, type DashboardKPIs, type ManagerSummary } from "@/lib/api";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Formatea un número como moneda argentina: $ 15.000 */
 function fmt(n: number): string {
   return "$\u00A0" + Math.round(n).toLocaleString("es-AR");
 }
 
-// ── Status config para la tabla de reservas ───────────────────────────────────
+function pct(part: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.min(100, Math.round((part / total) * 100));
+}
+
+// ── Status config reservas ────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { label: string; classes: string }> = {
   confirmed: { label: "Confirmada", classes: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -44,91 +57,159 @@ function KpiSkeleton() {
   );
 }
 
-// ── KPI card config builder ───────────────────────────────────────────────────
+// ── IncomeExpensesChart (Tailwind progress bars, sin recharts) ────────────────
 
-function buildKpiCards(kpis: DashboardKPIs) {
-  return [
-    {
-      label:    "Reservas hoy",
-      value:    String(kpis.reservations_today),
-      delta:    kpis.reservations_today_delta >= 0
-                  ? `+${kpis.reservations_today_delta} vs ayer`
-                  : `${kpis.reservations_today_delta} vs ayer`,
-      positive: kpis.reservations_today_delta >= 0,
-      icon:     Calendar,
-      color:    "text-blue-500",
-      bg:       "bg-blue-50",
-      warn:     false,
-    },
-    {
-      label:    "Ingresos del mes",
-      value:    fmt(kpis.revenue_this_month),
-      delta:    kpis.revenue_delta_pct !== 0
-                  ? `${kpis.revenue_delta_pct > 0 ? "+" : ""}${kpis.revenue_delta_pct.toFixed(0)}% vs mes anterior`
-                  : "Sin datos mes anterior",
-      positive: kpis.revenue_delta_pct >= 0,
-      icon:     TrendingUp,
-      color:    "text-emerald-500",
-      bg:       "bg-emerald-50",
-      warn:     false,
-    },
-    {
-      label:    "Socios activos",
-      value:    String(kpis.active_members),
-      delta:    `+${kpis.new_members_this_month} este mes`,
-      positive: true,
-      icon:     Users,
-      color:    "text-violet-500",
-      bg:       "bg-violet-50",
-      warn:     false,
-    },
-    {
-      label:    "Gastos del mes",
-      value:    fmt(kpis.expenses_this_month),
-      delta:    kpis.anomalies_pending > 0
-                  ? `${kpis.anomalies_pending} anomalía${kpis.anomalies_pending > 1 ? "s" : ""}`
-                  : "Sin anomalías",
-      positive: kpis.anomalies_pending === 0,
-      icon:     DollarSign,
-      color:    "text-amber-500",
-      bg:       "bg-amber-50",
-      warn:     kpis.anomalies_pending > 0,
-    },
-  ] as const;
+function IncomeExpensesChart({ income, expenses }: { income: number; expenses: number }) {
+  const total     = income + expenses;
+  const incomePct  = pct(income,   total);
+  const expensePct = pct(expenses, total);
+  const profit     = income - expenses;
+
+  return (
+    <div className="rounded-xl border border-gray-100 bg-white p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <BarChart2 className="h-4 w-4 text-gray-400" />
+        <h3 className="text-sm font-semibold text-gray-900">Ingresos vs Egresos</h3>
+        <span className="ml-auto text-xs text-gray-400">este mes</span>
+      </div>
+
+      <div className="space-y-3">
+        {/* Ingresos */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-gray-500">Ingresos</span>
+            <span className="text-xs font-semibold tabular-nums text-emerald-700">{fmt(income)}</span>
+          </div>
+          <div className="h-2.5 w-full rounded-full bg-gray-100">
+            <div
+              className="h-2.5 rounded-full bg-emerald-400 transition-all duration-500"
+              style={{ width: `${incomePct}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Egresos */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-gray-500">Egresos</span>
+            <span className="text-xs font-semibold tabular-nums text-red-600">{fmt(expenses)}</span>
+          </div>
+          <div className="h-2.5 w-full rounded-full bg-gray-100">
+            <div
+              className="h-2.5 rounded-full bg-red-400 transition-all duration-500"
+              style={{ width: `${expensePct}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Balance */}
+      <div className="mt-4 border-t border-gray-50 pt-3 flex items-center justify-between">
+        <span className="text-xs font-medium text-gray-500">Ganancia neta</span>
+        <span
+          className={`text-sm font-bold tabular-nums ${
+            profit >= 0 ? "text-emerald-600" : "text-red-600"
+          }`}
+        >
+          {profit >= 0 ? "+" : ""}{fmt(profit)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── WelcomeView (multi-rol no-OWNER) ─────────────────────────────────────────
+
+function WelcomeView({ clubName }: { clubName: string }) {
+  const links = [
+    { href: "/reservations", label: "Reservas",       desc: "Gestionar turnos y canchas",  color: "text-blue-500",    bg: "bg-blue-50"    },
+    { href: "/members",      label: "Socios",          desc: "Ver y editar socios",          color: "text-violet-500",  bg: "bg-violet-50"  },
+    { href: "/expenses",     label: "Gastos",          desc: "Egresos operativos del club",  color: "text-amber-500",   bg: "bg-amber-50"   },
+    { href: "/cash",         label: "Caja Diaria",     desc: "Cobros y retiros",             color: "text-emerald-500", bg: "bg-emerald-50" },
+    { href: "/stock",        label: "Stock",           desc: "Inventario y productos",       color: "text-cyan-500",    bg: "bg-cyan-50"    },
+  ];
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-8">
+      <div>
+        <h1 className="text-xl font-semibold text-gray-900">Bienvenido</h1>
+        <p className="mt-0.5 text-sm text-gray-400">{clubName}</p>
+      </div>
+
+      <div className="rounded-xl border border-gray-100 bg-white px-8 py-10">
+        <p className="text-sm font-medium text-gray-700 mb-6">Accesos rápidos</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {links.map((l) => (
+            <a
+              key={l.href}
+              href={l.href}
+              className="flex flex-col items-center gap-2 rounded-xl border border-gray-100 p-4 text-center hover:border-gray-200 hover:shadow-sm transition-all"
+            >
+              <div className={`rounded-lg p-2.5 ${l.bg}`}>
+                <Package className={`h-5 w-5 ${l.color}`} />
+              </div>
+              <span className="text-xs font-semibold text-gray-800">{l.label}</span>
+              <span className="text-xs text-gray-400 leading-tight">{l.desc}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OverviewPage() {
-  const { activeClub } = useClubSession();
+  const router              = useRouter();
+  const { activeClub, activeRoles } = useClubSession();
 
   const [kpis,    setKpis]    = useState<DashboardKPIs | null>(null);
+  const [summary, setSummary] = useState<ManagerSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
 
-  // Re-fetch cuando cambia el club activo
+  const isOwner = activeRoles?.includes("OWNER") ?? false;
+
+  // ── Redirect para roles únicos ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!activeRoles || activeRoles.length !== 1) return;
+    const [role] = activeRoles;
+    if (role === "RESERVATIONS_MANAGER") router.replace("/reservations");
+    if (role === "STOCK_MANAGER")        router.replace("/stock");
+  }, [activeRoles, router]);
+
+  // ── Fetch de datos ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!activeClub) {
       setLoading(false);
       return;
     }
 
-    let cancelled = false;   // evitar setState tras desmontaje
+    let cancelled = false;
 
     setLoading(true);
     setError(null);
     setKpis(null);
+    setSummary(null);
 
-    dashboardApi
-      .kpis()
-      .then((data) => { if (!cancelled) setKpis(data); })
+    const fetches = isOwner
+      ? Promise.all([dashboardApi.kpis(), dashboardApi.summary()])
+      : Promise.all([dashboardApi.kpis(), Promise.resolve(null)]);
+
+    fetches
+      .then(([kpisData, summaryData]) => {
+        if (cancelled) return;
+        setKpis(kpisData);
+        setSummary(summaryData);
+      })
       .catch((err: Error) => { if (!cancelled) setError(err.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [activeClub?.clubId]);
+  }, [activeClub?.clubId, isOwner]);
 
-  // ── Fecha localizada ──────────────────────────────────────────────────────────
+  // ── Fecha ──────────────────────────────────────────────────────────────────
   const today = new Date().toLocaleDateString("es-AR", {
     weekday: "long",
     day:     "numeric",
@@ -136,7 +217,7 @@ export default function OverviewPage() {
     year:    "numeric",
   });
 
-  // ── Estado vacío: sin club activo ─────────────────────────────────────────────
+  // ── Sin club ───────────────────────────────────────────────────────────────
   if (!loading && !activeClub) {
     return (
       <div className="mx-auto max-w-5xl space-y-8">
@@ -151,7 +232,69 @@ export default function OverviewPage() {
     );
   }
 
-  const kpiCards = kpis ? buildKpiCards(kpis) : [];
+  // ── Multi-rol no-OWNER → WelcomeView ───────────────────────────────────────
+  if (!loading && activeClub && !isOwner) {
+    return <WelcomeView clubName={activeClub.clubName ?? activeClub.clubId} />;
+  }
+
+  // ── KPI cards (OWNER) ──────────────────────────────────────────────────────
+  const netProfit = summary?.net_profit ?? (kpis ? kpis.revenue_this_month - kpis.expenses_this_month : 0);
+
+  const kpiCards = [
+    {
+      label:    "Socios activos",
+      value:    summary ? String(summary.total_members) : (kpis ? String(kpis.active_members) : "—"),
+      delta:    kpis ? `+${kpis.new_members_this_month} este mes` : "",
+      positive: true,
+      icon:     Users,
+      color:    "text-violet-500",
+      bg:       "bg-violet-50",
+      warn:     false,
+    },
+    {
+      label:    "Reservas hoy",
+      value:    summary ? String(summary.today_reservations) : (kpis ? String(kpis.reservations_today) : "—"),
+      delta:    kpis
+                  ? (kpis.reservations_today_delta >= 0
+                      ? `+${kpis.reservations_today_delta} vs ayer`
+                      : `${kpis.reservations_today_delta} vs ayer`)
+                  : "",
+      positive: (kpis?.reservations_today_delta ?? 0) >= 0,
+      icon:     Calendar,
+      color:    "text-blue-500",
+      bg:       "bg-blue-50",
+      warn:     false,
+    },
+    {
+      label:    "Ingresos del mes",
+      value:    summary ? fmt(summary.monthly_income) : (kpis ? fmt(kpis.revenue_this_month) : "—"),
+      delta:    kpis?.revenue_delta_pct != null
+                  ? (kpis.revenue_delta_pct !== 0
+                      ? `${kpis.revenue_delta_pct > 0 ? "+" : ""}${kpis.revenue_delta_pct.toFixed(0)}% vs mes anterior`
+                      : "Sin datos mes anterior")
+                  : "",
+      positive: (kpis?.revenue_delta_pct ?? 0) >= 0,
+      icon:     TrendingUp,
+      color:    "text-emerald-500",
+      bg:       "bg-emerald-50",
+      warn:     false,
+    },
+    {
+      label:    "Ganancia neta",
+      value:    loading ? "—" : fmt(netProfit),
+      delta:    summary
+                  ? `Egresos: ${fmt(summary.monthly_expenses)}`
+                  : (kpis ? `Egresos: ${fmt(kpis.expenses_this_month)}` : ""),
+      positive: netProfit >= 0,
+      icon:     netProfit >= 0 ? TrendingUp : TrendingDown,
+      color:    netProfit >= 0 ? "text-emerald-500" : "text-red-500",
+      bg:       netProfit >= 0 ? "bg-emerald-50"   : "bg-red-50",
+      warn:     netProfit < 0,
+    },
+  ];
+
+  const monthlyIncome   = summary?.monthly_income   ?? kpis?.revenue_this_month   ?? 0;
+  const monthlyExpenses = summary?.monthly_expenses ?? kpis?.expenses_this_month  ?? 0;
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -169,7 +312,7 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* ── KPI Cards ── */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {loading
           ? Array.from({ length: 4 }).map((_, i) => <KpiSkeleton key={i} />)
@@ -177,7 +320,7 @@ export default function OverviewPage() {
               <div
                 key={card.label}
                 className={`rounded-xl border p-5 ${
-                  card.warn ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-white"
+                  card.warn ? "border-red-200 bg-red-50" : "border-gray-100 bg-white"
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -188,17 +331,21 @@ export default function OverviewPage() {
                     <card.icon className={`h-4 w-4 ${card.color}`} />
                   </div>
                 </div>
-                <p className={`mt-4 text-2xl font-semibold tabular-nums ${card.warn ? "text-amber-700" : "text-gray-900"}`}>
+                <p className={`mt-4 text-2xl font-semibold tabular-nums ${
+                  card.warn ? "text-red-700" : "text-gray-900"
+                }`}>
                   {card.value}
                 </p>
-                <p className={`mt-1 text-xs font-medium ${card.positive ? "text-emerald-600" : "text-amber-600"}`}>
+                <p className={`mt-1 text-xs font-medium ${
+                  card.positive ? "text-emerald-600" : "text-red-500"
+                }`}>
                   {card.delta}
                 </p>
               </div>
             ))}
       </div>
 
-      {/* ── Two-column layout ── */}
+      {/* Two-column layout */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
         {/* Reservas recientes */}
@@ -226,7 +373,7 @@ export default function OverviewPage() {
                       </td>
                     </tr>
                   ))
-                : kpis?.recent_reservations.map((r) => {
+                : (kpis?.recent_reservations ?? []).map((r) => {
                     const s = STATUS_CONFIG[r.status] ?? STATUS_CONFIG.pending;
                     return (
                       <tr key={r.id} className="hover:bg-gray-50 transition-colors">
@@ -245,12 +392,27 @@ export default function OverviewPage() {
                       </tr>
                     );
                   })}
+              {!loading && (kpis?.recent_reservations ?? []).length === 0 && (
+                <tr>
+                  <td colSpan={3} className="px-6 py-10 text-center text-sm text-gray-400">
+                    No hay reservas recientes.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
         {/* Columna derecha */}
         <div className="space-y-4">
+
+          {/* Gráfico ingresos vs egresos */}
+          {!loading && (
+            <IncomeExpensesChart
+              income={monthlyIncome}
+              expenses={monthlyExpenses}
+            />
+          )}
 
           {/* Alerta de anomalías */}
           {kpis && kpis.anomalies_pending > 0 && (
@@ -274,39 +436,37 @@ export default function OverviewPage() {
           )}
 
           {/* Resumen mensual */}
-          {!loading && kpis && (
+          {!loading && (kpis || summary) && (
             <div className="rounded-xl border border-gray-100 bg-white p-5">
               <div className="flex items-center gap-2 mb-4">
-                <Package className="h-4 w-4 text-gray-400" />
+                <DollarSign className="h-4 w-4 text-gray-400" />
                 <h3 className="text-sm font-semibold text-gray-900">Este mes</h3>
               </div>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-gray-500">Reservas totales</p>
                   <span className="tabular-nums text-sm font-semibold text-gray-900">
-                    {kpis.reservations_this_month}
+                    {kpis?.reservations_this_month ?? "—"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-gray-500">Ingresos</p>
-                  <span className="tabular-nums text-sm font-semibold text-gray-900">
-                    {fmt(kpis.revenue_this_month)}
+                  <span className="tabular-nums text-sm font-semibold text-emerald-700">
+                    {fmt(monthlyIncome)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <p className="text-xs text-gray-500">Gastos</p>
-                  <span className="tabular-nums text-sm font-semibold text-gray-900">
-                    {fmt(kpis.expenses_this_month)}
+                  <p className="text-xs text-gray-500">Egresos</p>
+                  <span className="tabular-nums text-sm font-semibold text-red-600">
+                    {fmt(monthlyExpenses)}
                   </span>
                 </div>
                 <div className="border-t border-gray-50 pt-3 flex items-center justify-between">
                   <p className="text-xs font-medium text-gray-600">Balance</p>
                   <span className={`tabular-nums text-sm font-bold ${
-                    kpis.revenue_this_month - kpis.expenses_this_month >= 0
-                      ? "text-emerald-600"
-                      : "text-red-600"
+                    netProfit >= 0 ? "text-emerald-600" : "text-red-600"
                   }`}>
-                    {fmt(kpis.revenue_this_month - kpis.expenses_this_month)}
+                    {netProfit >= 0 ? "+" : ""}{fmt(netProfit)}
                   </span>
                 </div>
               </div>

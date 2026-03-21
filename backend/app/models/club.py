@@ -1,7 +1,7 @@
 # backend/models/club.py
 import uuid
-from datetime import datetime
-from sqlalchemy import Boolean, DateTime, String, Text, ARRAY
+from datetime import datetime, time
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, Time, ARRAY
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from .base import Base
@@ -28,6 +28,13 @@ class Club(Base):
     phone:         Mapped[str | None] = mapped_column(String(50))
     email:         Mapped[str | None] = mapped_column(String(255))
     website:       Mapped[str | None] = mapped_column(Text)
+
+    # Operating hours — used for reservation grid and booking validation
+    open_time:  Mapped[time | None] = mapped_column(Time, nullable=True)
+    close_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+
+    # Cancellation policy: hours before start_time a member may cancel without penalty
+    cancellation_policy_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24, server_default="24")
 
     # Subscription
     is_active:     Mapped[bool]       = mapped_column(Boolean, default=True)

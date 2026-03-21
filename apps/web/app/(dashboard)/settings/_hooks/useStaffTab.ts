@@ -3,35 +3,47 @@
 // Custom hook que encapsula toda la lógica de negocio de la pestaña Equipo:
 //   - Carga del listado de staff vía GET /clubs/{clubId}/staff
 //   - Envío de invitaciones vía POST /clubs/{clubId}/staff/invite
+//   - Actualización de roles vía PUT /clubs/{clubId}/staff/{staffId}
 //   - Gestión de estados: loading, error, success
-//
-// El componente StaffTab.tsx solo se encarga del renderizado.
 
 import { useState, useEffect, useCallback } from "react";
-import { staffApi, type StaffMemberOut, type InviteStaffPayload } from "@/lib/api";
+import {
+  staffApi,
+  type StaffMemberOut,
+  type InviteStaffPayload,
+  type UpdateStaffRolesPayload,
+} from "@/lib/api";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface UseStaffTabReturn {
   // Staff list
-  staff:          StaffMemberOut[];
-  isLoadingStaff: boolean;
+  staff:           StaffMemberOut[];
+  isLoadingStaff:  boolean;
   // Invite
-  invite:         (payload: InviteStaffPayload) => Promise<void>;
-  isInviting:     boolean;
-  inviteError:    string | null;
-  inviteSuccess:  boolean;
-  clearFeedback:  () => void;
+  invite:          (payload: InviteStaffPayload) => Promise<void>;
+  isInviting:      boolean;
+  inviteError:     string | null;
+  inviteSuccess:   boolean;
+  clearFeedback:   () => void;
+  // Update roles
+  updateRoles:     (staffId: string, payload: UpdateStaffRolesPayload) => Promise<void>;
+  isUpdatingRoles: boolean;
+  updateError:     string | null;
+  updateSuccess:   boolean;
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
 export function useStaffTab(clubId: string | undefined): UseStaffTabReturn {
-  const [staff,          setStaff]          = useState<StaffMemberOut[]>([]);
-  const [isLoadingStaff, setIsLoadingStaff] = useState(true);
-  const [isInviting,     setIsInviting]     = useState(false);
-  const [inviteError,    setInviteError]    = useState<string | null>(null);
-  const [inviteSuccess,  setInviteSuccess]  = useState(false);
+  const [staff,           setStaff]           = useState<StaffMemberOut[]>([]);
+  const [isLoadingStaff,  setIsLoadingStaff]  = useState(true);
+  const [isInviting,      setIsInviting]      = useState(false);
+  const [inviteError,     setInviteError]     = useState<string | null>(null);
+  const [inviteSuccess,   setInviteSuccess]   = useState(false);
+  const [isUpdatingRoles, setIsUpdatingRoles] = useState(false);
+  const [updateError,     setUpdateError]     = useState<string | null>(null);
+  const [updateSuccess,   setUpdateSuccess]   = useState(false);
 
   // ── Fetch staff list ─────────────────────────────────────────────────────────
 
@@ -74,13 +86,42 @@ export function useStaffTab(clubId: string | undefined): UseStaffTabReturn {
         setInviteError(
           err instanceof Error
             ? err.message
-            : "Error al enviar la invitación. Intentá de nuevo."
+            : "Error al enviar la invitación. Intentá de nuevo.",
         );
       } finally {
         setIsInviting(false);
       }
     },
-    [clubId]
+    [clubId],
+  );
+
+  // ── Update roles ─────────────────────────────────────────────────────────────
+
+  const updateRoles = useCallback(
+    async (staffId: string, payload: UpdateStaffRolesPayload) => {
+      if (!clubId) return;
+
+      setIsUpdatingRoles(true);
+      setUpdateError(null);
+      setUpdateSuccess(false);
+
+      try {
+        const updated = await staffApi.updateRoles(clubId, staffId, payload);
+        // Reemplazar el registro en la lista local sin re-fetch
+        setStaff((prev) => prev.map((m) => (m.id === staffId ? updated : m)));
+        setUpdateSuccess(true);
+        setTimeout(() => setUpdateSuccess(false), 3000);
+      } catch (err) {
+        setUpdateError(
+          err instanceof Error
+            ? err.message
+            : "Error al actualizar los roles. Intentá de nuevo.",
+        );
+      } finally {
+        setIsUpdatingRoles(false);
+      }
+    },
+    [clubId],
   );
 
   // ── Clear feedback ───────────────────────────────────────────────────────────
@@ -88,6 +129,8 @@ export function useStaffTab(clubId: string | undefined): UseStaffTabReturn {
   const clearFeedback = useCallback(() => {
     setInviteError(null);
     setInviteSuccess(false);
+    setUpdateError(null);
+    setUpdateSuccess(false);
   }, []);
 
   return {
@@ -98,5 +141,9 @@ export function useStaffTab(clubId: string | undefined): UseStaffTabReturn {
     inviteError,
     inviteSuccess,
     clearFeedback,
+    updateRoles,
+    isUpdatingRoles,
+    updateError,
+    updateSuccess,
   };
 }

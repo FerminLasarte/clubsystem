@@ -4,13 +4,13 @@ ClubSync — Finance Router
 Endpoints de resumen financiero diario (Caja Diaria).
 
 Endpoints:
-  GET  /api/v1/finance/daily-summary   → Ingresos + Egresos + Balance neto del día
+  GET  /api/v1/finance/daily-summary   → Ingresos + Retiros + Egresos + Balance neto del día
 
 Lógica:
-  - Ingresos: SUM(payments.amount) WHERE is_active AND date(payment_date) = ?date
-              agrupados por payment_method
-  - Egresos:  SUM(expenses.amount) WHERE is_active AND expense_date = ?date
-  - Balance:  total_income - total_expenses
+  - Ingresos:  SUM(payments WHERE transaction_type=INCOME AND date=?) por payment_method
+  - Retiros:   SUM(payments WHERE transaction_type=OUTFLOW AND date=?)  (caja chica)
+  - Egresos:   SUM(expenses WHERE expense_date=?)                       (gastos operativos)
+  - Balance:   total_income - total_outflow - total_expenses
 
 Multi-tenant:
   - club_id extraído del JWT vía get_current_club_id.
@@ -42,9 +42,10 @@ router = APIRouter()
 
 class DailySummary(BaseModel):
     date:             str
-    total_income:     float
-    total_expenses:   float
-    net_balance:      float
+    total_income:     float          # cobros INCOME del día
+    total_outflow:    float          # retiros / caja chica (OUTFLOW) del día
+    total_expenses:   float          # gastos operativos (tabla expenses) del día
+    net_balance:      float          # income - outflow - expenses
     income_by_method: dict[str, float]
 
 
@@ -63,12 +64,13 @@ async def get_daily_summary(
     target_date = date_filter or date.today()
     logger.info("GET /finance/daily-summary — club=%s date=%s", club_id, target_date)
 
-    # ── Ingresos agrupados por método ─────────────────────────────────────────
+    # ── Ingresos (INCOME) agrupados por método ────────────────────────────────
     income_q = (
         select(Payment.payment_method, func.sum(Payment.amount).label("total"))
         .where(
-            Payment.club_id  == club_id,
+            Payment.club_id         == club_id,
             Payment.is_active.is_(True),
+            Payment.transaction_type == "INCOME",
             cast(Payment.payment_date, Date) == target_date,
         )
         .group_by(Payment.payment_method)
@@ -81,11 +83,23 @@ async def get_daily_summary(
     }
     total_income = sum(income_by_method.values())
 
-    # ── Egresos del día ───────────────────────────────────────────────────────
+    # ── Retiros / caja chica (OUTFLOW) del día ────────────────────────────────
+    outflow_q = (
+        select(func.coalesce(func.sum(Payment.amount), 0).label("total"))
+        .where(
+            Payment.club_id         == club_id,
+            Payment.is_active.is_(True),
+            Payment.transaction_type == "OUTFLOW",
+            cast(Payment.payment_date, Date) == target_date,
+        )
+    )
+    total_outflow = float((await db.execute(outflow_q)).scalar() or 0)
+
+    # ── Egresos operativos (tabla expenses) del día ───────────────────────────
     expense_q = (
         select(func.coalesce(func.sum(Expense.amount), 0).label("total"))
         .where(
-            Expense.club_id     == club_id,
+            Expense.club_id      == club_id,
             Expense.is_active.is_(True),
             Expense.expense_date == target_date,
         )
@@ -95,7 +109,8 @@ async def get_daily_summary(
     return DailySummary(
         date=target_date.isoformat(),
         total_income=total_income,
+        total_outflow=total_outflow,
         total_expenses=total_expenses,
-        net_balance=total_income - total_expenses,
+        net_balance=total_income - total_outflow - total_expenses,
         income_by_method=income_by_method,
     )

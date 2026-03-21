@@ -40,6 +40,7 @@ import {
   X,
 } from "lucide-react";
 
+import { ActionButton } from "@/components/ui/action-button";
 import { useClubSession } from "@/contexts/ClubSessionContext";
 import {
   expensesApi,
@@ -131,9 +132,9 @@ function StatCard({
           <Icon className={`h-4 w-4 ${warn ? "text-orange-600" : "text-gray-400"}`} />
         </div>
       </div>
-      <p className={`mt-3 text-3xl font-bold tabular-nums ${warn ? "text-orange-700" : "text-gray-900"}`}>
+      <div className={`mt-3 text-3xl font-bold tabular-nums ${warn ? "text-orange-700" : "text-gray-900"}`}>
         {value}
-      </p>
+      </div>
       {sub && (
         <p className={`mt-1 text-xs ${warn ? "text-orange-600" : "text-gray-400"}`}>{sub}</p>
       )}
@@ -234,7 +235,7 @@ function AnomalyModal({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="cursor-pointer rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600">
+          <button onClick={onClose} className="cursor-pointer rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -329,8 +330,7 @@ function AnomalyModal({
             <button
               onClick={() => onMarkReviewed(expense.id)}
               disabled={markingReviewed}
-              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ backgroundColor: "var(--color-brand, #111827)" }}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
             >
               {markingReviewed ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
               {markingReviewed ? "Marcando…" : "Marcar como revisado"}
@@ -440,7 +440,7 @@ function ExpenseFormModal({
           <h2 className="text-sm font-semibold text-gray-900">
             {isEdit ? "Editar gasto" : "Nuevo gasto"}
           </h2>
-          <button onClick={onClose} className="cursor-pointer rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition">
+          <button onClick={onClose} className="cursor-pointer rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -535,13 +535,13 @@ function ExpenseFormModal({
           <div className="flex justify-end gap-3 pt-1">
             <button
               type="button" onClick={onClose}
-              className="cursor-pointer rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
+              className="rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit" disabled={saving}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               {isEdit ? "Guardar cambios" : "Crear gasto"}
@@ -699,16 +699,16 @@ export default function ExpensesPage() {
         <div className="flex items-center gap-2">
           {/* Export dropdown */}
           <div className="relative">
-            <button
+            <ActionButton
+              variant="outline"
               onClick={() => setExportOpen((o) => !o)}
-              className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 hover:border-gray-300 transition"
             >
               {exporting
                 ? <Loader2 className="h-4 w-4 animate-spin" />
                 : <Download className="h-4 w-4" />}
               Exportar
               <ChevronDown className="h-3.5 w-3.5" />
-            </button>
+            </ActionButton>
             {exportOpen && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />
@@ -717,7 +717,7 @@ export default function ExpensesPage() {
                     <button
                       key={p}
                       onClick={() => handleExport(p)}
-                      className={`w-full cursor-pointer px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition ${i === 2 ? "rounded-b-xl" : ""}`}
+                      className={`w-full cursor-pointer px-4 py-2.5 text-left text-sm text-foreground hover:bg-muted transition ${i === 2 ? "rounded-b-xl" : ""}`}
                     >
                       {p === "day" ? "Del día" : p === "month" ? "Del mes" : "Del año"}
                     </button>
@@ -727,14 +727,9 @@ export default function ExpensesPage() {
             )}
           </div>
 
-          <button
-            onClick={() => setModal({ mode: "create" })}
-            className="flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
-            style={{ backgroundColor: "var(--color-brand, #111827)" }}
-          >
-            <Plus className="h-4 w-4" />
+          <ActionButton icon={Plus} onClick={() => setModal({ mode: "create" })}>
             Nuevo gasto
-          </button>
+          </ActionButton>
         </div>
       </div>
 
@@ -794,8 +789,8 @@ export default function ExpensesPage() {
             onClick={() => setFilterCategory(null)}
             className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
               filterCategory === null
-                ? "border-gray-900 bg-gray-900 text-white"
-                : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
             Todas
@@ -805,7 +800,7 @@ export default function ExpensesPage() {
               key={value}
               onClick={() => { if (filterCategory !== value) setFilterCategory(value); }}
               className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
-                filterCategory === value ? badgeCls + " ring-1 ring-inset ring-current" : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                filterCategory === value ? badgeCls + " ring-1 ring-inset ring-current" : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
               {label}
@@ -820,7 +815,7 @@ export default function ExpensesPage() {
             className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
               filterAnomaly
                 ? "border-orange-300 bg-orange-50 text-orange-700 shadow-[inset_0_0_0_1px_rgba(251,146,60,0.5)]"
-                : "border-dashed border-gray-300 bg-white text-gray-500 hover:border-orange-300 hover:text-orange-600"
+                : "border-dashed border-border bg-background text-muted-foreground hover:border-orange-300 hover:text-orange-600"
             }`}
           >
             <AlertTriangle className={`h-3.5 w-3.5 ${filterAnomaly ? "text-orange-500" : "text-gray-400"}`} />
@@ -923,11 +918,11 @@ export default function ExpensesPage() {
                             <span className="text-xs text-red-600">¿Eliminar?</span>
                             <button
                               onClick={() => handleDelete(expense)}
-                              className="cursor-pointer rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-200 transition"
+                              className="cursor-pointer rounded border border-destructive/20 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/20 transition"
                             >Sí</button>
                             <button
                               onClick={() => setConfirmDeleteId(null)}
-                              className="cursor-pointer rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 transition"
+                              className="cursor-pointer rounded border border-border bg-background px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted transition"
                             >No</button>
                           </div>
                         ) : (
@@ -935,14 +930,14 @@ export default function ExpensesPage() {
                             <button
                               onClick={() => setModal({ mode: "edit", expense })}
                               title="Editar gasto"
-                              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-gray-200 text-gray-400 hover:border-blue-300 hover:text-blue-600 transition"
+                              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-border text-muted-foreground hover:border-blue-300 hover:text-blue-600 transition"
                             >
                               <Pencil className="h-3 w-3" />
                             </button>
                             <button
                               onClick={() => setConfirmDeleteId(expense.id)}
                               title="Eliminar gasto"
-                              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-gray-200 text-gray-400 hover:border-red-200 hover:text-red-500 transition"
+                              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-border text-muted-foreground hover:border-destructive/40 hover:text-destructive transition"
                             >
                               <Trash2 className="h-3 w-3" />
                             </button>

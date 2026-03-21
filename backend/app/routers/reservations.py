@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.tenant import get_current_club_id, require_role
+from app.models.club import Club
 from app.models.court import Court
 from app.models.reservation import Reservation
 from app.models.user import User
@@ -373,6 +374,27 @@ async def create_reservation(
     user = await db.get(User, payload.user_id)
     if not user or user.club_id != club_id:
         raise HTTPException(status_code=404, detail="Usuario no encontrado en este club.")
+
+    # ── Validación de horario operativo del club ───────────────────────────────
+    # Si el club tiene open_time y close_time configurados, la reserva debe caer
+    # dentro de ese rango. Se convierte UTC → hora local Argentina para comparar.
+    club = await db.get(Club, club_id)
+    if club and club.open_time and club.close_time and club.open_time < club.close_time:
+        starts_local = payload.starts_at.astimezone(_CLUB_TZ)
+        ends_local   = payload.ends_at.astimezone(_CLUB_TZ)
+        starts_time  = starts_local.time().replace(tzinfo=None)
+        ends_time    = ends_local.time().replace(tzinfo=None)
+
+        if starts_time < club.open_time or ends_time > club.close_time:
+            open_str  = club.open_time.strftime("%H:%M")
+            close_str = club.close_time.strftime("%H:%M")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"La reserva debe estar dentro del horario de operación del club "
+                    f"({open_str} – {close_str} hs)."
+                ),
+            )
 
     # El administrador crea la reserva directamente como "confirmed".
     # Un socio que reserve por autogestión (futuro) recibiría "pending".

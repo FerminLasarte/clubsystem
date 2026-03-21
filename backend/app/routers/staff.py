@@ -4,8 +4,14 @@ ClubSync — Staff Router
 Gestión del equipo (staff) de un club.
 
 Endpoints:
-  GET  /api/v1/clubs/{club_id}/staff          → Lista todos los miembros del equipo.
-  POST /api/v1/clubs/{club_id}/staff/invite   → Invita a un usuario registrado.
+  GET  /api/v1/clubs/{club_id}/staff              → Lista miembros del equipo.
+  POST /api/v1/clubs/{club_id}/staff/invite        → Invita a un usuario registrado.
+  PUT  /api/v1/clubs/{club_id}/staff/{staff_id}    → Actualiza los roles de un miembro.
+
+RBAC obligatorio:
+  - GET:  OWNER o RESERVATIONS_MANAGER pueden ver el equipo.
+  - POST: Solo OWNER puede invitar.
+  - PUT:  Solo OWNER puede modificar roles.
 
 Flujo de invitación:
   1. Verifica que el usuario exista por email → 404 si no está registrado.
@@ -14,15 +20,8 @@ Flujo de invitación:
   4. Crea Notification in-app para el usuario invitado.
   5. Simula envío de email con logger.info().
 
-RBAC de roles (array):
-  - Un operador puede recibir múltiples roles en la misma invitación.
-  - Solo un OWNER puede invitar; los roles OWNER no se pueden asignar vía invite.
-  - Roles invitables: RESERVATIONS_MANAGER, STOCK_MANAGER.
-
-Seguridad:
-  - JWT válido requerido (get_current_club_id).
-  - club_id del path se valida contra club_id del JWT.
-  - Invitar requiere rol OWNER (require_role).
+Roles invitables: RESERVATIONS_MANAGER, STOCK_MANAGER.
+(OWNER requiere asignación directa en DB — no se puede asignar vía invite.)
 """
 
 import logging
@@ -51,9 +50,15 @@ INVITABLE_ROLES = frozenset({"RESERVATIONS_MANAGER", "STOCK_MANAGER"})
 
 # ── Schemas ───────────────────────────────────────────────────
 
+
 class InviteRequest(BaseModel):
     email: EmailStr
     roles: list[str]   # ["RESERVATIONS_MANAGER"] o ["RESERVATIONS_MANAGER", "STOCK_MANAGER"]
+
+
+class StaffUpdateRequest(BaseModel):
+    """Payload para actualizar roles de un miembro existente."""
+    roles: list[str]
 
 
 class StaffMemberOut(BaseModel):
@@ -72,15 +77,17 @@ class StaffMemberOut(BaseModel):
 
 # ── GET /{club_id}/staff ──────────────────────────────────────
 
+
 @router.get("/{club_id}/staff", response_model=list[StaffMemberOut])
 async def list_staff(
     club_id: UUID,
     current_club_id: UUID = Depends(get_current_club_id),
+    _role: str = Depends(require_role("OWNER", "RESERVATIONS_MANAGER")),
     db: AsyncSession = Depends(get_db),
 ) -> list[StaffMemberOut]:
     """
     Devuelve todos los miembros del equipo (PENDING + ACTIVE).
-    El club_id del path se valida contra el JWT para aislamiento multi-tenant.
+    Protegido: requiere rol OWNER o RESERVATIONS_MANAGER.
     """
     if club_id != current_club_id:
         raise HTTPException(
@@ -113,6 +120,7 @@ async def list_staff(
 
 # ── POST /{club_id}/staff/invite ──────────────────────────────
 
+
 @router.post(
     "/{club_id}/staff/invite",
     response_model=StaffMemberOut,
@@ -122,7 +130,7 @@ async def invite_staff(
     club_id: UUID,
     payload: InviteRequest,
     current_club_id: UUID = Depends(get_current_club_id),
-    _roles: list = Depends(require_role("OWNER")),
+    _role: str = Depends(require_role("OWNER")),
     db: AsyncSession = Depends(get_db),
 ) -> StaffMemberOut:
     """
@@ -131,8 +139,8 @@ async def invite_staff(
     Reglas:
       - El usuario debe estar registrado (email en tabla users).
       - No puede ser ya parte del staff de este club.
-      - Los roles enviados deben ser un subconjunto de INVITABLE_ROLES.
-        (OWNER no puede ser asignado vía invitación).
+      - Los roles enviados deben ser subconjunto de INVITABLE_ROLES.
+        (OWNER no puede asignarse vía invitación).
     """
     if club_id != current_club_id:
         raise HTTPException(
@@ -140,7 +148,6 @@ async def invite_staff(
             detail="No tenés acceso a ese club",
         )
 
-    # Validar que la lista de roles no esté vacía y sea válida
     if not payload.roles:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -162,7 +169,6 @@ async def invite_staff(
         select(User).where(User.email == payload.email).limit(1)
     )
     user = user_result.scalar_one_or_none()
-
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -236,4 +242,98 @@ async def invite_staff(
         user_first_name=user.first_name,
         user_last_name=user.last_name,
         created_at=new_staff.created_at.isoformat(),
+    )
+
+
+# ── PUT /{club_id}/staff/{staff_id} ──────────────────────────
+
+
+@router.put("/{club_id}/staff/{staff_id}", response_model=StaffMemberOut)
+async def update_staff_roles(
+    club_id: UUID,
+    staff_id: UUID,
+    payload: StaffUpdateRequest,
+    current_club_id: UUID = Depends(get_current_club_id),
+    _role: str = Depends(require_role("OWNER")),
+    db: AsyncSession = Depends(get_db),
+) -> StaffMemberOut:
+    """
+    Actualiza el array de roles de un miembro del equipo.
+    Solo el OWNER puede ejecutar esta acción.
+
+    Reglas:
+      - Al menos un rol debe enviarse.
+      - Los roles deben ser un subconjunto de INVITABLE_ROLES
+        (el rol OWNER no puede asignarse vía este endpoint).
+      - No se puede modificar los roles del propio OWNER a través de este endpoint
+        (previene auto-degradación accidental).
+    """
+    if club_id != current_club_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tenés acceso a ese club",
+        )
+
+    if not payload.roles:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Debés especificar al menos un rol",
+        )
+
+    invalid_roles = set(payload.roles) - INVITABLE_ROLES
+    if invalid_roles:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Roles inválidos: {sorted(invalid_roles)}. "
+                f"Roles modificables: {sorted(INVITABLE_ROLES)}"
+            ),
+        )
+
+    # Cargar el registro de staff y validar que pertenece al club
+    staff_result = await db.execute(
+        select(ClubStaff, User)
+        .outerjoin(User, User.id == ClubStaff.user_id)
+        .where(ClubStaff.id == staff_id, ClubStaff.club_id == club_id)
+    )
+    row = staff_result.one_or_none()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Miembro del equipo no encontrado",
+        )
+
+    staff, user = row
+
+    # Proteger al OWNER de auto-degradación accidental
+    if "OWNER" in staff.roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pueden modificar los roles del OWNER desde este endpoint.",
+        )
+
+    staff.roles = list(payload.roles)
+
+    try:
+        await db.commit()
+        await db.refresh(staff)
+    except Exception as exc:
+        await db.rollback()
+        logger.error("Error al actualizar roles de staff %s: %s", staff_id, exc)
+        raise HTTPException(status_code=500, detail="Error al guardar los cambios.")
+
+    logger.info(
+        "Roles de %s en club %s actualizados a: %s",
+        staff.email, club_id, payload.roles,
+    )
+
+    return StaffMemberOut(
+        id=staff.id,
+        email=staff.email,
+        roles=staff.roles,
+        status=staff.status,
+        is_active=staff.is_active,
+        user_first_name=user.first_name if user else None,
+        user_last_name=user.last_name  if user else None,
+        created_at=staff.created_at.isoformat(),
     )

@@ -1,20 +1,23 @@
 # backend/app/routers/dashboard.py
+import logging
 from datetime import date, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import func, select, cast, String
+from sqlalchemy import cast, func, select, String, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.middleware.tenant import get_current_club_id
+from app.middleware.tenant import get_current_club_id, require_role
 from app.models.club_staff import ClubStaff
 from app.models.court import Court
 from app.models.expense import Expense
+from app.models.payment import Payment
 from app.models.reservation import Reservation
 from app.models.user import User
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -282,4 +285,100 @@ async def get_dashboard_kpis(
         expenses_this_month=expenses_this_month,
         anomalies_pending=anomalies_pending,
         recent_reservations=recent_reservations,
+    )
+
+
+# ── GET /summary (OWNER only) ─────────────────────────────────────────────────
+
+class ManagerSummary(BaseModel):
+    """
+    Resumen gerencial mensual para el Dashboard Principal.
+    Accesible solo por OWNER (RBAC).
+    """
+    total_members:      int    # socios activos del club
+    today_reservations: int    # reservas de hoy (no canceladas)
+    monthly_income:     float  # cobros INCOME del mes (tabla payments)
+    monthly_expenses:   float  # gastos operativos + retiros OUTFLOW del mes
+    net_profit:         float  # monthly_income - monthly_expenses
+
+
+@router.get("/summary", response_model=ManagerSummary)
+async def get_manager_summary(
+    club_id: UUID  = Depends(get_current_club_id),
+    _roles:  list  = Depends(require_role("OWNER")),
+    db:      AsyncSession = Depends(get_db),
+):
+    """
+    Dashboard gerencial: KPIs clave del mes para el dueño del club.
+    Requiere rol OWNER (HTTP 403 si no lo tiene).
+    """
+    logger.info("GET /dashboard/summary — club=%s", club_id)
+
+    today       = date.today()
+    month_start = today.replace(day=1)
+    status_col  = cast(Reservation.status, String)
+
+    # ── 1. Socios activos ─────────────────────────────────────────────────────
+    members_res = await db.execute(
+        select(func.count()).where(
+            User.club_id   == club_id,
+            User.is_active.is_(True),
+        )
+    )
+    total_members = int(members_res.scalar() or 0)
+
+    # ── 2. Reservas de hoy (no canceladas) ───────────────────────────────────
+    reservations_res = await db.execute(
+        select(func.count()).where(
+            Reservation.club_id == club_id,
+            func.date(Reservation.starts_at) == today,
+            status_col != "cancelled",
+        )
+    )
+    today_reservations = int(reservations_res.scalar() or 0)
+
+    # ── 3. Ingresos del mes (payments INCOME) ────────────────────────────────
+    income_res = await db.execute(
+        select(func.coalesce(func.sum(Payment.amount), 0)).where(
+            Payment.club_id         == club_id,
+            Payment.is_active.is_(True),
+            Payment.transaction_type == "INCOME",
+            cast(Payment.payment_date, Date) >= month_start,
+        )
+    )
+    monthly_income = float(income_res.scalar() or 0)
+
+    # ── 4. Egresos del mes = gastos operativos + retiros OUTFLOW ─────────────
+    expenses_res = await db.execute(
+        select(func.coalesce(func.sum(Expense.amount), 0)).where(
+            Expense.club_id      == club_id,
+            Expense.is_active.is_(True),
+            Expense.expense_date >= month_start,
+        )
+    )
+    monthly_operational = float(expenses_res.scalar() or 0)
+
+    outflow_res = await db.execute(
+        select(func.coalesce(func.sum(Payment.amount), 0)).where(
+            Payment.club_id         == club_id,
+            Payment.is_active.is_(True),
+            Payment.transaction_type == "OUTFLOW",
+            cast(Payment.payment_date, Date) >= month_start,
+        )
+    )
+    monthly_outflow = float(outflow_res.scalar() or 0)
+
+    monthly_expenses = monthly_operational + monthly_outflow
+
+    logger.info(
+        "Summary club=%s members=%s reservations=%s income=%s expenses=%s",
+        club_id, total_members, today_reservations, monthly_income, monthly_expenses,
+    )
+
+    return ManagerSummary(
+        total_members=total_members,
+        today_reservations=today_reservations,
+        monthly_income=monthly_income,
+        monthly_expenses=monthly_expenses,
+        net_profit=monthly_income - monthly_expenses,
     )
