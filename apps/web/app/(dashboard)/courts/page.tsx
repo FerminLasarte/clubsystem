@@ -10,7 +10,7 @@
 // Flujos:
 //  · Crear cancha  → botón "Nueva cancha" (OWNER) → modal → POST → prepend local
 //  · Editar cancha → ícono ✏ (OWNER) → modal pre-relleno → PUT → actualiza card
-//  · Eliminar      → ícono 🗑 (OWNER) → confirmación inline → DELETE → elimina local
+//  · Eliminar      → ícono 🗑 (OWNER) → AlertDialog de confirmación → DELETE
 //
 // Accesos:
 //  · Lista → todos los roles autenticados
@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Activity,
+  AlertTriangle,
   Check,
   DollarSign,
   Layers,
@@ -35,6 +36,7 @@ import {
 } from "lucide-react";
 
 import { ActionButton } from "@/components/ui/action-button";
+import { Button } from "@/components/ui/button";
 import { useClubSession } from "@/contexts/ClubSessionContext";
 import {
   courtsApi,
@@ -73,6 +75,22 @@ const SURFACE_OPTIONS = [
   { value: "other",     label: "Otro"               },
 ];
 
+/**
+ * Mapa de compatibilidad deporte → superficies válidas.
+ * Los deportes ausentes de este mapa aceptan todas las superficies.
+ * Invariante de negocio: hockey NO puede jugarse en polvo de ladrillo.
+ */
+const SPORT_SURFACE_COMPAT: Record<string, string[]> = {
+  hockey:     ["synthetic", "grass", "carpet", "other"],
+  basketball: ["hardwood",  "concrete", "synthetic", "other"],
+  football:   ["grass",     "synthetic", "concrete", "other"],
+};
+
+function allowedSurfaces(sport: string): typeof SURFACE_OPTIONS {
+  const allowed = SPORT_SURFACE_COMPAT[sport];
+  return allowed ? SURFACE_OPTIONS.filter((s) => allowed.includes(s.value)) : SURFACE_OPTIONS;
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type ModalState =
@@ -81,6 +99,12 @@ type ModalState =
   | null;
 
 type ToastState = { message: string; type: "success" | "error" } | null;
+
+interface FieldErrors {
+  name?:        string;
+  hourly_rate?: string;
+  capacity?:    string;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -119,6 +143,78 @@ function Toast({ state }: { state: ToastState }) {
   );
 }
 
+// ── DeleteConfirmDialog (AlertDialog pattern) ──────────────────────────────
+
+function DeleteConfirmDialog({
+  court,
+  onConfirm,
+  onCancel,
+}: {
+  court:     CourtOut;
+  onConfirm: () => void;
+  onCancel:  () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+        {/* Icon + Title + Description */}
+        <div className="flex items-start gap-4 px-6 pt-6 pb-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-foreground">
+              ¿Estás seguro de eliminar la cancha &ldquo;{court.name}&rdquo;?
+            </h2>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              Esta acción no se puede deshacer y podría afectar a reservas futuras y pasadas.
+            </p>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
+          <Button variant="outline" size="sm" onClick={onCancel}>
+            Cancelar
+          </Button>
+          <Button variant="destructive" size="sm" onClick={onConfirm}>
+            <Trash2 />
+            Eliminar definitivamente
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── CourtCharacteristicChip ────────────────────────────────────────────────
+// Componente abstracto reutilizable para KPIs de tarjeta.
+// Garantiza consistencia visual: mismo padding, tipografía y altura en todas las cards.
+
+interface ChipProps {
+  icon:    React.ReactNode;
+  label:   string;
+  value:   string;
+  variant: "surface" | "capacity";
+}
+
+function CourtCharacteristicChip({ icon, label, value, variant }: ChipProps) {
+  const wrapCls =
+    variant === "surface"
+      ? "bg-blue-50/70 border-blue-100 dark:bg-blue-950/30 dark:border-blue-900"
+      : "bg-violet-50/70 border-violet-100 dark:bg-violet-950/30 dark:border-violet-900";
+
+  return (
+    <div className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 ${wrapCls}`}>
+      <span className="shrink-0">{icon}</span>
+      <div className="min-w-0">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="truncate text-xs font-medium text-foreground">{value}</p>
+      </div>
+    </div>
+  );
+}
+
 // ── CourtFormModal ─────────────────────────────────────────────────────────
 
 interface FormState {
@@ -141,6 +237,16 @@ const EMPTY_FORM: FormState = {
   description: "",
 };
 
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <p className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+      <AlertTriangle className="h-3 w-3 shrink-0" />
+      {message}
+    </p>
+  );
+}
+
 function CourtFormModal({
   modal,
   onClose,
@@ -153,9 +259,10 @@ function CourtFormModal({
   const isEdit   = modal.mode === "edit";
   const editItem = isEdit ? (modal as { mode: "edit"; court: CourtOut }).court : null;
 
-  const [form,      setForm]      = useState<FormState>(EMPTY_FORM);
-  const [saving,    setSaving]    = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [form,         setForm]         = useState<FormState>(EMPTY_FORM);
+  const [saving,       setSaving]       = useState(false);
+  const [fieldErrors,  setFieldErrors]  = useState<FieldErrors>({});
+  const [generalError, setGeneralError] = useState<string | null>(null);
   const firstRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -172,9 +279,20 @@ function CourtFormModal({
     } else {
       setForm(EMPTY_FORM);
     }
-    setFormError(null);
+    setFieldErrors({});
+    setGeneralError(null);
     setTimeout(() => firstRef.current?.focus(), 60);
   }, [editItem?.id]);
+
+  /** Cuando cambia el deporte, reajusta la superficie si no es compatible. */
+  const handleSportChange = (sport: string) => {
+    const allowed = allowedSurfaces(sport);
+    setForm((prev) => ({
+      ...prev,
+      sport,
+      surface: allowed.some((s) => s.value === prev.surface) ? prev.surface : allowed[0].value,
+    }));
+  };
 
   const set = (field: keyof FormState) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -182,13 +300,20 @@ function CourtFormModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFormError(null);
+    setGeneralError(null);
 
     const rate = parseFloat(form.hourly_rate);
     const cap  = parseInt(form.capacity, 10);
-    if (!form.name.trim())       return setFormError("El nombre es obligatorio");
-    if (isNaN(rate) || rate < 0) return setFormError("Ingresá un precio por hora válido");
-    if (isNaN(cap)  || cap  < 1) return setFormError("La capacidad debe ser al menos 1");
+    const errors: FieldErrors = {};
+    if (!form.name.trim())       errors.name        = "El nombre es obligatorio";
+    if (isNaN(rate) || rate < 0) errors.hourly_rate = "Ingresá un precio por hora válido";
+    if (isNaN(cap)  || cap  < 1) errors.capacity    = "La capacidad debe ser al menos 1";
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+    setFieldErrors({});
 
     const payload: CourtCreate = {
       name:        form.name.trim(),
@@ -205,15 +330,22 @@ function CourtFormModal({
       await onSave(payload, editItem?.id);
       onClose();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Error al guardar");
+      setGeneralError(err instanceof Error ? err.message : "Error al guardar");
     } finally {
       setSaving(false);
     }
   };
 
+  const surfaces             = allowedSurfaces(form.sport);
+  const hasSurfaceFilter     = Boolean(SPORT_SURFACE_COMPAT[form.sport]);
+  const inputBase            = "w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none transition";
+  const inputError           = "border-destructive focus:border-destructive";
+  const inputOk              = "border-border focus:border-ring";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl dark:border-border dark:bg-card">
+
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <h2 className="text-base font-semibold text-foreground">
@@ -227,18 +359,30 @@ function CourtFormModal({
           </button>
         </div>
 
+        {/* General error banner — only for API errors */}
+        {generalError && (
+          <div className="flex items-center gap-3 border-b border-destructive/20 bg-destructive/10 px-6 py-3">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+            <p className="text-sm font-medium text-destructive">{generalError}</p>
+          </div>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 px-6 py-5">
+
           {/* Nombre */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Nombre</label>
+            <label className="text-xs font-medium text-muted-foreground">
+              Nombre <span className="text-destructive">*</span>
+            </label>
             <input
               ref={firstRef}
               value={form.name}
               onChange={set("name")}
               placeholder="Ej: Cancha 1"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
+              className={`${inputBase} ${fieldErrors.name ? inputError : inputOk}`}
             />
+            <FieldError message={fieldErrors.name} />
           </div>
 
           {/* Deporte + Superficie */}
@@ -247,8 +391,8 @@ function CourtFormModal({
               <label className="text-xs font-medium text-muted-foreground">Deporte</label>
               <select
                 value={form.sport}
-                onChange={set("sport")}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none"
+                onChange={(e) => handleSportChange(e.target.value)}
+                className={`${inputBase} ${inputOk}`}
               >
                 {SPORT_OPTIONS.map(({ value, label }) => (
                   <option key={value} value={value}>{label}</option>
@@ -256,13 +400,20 @@ function CourtFormModal({
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Superficie</label>
+              <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                Superficie
+                {hasSurfaceFilter && (
+                  <span className="rounded bg-amber-50 px-1 py-0.5 text-[10px] font-normal text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
+                    filtrada
+                  </span>
+                )}
+              </label>
               <select
                 value={form.surface}
                 onChange={set("surface")}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none"
+                className={`${inputBase} ${inputOk}`}
               >
-                {SURFACE_OPTIONS.map(({ value, label }) => (
+                {surfaces.map(({ value, label }) => (
                   <option key={value} value={value}>{label}</option>
                 ))}
               </select>
@@ -272,7 +423,9 @@ function CourtFormModal({
           {/* Precio + Capacidad */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Precio / hora (ARS)</label>
+              <label className="text-xs font-medium text-muted-foreground">
+                Precio / hora (ARS) <span className="text-destructive">*</span>
+              </label>
               <input
                 type="number"
                 min="0"
@@ -280,40 +433,50 @@ function CourtFormModal({
                 value={form.hourly_rate}
                 onChange={set("hourly_rate")}
                 placeholder="0"
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
+                className={`${inputBase} ${fieldErrors.hourly_rate ? inputError : inputOk}`}
               />
+              <FieldError message={fieldErrors.hourly_rate} />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Capacidad</label>
+              <label className="text-xs font-medium text-muted-foreground">
+                Capacidad <span className="text-destructive">*</span>
+              </label>
               <input
                 type="number"
                 min="1"
                 step="1"
                 value={form.capacity}
                 onChange={set("capacity")}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none"
+                className={`${inputBase} ${fieldErrors.capacity ? inputError : inputOk}`}
               />
+              <FieldError message={fieldErrors.capacity} />
             </div>
           </div>
 
-          {/* Indoor toggle */}
-          <label className="flex cursor-pointer items-center gap-3">
-            <div className="relative">
-              <input
-                type="checkbox"
-                checked={form.is_indoor}
-                onChange={(e) => setForm((prev) => ({ ...prev, is_indoor: e.target.checked }))}
-                className="sr-only"
-              />
-              <div
-                className={`h-5 w-9 rounded-full transition-colors ${form.is_indoor ? "bg-primary" : "bg-muted"}`}
-              />
-              <div
-                className={`absolute top-0.5 h-4 w-4 rounded-full bg-background shadow transition-transform ${form.is_indoor ? "translate-x-4" : "translate-x-0.5"}`}
-              />
+          {/* Cancha cubierta — Switch de Shadcn UI */}
+          <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Cancha cubierta</p>
+              <p className="text-xs text-muted-foreground">
+                {form.is_indoor ? "Indoor / bajo techo" : "Al aire libre"}
+              </p>
             </div>
-            <span className="text-sm text-foreground">Cancha cubierta (indoor)</span>
-          </label>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={form.is_indoor}
+              onClick={() => setForm((prev) => ({ ...prev, is_indoor: !prev.is_indoor }))}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                form.is_indoor ? "bg-primary" : "bg-input"
+              }`}
+            >
+              <span
+                className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg transition-transform ${
+                  form.is_indoor ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
 
           {/* Descripción */}
           <div className="space-y-1.5">
@@ -323,34 +486,25 @@ function CourtFormModal({
               onChange={set("description")}
               rows={2}
               placeholder="Notas adicionales sobre esta cancha…"
-              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
+              className={`${inputBase} ${inputOk} resize-none`}
             />
           </div>
 
-          {/* Error */}
-          {formError && (
-            <p className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              {formError}
-            </p>
-          )}
-
-          {/* Actions */}
+          {/* Actions — usa <Button> abstracto */}
           <div className="flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
-            >
+            <Button type="button" variant="outline" size="sm" onClick={onClose}>
               Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            </Button>
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving ? (
+                <Loader2 className="animate-spin" />
+              ) : isEdit ? (
+                <Pencil />
+              ) : (
+                <Plus />
+              )}
               {isEdit ? "Guardar cambios" : "Crear cancha"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -364,28 +518,22 @@ function CourtCard({
   court,
   isOwner,
   onEdit,
-  onDelete,
-  confirmId,
-  onConfirmDelete,
-  onCancelDelete,
+  onDeleteRequest,
 }: {
   court:           CourtOut;
   isOwner:         boolean;
   onEdit:          (c: CourtOut) => void;
-  onDelete:        (c: CourtOut) => void;
-  confirmId:       string | null;
-  onConfirmDelete: (c: CourtOut) => void;
-  onCancelDelete:  () => void;
+  onDeleteRequest: (c: CourtOut) => void;
 }) {
   const sport = sportConfig(court.sport);
-  const isPendingDelete = confirmId === court.id;
 
   return (
-    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition hover:border-border/80 hover:shadow-sm">
-      {/* Sport color bar */}
+    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition hover:shadow-sm">
+      {/* Sport color bar — extraída del badgeCls (2.ª clase = bg-*) */}
       <div className={`h-1 w-full ${sport.badgeCls.split(" ")[1]}`} />
 
       <div className="flex flex-1 flex-col gap-4 p-5">
+
         {/* Header row */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
@@ -398,64 +546,41 @@ function CourtCard({
             </span>
           </div>
 
-          {/* Actions — only for OWNER */}
+          {/* Acciones — solo OWNER (RBAC) */}
           {isOwner && (
             <div className="flex shrink-0 items-center gap-1">
-              {isPendingDelete ? (
-                <>
-                  <span className="mr-1 text-xs text-muted-foreground">¿Eliminar?</span>
-                  <button
-                    onClick={() => onConfirmDelete(court)}
-                    className="rounded border border-destructive/20 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/20 transition cursor-pointer"
-                  >
-                    Sí
-                  </button>
-                  <button
-                    onClick={onCancelDelete}
-                    className="rounded border border-border bg-background px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted transition cursor-pointer"
-                  >
-                    No
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => onEdit(court)}
-                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
-                    aria-label="Editar"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => onDelete(court)}
-                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition cursor-pointer"
-                    aria-label="Eliminar"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </>
-              )}
+              <button
+                onClick={() => onEdit(court)}
+                className="rounded-lg p-1.5 text-muted-foreground transition cursor-pointer hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/40 dark:hover:text-blue-400"
+                aria-label="Editar cancha"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => onDeleteRequest(court)}
+                className="rounded-lg p-1.5 text-muted-foreground transition cursor-pointer hover:bg-destructive/10 hover:text-destructive"
+                aria-label="Eliminar cancha"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
             </div>
           )}
         </div>
 
-        {/* Details */}
+        {/* KPIs — CourtCharacteristicChip garantiza DRY y consistencia visual */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="flex items-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5">
-            <Layers className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <div className="min-w-0">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Superficie</p>
-              <p className="truncate text-xs font-medium text-foreground">{surfaceLabel(court.surface)}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5">
-            <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Capacidad</p>
-              <p className="text-xs font-medium text-foreground">{court.capacity} personas</p>
-            </div>
-          </div>
+          <CourtCharacteristicChip
+            icon={<Layers className="h-3.5 w-3.5 text-blue-500" />}
+            label="Superficie"
+            value={surfaceLabel(court.surface)}
+            variant="surface"
+          />
+          <CourtCharacteristicChip
+            icon={<Users className="h-3.5 w-3.5 text-violet-500" />}
+            label="Capacidad"
+            value={`${court.capacity} personas`}
+            variant="capacity"
+          />
         </div>
 
         {/* Footer */}
@@ -464,7 +589,9 @@ function CourtCard({
             <div
               className={`h-1.5 w-1.5 rounded-full ${court.is_indoor ? "bg-blue-400" : "bg-emerald-400"}`}
             />
-            <span className="text-xs text-muted-foreground">{court.is_indoor ? "Cubierta" : "Al aire libre"}</span>
+            <span className="text-xs text-muted-foreground">
+              {court.is_indoor ? "Cubierta" : "Al aire libre"}
+            </span>
           </div>
           <div className="flex items-center gap-1 text-foreground">
             <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
@@ -473,7 +600,6 @@ function CourtCard({
           </div>
         </div>
 
-        {/* Optional description */}
         {court.description && (
           <p className="text-xs text-muted-foreground leading-relaxed -mt-1 line-clamp-2">
             {court.description}
@@ -490,12 +616,12 @@ export default function CourtsPage() {
   const { activeClub, isLoading: sessionLoading, hasRole } = useClubSession();
   const isOwner = hasRole("OWNER");
 
-  const [courts,    setCourts]    = useState<CourtOut[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState<string | null>(null);
+  const [courts,       setCourts]       = useState<CourtOut[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState<string | null>(null);
 
   const [modal,        setModal]        = useState<ModalState>(null);
-  const [confirmId,    setConfirmId]    = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CourtOut | null>(null);
   const [toast,        setToast]        = useState<ToastState>(null);
   const [filterSport,  setFilterSport]  = useState<string | null>(null);
 
@@ -532,18 +658,16 @@ export default function CourtsPage() {
     }
   };
 
-  const handleDeleteRequest = (court: CourtOut) => setConfirmId(court.id);
-  const handleDeleteCancel  = () => setConfirmId(null);
-
-  const handleDeleteConfirm = async (court: CourtOut) => {
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
     try {
-      await courtsApi.remove(court.id);
-      setCourts((prev) => prev.filter((c) => c.id !== court.id));
+      await courtsApi.remove(deleteTarget.id);
+      setCourts((prev) => prev.filter((c) => c.id !== deleteTarget.id));
       showToast("Cancha eliminada");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Error al eliminar", "error");
     } finally {
-      setConfirmId(null);
+      setDeleteTarget(null);
     }
   };
 
@@ -571,6 +695,7 @@ export default function CourtsPage() {
           </p>
         </div>
 
+        {/* RBAC: solo OWNER puede crear */}
         {isOwner && (
           <ActionButton icon={Plus} onClick={() => setModal({ mode: "create" })}>
             Nueva cancha
@@ -578,14 +703,15 @@ export default function CourtsPage() {
         )}
       </div>
 
-      {/* Error */}
+      {/* Error de carga */}
       {error && (
-        <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="flex items-center gap-3 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
           {error}
         </div>
       )}
 
-      {/* Loading skeleton */}
+      {/* Skeleton de carga — altura fija previene CLS */}
       {loading && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -594,14 +720,15 @@ export default function CourtsPage() {
         </div>
       )}
 
-      {/* Sport filter */}
+      {/* Filtros de deporte */}
       {!loading && courts.length > 0 && (
         <div className="flex flex-wrap gap-2">
+          {/* "Todos" tiene estilo activo por defecto (primary + sombra) */}
           <button
             onClick={() => setFilterSport(null)}
             className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
               filterSport === null
-                ? "border-primary bg-primary text-primary-foreground"
+                ? "border-primary bg-primary text-primary-foreground shadow-sm"
                 : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
@@ -613,10 +740,10 @@ export default function CourtsPage() {
             return (
               <button
                 key={sport}
-                onClick={() => { if (!isActive) setFilterSport(sport); }}
+                onClick={() => setFilterSport(isActive ? null : sport)}
                 className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
                   isActive
-                    ? badgeCls + " ring-1 ring-inset ring-current"
+                    ? `${badgeCls} shadow-sm ring-1 ring-inset ring-current`
                     : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
@@ -627,7 +754,7 @@ export default function CourtsPage() {
         </div>
       )}
 
-      {/* Grid */}
+      {/* Grid de canchas */}
       {!loading && courts.length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {courts.filter((c) => filterSport === null || c.sport === filterSport).map((court) => (
@@ -636,10 +763,7 @@ export default function CourtsPage() {
               court={court}
               isOwner={isOwner}
               onEdit={(c) => setModal({ mode: "edit", court: c })}
-              onDelete={handleDeleteRequest}
-              confirmId={confirmId}
-              onConfirmDelete={handleDeleteConfirm}
-              onCancelDelete={handleDeleteCancel}
+              onDeleteRequest={setDeleteTarget}
             />
           ))}
         </div>
@@ -663,12 +787,21 @@ export default function CourtsPage() {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modal de creación / edición */}
       {modal && (
         <CourtFormModal
           modal={modal}
           onClose={() => setModal(null)}
           onSave={handleSave}
+        />
+      )}
+
+      {/* AlertDialog de confirmación de borrado */}
+      {deleteTarget && (
+        <DeleteConfirmDialog
+          court={deleteTarget}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
         />
       )}
 
