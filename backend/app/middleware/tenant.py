@@ -1,5 +1,5 @@
 """
-ClubSync — Tenant Middleware & Dependencies
+ClubSystem — Tenant Middleware & Dependencies
 ============================================
 Responsabilidades:
 1. Extraer club_id del JWT en cada request autenticado.
@@ -58,6 +58,7 @@ PUBLIC_PATHS = {
     "/api/v1/auth/switch-club",
     "/api/v1/auth/forgot-password",
     "/api/v1/clubs",
+    "/api/v1/mobile/auth/login",
 }
 
 

@@ -1,5 +1,5 @@
 """
-ClubSync — Finance Router
+ClubSystem — Finance Router
 =========================
 Endpoints de resumen financiero diario (Caja Diaria).
 

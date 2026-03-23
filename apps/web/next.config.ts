@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@clubsync/types"],
+  transpilePackages: ["@ClubSystem/types"],
 };
 
 export default nextConfig;

@@ -2,7 +2,7 @@
 // apps/web/components/expenses/ExpenseTable.tsx
 // Reusable table — used by expenses/page.tsx and anywhere else
 
-import type { Expense } from "@clubsync/types";
+import type { Expense } from "@ClubSystem/types";
 import { AnomalyBadge } from "./AnomalyBadge";
 
 const CATEGORY_LABELS: Record<string, string> = {

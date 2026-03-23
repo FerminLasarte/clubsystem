@@ -1,5 +1,5 @@
 """
-ClubSync — Fees Router
+ClubSystem — Fees Router
 ======================
 Motor de facturación recurrente: Cuotas Societarias.
 

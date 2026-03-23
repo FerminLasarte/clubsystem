@@ -1,5 +1,5 @@
 """
-ClubSync — Notifications Router
+ClubSystem — Notifications Router
 =================================
 Endpoints in-app para el usuario autenticado (funciona con JWT limitado,
 es decir: usuarios mobile que aún no tienen club activo pueden consultarlas).

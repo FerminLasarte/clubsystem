@@ -1,5 +1,5 @@
 """
-ClubSync — Clubs Router
+ClubSystem — Clubs Router
 ========================
 Endpoints públicos (login/branding) + endpoints autenticados de configuración.
 

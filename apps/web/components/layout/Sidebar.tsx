@@ -21,7 +21,7 @@ import {
   LayoutGrid, Package, Users, Settings, ChevronRight, LogOut, X, Bell, Wallet, Receipt,
 } from "lucide-react";
 import { useClubSession } from "@/contexts/ClubSessionContext";
-import { ROLE_PERMISSIONS } from "@clubsync/types";
+import { ROLE_PERMISSIONS } from "@ClubSystem/types";
 
 // ── Definición completa de la navegación ─────────────────────
 // El filtrado ocurre en runtime según el rol activo.
@@ -61,7 +61,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
   // ── Branding derivado del contexto ────────────────────────
   const primaryColor = activeClub?.primaryColor ?? "#111827";
-  const clubName     = activeClub?.clubName ?? "ClubSync";
+  const clubName     = activeClub?.clubName ?? "ClubSystem";
   const logoUrl      = activeClub?.logoUrl ?? null;
 
   const initials = clubName

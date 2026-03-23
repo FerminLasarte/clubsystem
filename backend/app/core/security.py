@@ -1,5 +1,5 @@
 """
-ClubSync — Security Utilities
+ClubSystem — Security Utilities
 ==============================
 Centraliza todas las operaciones criptográficas de la aplicación:
   - Hashing y verificación de contraseñas con bcrypt (via passlib).

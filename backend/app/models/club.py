@@ -36,6 +36,15 @@ class Club(Base):
     # Cancellation policy: hours before start_time a member may cancel without penalty
     cancellation_policy_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24, server_default="24")
 
+    # Payments & integrations
+    require_deposit:   Mapped[bool]        = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    mercadopago_token: Mapped[str | None]  = mapped_column(Text, nullable=True)
+
+    # Notification preferences
+    notif_whatsapp:     Mapped[bool] = mapped_column(Boolean, nullable=False, default=True,  server_default="true")
+    notif_cancellation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True,  server_default="true")
+    notif_cash_report:  Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+
     # Subscription
     is_active:     Mapped[bool]       = mapped_column(Boolean, default=True)
     plan:          Mapped[str]        = mapped_column(String(50), default="starter")

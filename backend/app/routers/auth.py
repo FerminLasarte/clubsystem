@@ -1,5 +1,5 @@
 """
-ClubSync — Auth Router
+ClubSystem — Auth Router
 =======================
 Endpoints:
   POST /api/v1/auth/login        → Autenticación con soporte multi-club.

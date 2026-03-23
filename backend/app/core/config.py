@@ -4,7 +4,7 @@ from typing import List
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "ClubSync API"
+    APP_NAME: str = "ClubSystem API"
     DEBUG: bool = False
     SECRET_KEY: str = "dev-secret-change-in-production"
 

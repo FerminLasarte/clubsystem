@@ -1,5 +1,5 @@
 """
-ClubSync — Notification Model
+ClubSystem — Notification Model
 ==============================
 Notificaciones in-app para usuarios del sistema.
 

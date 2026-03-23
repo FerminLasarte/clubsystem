@@ -1,5 +1,5 @@
 -- ============================================================
--- ClubSync — Seed ClubStaff: Superadmin multi-club
+-- ClubSystem — Seed ClubStaff: Superadmin multi-club
 -- ============================================================
 -- Vincula admin@loscardos.com como OWNER en los 4 clubs.
 -- Así al hacer login ve el ClubSwitcher con los 4 clubs disponibles.

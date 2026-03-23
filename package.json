@@ -1,5 +1,5 @@
 {
-  "name": "clubsync",
+  "name": "ClubSystem",
   "private": true,
   "scripts": {
     "dev": "turbo run dev",

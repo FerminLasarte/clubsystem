@@ -1,5 +1,5 @@
 /**
- * Pantalla de Invitaciones Pendientes — ClubSync Mobile
+ * Pantalla de Invitaciones Pendientes — ClubSystem Mobile
  *
  * Se muestra cuando el usuario está autenticado (JWT limitado)
  * pero todavía no tiene un club activo asignado.

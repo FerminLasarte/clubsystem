@@ -1,5 +1,5 @@
 """
-ClubSync — Payments Router
+ClubSystem — Payments Router
 ==========================
 Gestión de cobros e ingresos del club (Caja Diaria).
 

@@ -11,7 +11,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: { default: "ClubSync", template: "%s · ClubSync" },
+  title: { default: "ClubSystem", template: "%s · ClubSystem" },
   description: "Panel de administración para clubes deportivos",
 };
 

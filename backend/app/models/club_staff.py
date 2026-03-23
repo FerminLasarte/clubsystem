@@ -1,5 +1,5 @@
 """
-ClubSync — ClubStaff Model
+ClubSystem — ClubStaff Model
 ===========================
 Tabla que implementa RBAC multi-tenant.
 

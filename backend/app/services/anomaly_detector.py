@@ -1,6 +1,6 @@
 # backend/app/services/anomaly_detector.py
 """
-ClubSync — Anomaly Detector Service
+ClubSystem — Anomaly Detector Service
 =====================================
 Fase 1: Detección estadística (Z-score, duplicados, proveedor nuevo, montos redondos).
 Fase 2: Explicación contextual con LLM (OpenAI gpt-4o-mini).

@@ -12,7 +12,7 @@ import type {
   PaginatedResponse,
   ApiError,
   LoginResponse,
-} from "@clubsync/types";
+} from "@ClubSystem/types";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -142,6 +142,69 @@ export const clubApi = {
     request<ClubSettingsOut>("/api/v1/clubs/me", {
       method: "PUT",
       body: JSON.stringify(payload),
+    }),
+};
+
+// ── Settings (composite) ──────────────────────────────────────
+// Endpoint unificado GET/PUT /api/v1/settings que devuelve y actualiza
+// perfil del admin, config del club, pagos y notificaciones en una sola llamada.
+
+export interface SettingsProfileOut {
+  fullName:  string;
+  email:     string;
+  avatarUrl: string | null;
+}
+
+export interface SettingsClubOut {
+  name:                    string;
+  phone:                   string | null;
+  address:                 string | null;
+  city:                    string | null;
+  /** "HH:MM" o null */
+  openTime:                string | null;
+  /** "HH:MM" o null */
+  closeTime:               string | null;
+  cancellationPolicyHours: number;
+}
+
+export interface SettingsPaymentsOut {
+  requireDeposit:   boolean;
+  /** String vacío si no configurado */
+  mercadopagoToken: string;
+}
+
+export interface SettingsNotificationsOut {
+  whatsappNewReservations: boolean;
+  cancellationAlerts:      boolean;
+  dailyCashReport:         boolean;
+}
+
+export interface SettingsApiOut {
+  profile:       SettingsProfileOut;
+  club:          SettingsClubOut;
+  payments:      SettingsPaymentsOut;
+  notifications: SettingsNotificationsOut;
+}
+
+export interface SettingsApiUpdate {
+  profile?:       { fullName?: string };
+  club?:          Partial<SettingsClubOut>;
+  payments?:      Partial<SettingsPaymentsOut>;
+  notifications?: Partial<SettingsNotificationsOut>;
+}
+
+export const settingsApi = {
+  /** Carga perfil + club + pagos + notificaciones del club activo. */
+  get: () => request<SettingsApiOut>("/api/v1/settings"),
+
+  /**
+   * Guarda los ajustes del club activo. Solo OWNER.
+   * Acepta las secciones que se quieran actualizar (perfil, club, pagos, notificaciones).
+   */
+  update: (payload: SettingsApiUpdate) =>
+    request<SettingsApiOut>("/api/v1/settings", {
+      method: "PUT",
+      body:   JSON.stringify(payload),
     }),
 };
 

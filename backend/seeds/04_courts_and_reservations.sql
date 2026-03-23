@@ -1,5 +1,5 @@
 -- ============================================================
--- ClubSync — Seed de canchas y reservas de prueba
+-- ClubSystem — Seed de canchas y reservas de prueba
 -- Ejecutar DESPUÉS de 03_users.sql
 -- Club: Los Cardos Rugby Club (id: 0fefa106-be3d-4c6c-90a5-c5b1a641c0b4)
 -- ============================================================

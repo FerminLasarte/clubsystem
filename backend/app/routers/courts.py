@@ -1,5 +1,5 @@
 """
-ClubSync — Courts Router
+ClubSystem — Courts Router
 ========================
 CRUD de infraestructura física (canchas) del club.
 

@@ -1,5 +1,5 @@
 /**
- * AuthContext — Proveedor global de autenticación para ClubSync Mobile.
+ * AuthContext — Proveedor global de autenticación para ClubSystem Mobile.
  *
  * Responsabilidades:
  *  - Guardar el JWT de forma segura con expo-secure-store.
@@ -29,6 +29,8 @@ import { API_URL } from "@/config/api";
 
 export interface AuthUser {
   email: string;
+  firstName: string;
+  lastName: string;
   role: string;
   /** true cuando el usuario tiene un club activo asignado */
   hasClub: boolean;
@@ -46,7 +48,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<void>;
   register: (
     firstName: string,
     lastName: string,
@@ -111,32 +113,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ── login ────────────────────────────────────────────────────
+  // Usa el endpoint del Portal del Jugador (/mobile/auth/login).
+  // Acepta email o DNI como identificador.
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await fetch(`${API_URL}/auth/mobile-login`, {
+  const login = useCallback(async (identifier: string, password: string) => {
+    const res = await fetch(`${API_URL}/mobile/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier: identifier.trim(), password }),
     });
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail ?? "Email o contraseña incorrectos");
+      throw new Error((err as { detail?: string }).detail ?? "Email/DNI o contraseña incorrectos");
     }
 
     const data = await res.json();
+    const member = data.member as {
+      first_name: string;
+      last_name: string;
+      club_id: string | null;
+      club_name: string | null;
+    };
 
-    // club es null cuando el usuario aún no tiene club activo
-    const hasClub = data.club !== null && data.club !== undefined;
+    const hasClub = member.club_id !== null && member.club_id !== undefined;
 
     const user: AuthUser = {
-      email,
-      role:         data.user_role,
+      email:        identifier.trim().toLowerCase(),
+      firstName:    member.first_name,
+      lastName:     member.last_name,
+      role:         "member",
       hasClub,
-      clubId:       hasClub ? data.club.id            : null,
-      clubName:     hasClub ? data.club.name           : null,
-      clubSlug:     hasClub ? data.club.slug           : null,
-      primaryColor: hasClub ? data.club.primary_color  : null,
+      clubId:       hasClub ? member.club_id   : null,
+      clubName:     hasClub ? member.club_name : null,
+      clubSlug:     null,
+      primaryColor: null,
     };
 
     await _saveSession(data.access_token, user);
@@ -164,7 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail ?? "Error al registrarse");
+        throw new Error((err as { detail?: string }).detail ?? "Error al registrarse");
       }
       // El register screen muestra éxito y el usuario inicia sesión manualmente.
     },
@@ -188,14 +199,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail ?? "Error al aceptar la invitación");
+        throw new Error((err as { detail?: string }).detail ?? "Error al aceptar la invitación");
       }
 
       const data = await res.json();
 
-      // El servidor emite un nuevo JWT completo (con club_id y role)
       const user: AuthUser = {
         email:        state.user?.email ?? "",
+        firstName:    state.user?.firstName ?? "",
+        lastName:     state.user?.lastName ?? "",
         role:         data.user_role,
         hasClub:      true,
         clubId:       data.club_id,

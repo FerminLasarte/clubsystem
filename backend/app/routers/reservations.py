@@ -1,5 +1,5 @@
 """
-ClubSync — Reservations Router
+ClubSystem — Reservations Router
 ================================
 Endpoints:
   GET  /api/v1/reservations/availability   → Grilla completa (canchas + reservas del día).
@@ -376,24 +376,46 @@ async def create_reservation(
         raise HTTPException(status_code=404, detail="Usuario no encontrado en este club.")
 
     # ── Validación de horario operativo del club ───────────────────────────────
-    # Si el club tiene open_time y close_time configurados, la reserva debe caer
-    # dentro de ese rango. Se convierte UTC → hora local Argentina para comparar.
+    # Reglas de negocio:
+    #   · starts_at >= open_time  del club
+    #   · ends_at   <= close_time del club
+    # Solo se aplica cuando el club tiene ambos horarios configurados y
+    # representan un turno dentro del mismo día (open_time < close_time).
+    #
+    # Diseño:
+    #   Se construyen datetimes límite completos (open_bound / close_bound)
+    #   sobre la fecha local de inicio de la reserva.  Esto evita dos bugs
+    #   del enfoque naïve de extraer solo .time():
+    #
+    #   1. Rollover de medianoche: una reserva que termine a las 00:30 del día
+    #      siguiente tendría ends_local.time() == 00:30, que es MENOR que
+    #      close_time == 21:00 → la comparación aceptaría un horario inválido.
+    #
+    #   2. Datetime naive: si el cliente omite el offset de zona horaria,
+    #      .astimezone() asume la TZ del sistema (UTC en producción), no ART,
+    #      desplazando la comparación 3 horas y permitiendo reservas fuera de
+    #      horario que deberían rechazarse.
     club = await db.get(Club, club_id)
     if club and club.open_time and club.close_time and club.open_time < club.close_time:
-        starts_local = payload.starts_at.astimezone(_CLUB_TZ)
-        ends_local   = payload.ends_at.astimezone(_CLUB_TZ)
-        starts_time  = starts_local.time().replace(tzinfo=None)
-        ends_time    = ends_local.time().replace(tzinfo=None)
+        # Normalizar a timezone-aware: si llega sin offset, asumir hora local
+        # del club (America/Argentina/Buenos_Aires, UTC-3 fijo).
+        def _to_aware(dt: datetime) -> datetime:
+            return dt if dt.tzinfo is not None else dt.replace(tzinfo=_CLUB_TZ)
 
-        if starts_time < club.open_time or ends_time > club.close_time:
-            open_str  = club.open_time.strftime("%H:%M")
-            close_str = club.close_time.strftime("%H:%M")
+        starts_aware = _to_aware(payload.starts_at)
+        ends_aware   = _to_aware(payload.ends_at)
+
+        # Proyectar open/close sobre la fecha local de inicio.
+        # Usar datetime.combine garantiza que la comparación sea entre objetos
+        # del mismo tipo y referencia temporal, sin perder el contexto de fecha.
+        local_date  = starts_aware.astimezone(_CLUB_TZ).date()
+        open_bound  = datetime.combine(local_date, club.open_time,  tzinfo=_CLUB_TZ)
+        close_bound = datetime.combine(local_date, club.close_time, tzinfo=_CLUB_TZ)
+
+        if starts_aware < open_bound or ends_aware > close_bound:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"La reserva debe estar dentro del horario de operación del club "
-                    f"({open_str} – {close_str} hs)."
-                ),
+                detail="El horario de la reserva está fuera del horario de operación del club.",
             )
 
     # El administrador crea la reserva directamente como "confirmed".

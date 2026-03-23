@@ -1,6 +1,6 @@
 # backend/app/routers/users.py
 """
-ClubSync — Users (Socios) Router
+ClubSystem — Users (Socios) Router
 ==================================
 Lista y consulta socios del club activo.
 

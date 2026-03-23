@@ -20,7 +20,7 @@
     ],
     "paths": {
       "@/*": ["./*"],
-      "@clubsync/types": ["../../packages/types/src"]
+      "@ClubSystem/types": ["../../packages/types/src"]
     }
   },
   "include": [

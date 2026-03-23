@@ -1,5 +1,5 @@
 -- ============================================================
--- ClubSync — Seed de clubes reales (Tandil)
+-- ClubSystem — Seed de clubes reales (Tandil)
 -- Ejecutar DESPUÉS de arrancar el backend (que crea las tablas via SQLAlchemy)
 -- Nota: sport_types es VARCHAR[] en SQLAlchemy, no usa ENUM de PostgreSQL
 -- ============================================================

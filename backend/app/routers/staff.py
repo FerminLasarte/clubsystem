@@ -1,5 +1,5 @@
 """
-ClubSync — Staff Router
+ClubSystem — Staff Router
 ========================
 Gestión del equipo (staff) de un club.
 
@@ -134,7 +134,7 @@ async def invite_staff(
     db: AsyncSession = Depends(get_db),
 ) -> StaffMemberOut:
     """
-    Invita a un usuario existente en ClubSync al equipo del club.
+    Invita a un usuario existente en ClubSystem al equipo del club.
 
     Reglas:
       - El usuario debe estar registrado (email en tabla users).
@@ -164,7 +164,7 @@ async def invite_staff(
             ),
         )
 
-    # 1. Verificar que el usuario existe en ClubSync
+    # 1. Verificar que el usuario existe en ClubSystem
     user_result = await db.execute(
         select(User).where(User.email == payload.email).limit(1)
     )
@@ -172,7 +172,7 @@ async def invite_staff(
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="El usuario no está registrado en ClubSync",
+            detail="El usuario no está registrado en ClubSystem",
         )
 
     # 2. Verificar que no sea ya parte del staff de este club
@@ -226,7 +226,7 @@ async def invite_staff(
     # 5. Simular envío de email
     logger.info(
         "📧 Simulando envío de email a %s — Invitación como [%s] en '%s'. "
-        "Link de aceptación: https://app.clubsync.io/accept-invite?id=%s",
+        "Link de aceptación: https://app.ClubSystem.io/accept-invite?id=%s",
         payload.email,
         ", ".join(payload.roles),
         club_name,

@@ -1,6 +1,6 @@
 # backend/app/routers/members.py
 """
-ClubSync — Members Router
+ClubSystem — Members Router
 ==========================
 CRUD completo de socios del club activo.
 

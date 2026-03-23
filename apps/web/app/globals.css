@@ -49,7 +49,7 @@
   --ring: oklch(0.708 0 0);
   --radius: 0.5rem;
 
-  /* ── ClubSync brand vars (overridable per club) ── */
+  /* ── ClubSystem brand vars (overridable per club) ── */
   --color-brand:        #111827;
   --color-brand-light:  #374151;
   --color-accent-club:  #3B82F6;

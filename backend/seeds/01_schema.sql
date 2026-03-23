@@ -1,5 +1,5 @@
 -- ============================================================
--- ClubSync — PostgreSQL Schema with Row-Level Security
+-- ClubSystem — PostgreSQL Schema with Row-Level Security
 -- Multi-tenant via club_id on every relevant table
 -- ============================================================
 

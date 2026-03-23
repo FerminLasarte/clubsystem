@@ -1,6 +1,6 @@
 # backend/app/models/payment.py
 """
-ClubSync — Payment ORM Model
+ClubSystem — Payment ORM Model
 ============================
 Registra cada cobro/ingreso (INCOME) o retiro/vale de caja chica (OUTFLOW).
 Soft-delete via is_active = False.

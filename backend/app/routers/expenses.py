@@ -1,5 +1,5 @@
 """
-ClubSync — Expenses Router
+ClubSystem — Expenses Router
 ==========================
 Gestión de gastos operativos del club.
 

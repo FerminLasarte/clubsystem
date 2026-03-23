@@ -47,27 +47,27 @@ export interface SettingsState {
   notifications: NotificationSettings;
 }
 
-// ── Mock initial data (replace with API call) ─────────────────────────────────
+// ── Estado inicial vacío — se reemplaza con datos reales de la API ─────────────
 
-export const MOCK_SETTINGS: SettingsState = {
+export const EMPTY_SETTINGS: SettingsState = {
   profile: {
-    fullName:  "Martín González",
-    email:     "admin@clubtenistrandil.com",
+    fullName:  "",
+    email:     "",
     avatarUrl: "",
   },
   club: {
-    name:                    "Club de Tenis Tandil",
-    phone:                   "+54 249 442-1234",
-    address:                 "Av. del Valle 1200",
-    city:                    "Tandil",
-    province:                "Buenos Aires",
-    openTime:                "07:00",
-    closeTime:               "23:00",
+    name:                    "",
+    phone:                   "",
+    address:                 "",
+    city:                    "",
+    province:                "",
+    openTime:                "",
+    closeTime:               "",
     cancellationPolicyHours: 24,
   },
   payments: {
-    requireDeposit:   true,
-    mercadopagoToken: "APP_USR-1234567890abcdef-mock",
+    requireDeposit:   false,
+    mercadopagoToken: "",
   },
   notifications: {
     whatsappNewReservations: true,

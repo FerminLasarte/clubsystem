@@ -92,7 +92,7 @@ export default function LoginPage() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
             <span className="text-xs font-bold text-white">CS</span>
           </div>
-          <span className="text-sm font-semibold text-white/80">ClubSync</span>
+          <span className="text-sm font-semibold text-white/80">ClubSystem</span>
         </div>
         <div>
           <blockquote className="text-2xl font-light leading-snug text-white/90">
@@ -117,7 +117,7 @@ export default function LoginPage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-900">
               <span className="text-xs font-bold text-white">CS</span>
             </div>
-            <span className="text-sm font-semibold text-gray-900">ClubSync</span>
+            <span className="text-sm font-semibold text-gray-900">ClubSystem</span>
           </div>
 
           <h1 className="text-2xl font-semibold text-gray-900">Iniciar sesión</h1>
@@ -201,7 +201,7 @@ export default function LoginPage() {
 
           <p className="mt-8 text-center text-xs text-gray-400">
             ¿Problemas para acceder?{" "}
-            <a href="mailto:soporte@clubsync.app" className="text-gray-600 hover:underline">
+            <a href="mailto:soporte@ClubSystem.app" className="text-gray-600 hover:underline">
               Contactar soporte
             </a>
           </p>

@@ -1,5 +1,5 @@
 """
-ClubSync — Stock Router
+ClubSystem — Stock Router
 ========================
 Gestión del inventario del club.
 

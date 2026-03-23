@@ -1,5 +1,5 @@
 /**
- * Design tokens centralizados para ClubSync Mobile.
+ * Design tokens centralizados para ClubSystem Mobile.
  * Todos los colores de la app DEBEN venir de aquí — prohibido hardcodear valores.
  * Agregar nuevos colores aquí antes de usarlos en cualquier componente.
  */
@@ -7,42 +7,46 @@
 import { Platform } from 'react-native';
 
 // ── Paleta base ───────────────────────────────────────────────
-const brand = '#0a7ea4';
+/** Azul marino Slate-900 — color de acción principal (Stripe-like) */
+const brand = '#0F172A';
 
 export const Colors = {
   light: {
     // Texto
-    text:           '#11181C',
-    textMuted:      '#687076',
+    text:           '#1A202C',
+    textMuted:      '#718096',
     textOnBrand:    '#ffffff',
 
     // Fondos
+    /** Blanco puro — cards, formularios */
     background:     '#ffffff',
-    surface:        '#F9FAFB',
-    surfaceRaised:  '#F3F4F6',
+    /** Gris ultra sutil — lienzo global de la app (slate-50) */
+    surface:        '#F7FAFC',
+    surfaceRaised:  '#EDF2F7',
 
     // Marca
     tint:           brand,
-    tintPressed:    '#086d8e',
-    tintSubtle:     'rgba(10, 126, 164, 0.07)',
+    tintPressed:    '#1E293B',
+    tintSubtle:     'rgba(15, 23, 42, 0.07)',
 
     // Bordes
-    border:         '#E5E7EB',
+    /** Borde ultra fino, casi imperceptible (slate-100) */
+    border:         '#EDF2F7',
     borderFocus:    brand,
 
     // Estado
-    danger:         '#EF4444',
-    dangerSurface:  '#FEF2F2',
-    success:        '#22C55E',
-    successSurface: '#F0FDF4',
+    danger:         '#E53E3E',
+    dangerSurface:  '#FFF5F5',
+    success:        '#38A169',
+    successSurface: '#F0FFF4',
 
     // Tabs / iconos
-    icon:              '#687076',
-    tabIconDefault:    '#687076',
+    icon:              '#718096',
+    tabIconDefault:    '#718096',
     tabIconSelected:   brand,
 
     // Placeholder
-    placeholder:    '#9CA3AF',
+    placeholder:    '#A0AEC0',
   },
 
   dark: {

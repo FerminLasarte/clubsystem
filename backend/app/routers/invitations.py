@@ -1,5 +1,5 @@
 """
-ClubSync — Invitations Router
+ClubSystem — Invitations Router
 ================================
 Gestiona las invitaciones pendientes de un usuario a clubs.
 

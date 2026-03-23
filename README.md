@@ -1,4 +1,4 @@
-# ClubSync ⚡
+# ClubSystem ⚡
 
 Sistema de gestión integral para clubes deportivos. Backend en FastAPI, frontend web en Next.js, app mobile con Expo.
 

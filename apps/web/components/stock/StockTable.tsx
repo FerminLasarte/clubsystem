@@ -1,7 +1,7 @@
 "use client";
 // apps/web/components/stock/StockTable.tsx
 
-import type { StockItem } from "@clubsync/types";
+import type { StockItem } from "@ClubSystem/types";
 import { AlertCircle, CheckCircle } from "lucide-react";
 
 interface StockTableProps {

@@ -1,5 +1,5 @@
 """
-ClubSync — FastAPI Application Entry Point
+ClubSystem — FastAPI Application Entry Point
 """
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -18,6 +18,8 @@ from app.routers import invitations
 from app.routers import payments
 from app.routers import finance
 from app.routers import fees
+from app.routers import settings as settings_router
+from app.routers import mobile_app
 
 
 @asynccontextmanager
@@ -133,6 +135,24 @@ async def lifespan(app: FastAPI):
             END $$;
         """))
 
+        # ── Migración idempotente: clubs — pagos y notificaciones ─────────────
+        # Agrega las columnas de configuración de pagos (require_deposit,
+        # mercadopago_token) y preferencias de notificaciones si no existen.
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'clubs' AND column_name = 'require_deposit'
+                ) THEN
+                    ALTER TABLE clubs ADD COLUMN require_deposit   BOOLEAN NOT NULL DEFAULT FALSE;
+                    ALTER TABLE clubs ADD COLUMN mercadopago_token TEXT;
+                    ALTER TABLE clubs ADD COLUMN notif_whatsapp     BOOLEAN NOT NULL DEFAULT TRUE;
+                    ALTER TABLE clubs ADD COLUMN notif_cancellation BOOLEAN NOT NULL DEFAULT TRUE;
+                    ALTER TABLE clubs ADD COLUMN notif_cash_report  BOOLEAN NOT NULL DEFAULT FALSE;
+                END IF;
+            END $$;
+        """))
+
         # ── Migración idempotente: membership_fees.status CHECK constraint ────
         # La tabla se crea vía create_all; este bloque agrega el CHECK si no
         # existe todavía (por ejemplo en bases creadas con versiones anteriores).
@@ -158,7 +178,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="ClubSync API",
+    title="ClubSystem API",
     version="0.1.0",
     description="Multi-tenant SaaS for sports club management",
     lifespan=lifespan,
@@ -196,7 +216,9 @@ app.include_router(notifications.router, prefix=f"{API_V1}/notifications",   tag
 app.include_router(invitations.router,   prefix=f"{API_V1}/invitations",     tags=["Invitations"])
 app.include_router(payments.router,      prefix=f"{API_V1}/payments",        tags=["Payments"])
 app.include_router(finance.router,       prefix=f"{API_V1}/finance",         tags=["Finance"])
-app.include_router(fees.router,          prefix=f"{API_V1}/fees",            tags=["Fees"])
+app.include_router(fees.router,            prefix=f"{API_V1}/fees",            tags=["Fees"])
+app.include_router(settings_router.router, prefix=f"{API_V1}/settings",        tags=["Settings"])
+app.include_router(mobile_app.router,     prefix=f"{API_V1}/mobile",            tags=["Mobile"])
 
 
 @app.get("/health", tags=["Health"])

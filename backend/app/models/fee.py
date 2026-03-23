@@ -1,6 +1,6 @@
 # backend/app/models/fee.py
 """
-ClubSync — MembershipFee ORM Model
+ClubSystem — MembershipFee ORM Model
 ====================================
 Registra la cuota periódica de cada socio.
 

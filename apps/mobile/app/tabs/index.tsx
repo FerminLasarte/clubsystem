@@ -1,24 +1,29 @@
-// apps/mobile/app/(tabs)/index.tsx
-// Home screen — Novedades y torneos con FAKE SEARCH BAR
+// apps/mobile/app/tabs/index.tsx
+// Home screen — Portal del Jugador (estética premium Stripe)
 
 import React, { useRef } from "react";
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  StatusBar,
+  Animated,
   Image,
   Platform,
-  Animated,
   Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// ── Mock data ────────────────────────────────────────────────
+import { Colors } from "@/constants/Colors";
+import { Card } from "@/components/Card";
+import { useAuth } from "@/context/AuthContext";
+
+// ── Mock data ──────────────────────────────────────────────────
+
 const TOURNAMENTS = [
   {
     id: "1",
@@ -28,8 +33,8 @@ const TOURNAMENTS = [
     spots: 4,
     total_spots: 16,
     image: "https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=400",
-    color: "#F0F9FF",
-    accentColor: "#0284C7",
+    color: "#EBF8FF",
+    accentColor: "#2B6CB0",
   },
   {
     id: "2",
@@ -39,8 +44,8 @@ const TOURNAMENTS = [
     spots: 8,
     total_spots: 32,
     image: "https://images.unsplash.com/photo-1622279457486-62dcc4a431d6?w=400",
-    color: "#F7FEE7",
-    accentColor: "#65A30D",
+    color: "#F0FFF4",
+    accentColor: "#276749",
   },
 ];
 
@@ -68,41 +73,38 @@ const NEWS = [
   },
 ];
 
-// ── Fake Search Bar ───────────────────────────────────────────
+// ── Quick actions ──────────────────────────────────────────────
+
+const QUICK_ACTIONS = [
+  { icon: "calendar",  label: "Reservar"   },
+  { icon: "clock",     label: "Mis turnos" },
+  { icon: "users",     label: "Socios"     },
+  { icon: "award",     label: "Torneos"    },
+] as const;
+
+// ── Fake Search Bar ────────────────────────────────────────────
+
 function FakeSearchBar() {
-  const router = useRouter();
+  const router    = useRouter();
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const handlePressIn = () =>
-    Animated.spring(scaleAnim, {
-      toValue: 0.97,
-      useNativeDriver: true,
-      speed: 50,
-    }).start();
-
-  const handlePressOut = () =>
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-      speed: 50,
-    }).start();
+  const onPressIn  = () =>
+    Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start();
+  const onPressOut = () =>
+    Animated.spring(scaleAnim, { toValue: 1,    useNativeDriver: true, speed: 50 }).start();
 
   return (
     <Pressable
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
       onPress={() => router.push("/search")}
       accessible
       accessibilityRole="search"
       accessibilityLabel="Buscar canchas, socios o torneos"
     >
-      <Animated.View
-        style={[styles.fakeSearch, { transform: [{ scale: scaleAnim }] }]}
-      >
-        <Feather name="search" size={16} color="#9CA3AF" style={styles.searchIcon} />
-        <Text style={styles.fakeSearchText}>
-          Buscar canchas, socios, torneos…
-        </Text>
+      <Animated.View style={[styles.fakeSearch, { transform: [{ scale: scaleAnim }] }]}>
+        <Feather name="search" size={15} color={Colors.placeholder} style={styles.searchIcon} />
+        <Text style={styles.fakeSearchText}>Buscar canchas, socios, torneos…</Text>
         <View style={styles.fakeSearchKbd}>
           <Text style={styles.fakeSearchKbdText}>⌘K</Text>
         </View>
@@ -111,15 +113,19 @@ function FakeSearchBar() {
   );
 }
 
-// ── Tournament Card ───────────────────────────────────────────
+// ── Tournament Card ────────────────────────────────────────────
+
 function TournamentCard({ item }: { item: (typeof TOURNAMENTS)[0] }) {
   const pct = ((item.total_spots - item.spots) / item.total_spots) * 100;
 
   return (
-    <TouchableOpacity style={[styles.tournamentCard, { backgroundColor: item.color }]} activeOpacity={0.85}>
+    <Card
+      onPress={() => {}}
+      style={{ backgroundColor: item.color, padding: 0, width: 230, overflow: "hidden" }}
+    >
       <Image source={{ uri: item.image }} style={styles.tournamentImage} />
       <View style={styles.tournamentBody}>
-        <View style={[styles.sportPill, { backgroundColor: item.accentColor + "20" }]}>
+        <View style={[styles.sportPill, { backgroundColor: item.accentColor + "18" }]}>
           <Text style={[styles.sportPillText, { color: item.accentColor }]}>
             {item.sport}
           </Text>
@@ -134,18 +140,17 @@ function TournamentCard({ item }: { item: (typeof TOURNAMENTS)[0] }) {
             ]}
           />
         </View>
-        <Text style={styles.spotsText}>
-          {item.spots} lugares disponibles
-        </Text>
+        <Text style={styles.spotsText}>{item.spots} lugares disponibles</Text>
       </View>
-    </TouchableOpacity>
+    </Card>
   );
 }
 
-// ── News Card ─────────────────────────────────────────────────
+// ── News Card ──────────────────────────────────────────────────
+
 function NewsCard({ item }: { item: (typeof NEWS)[0] }) {
   return (
-    <TouchableOpacity style={styles.newsCard} activeOpacity={0.8}>
+    <Card onPress={() => {}} padding={14}>
       <View style={styles.newsHeader}>
         <View style={styles.newsTagPill}>
           <Text style={styles.newsTagText}>{item.tag}</Text>
@@ -154,57 +159,60 @@ function NewsCard({ item }: { item: (typeof NEWS)[0] }) {
       </View>
       <Text style={styles.newsTitle}>{item.title}</Text>
       <Text style={styles.newsBody} numberOfLines={2}>{item.body}</Text>
-    </TouchableOpacity>
+    </Card>
   );
 }
 
-// ── Main Screen ───────────────────────────────────────────────
+// ── Main Screen ────────────────────────────────────────────────
+
 export default function HomeScreen() {
-  const insets = useSafeAreaInsets();
+  const insets    = useSafeAreaInsets();
+  const { user }  = useAuth();
+
+  const firstName = user?.firstName ?? "";
+  const lastName  = user?.lastName  ?? "";
+  const initials  = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || "?";
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.appBackground} />
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* ── Cabecera ── */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Buenos días 👋</Text>
-            <Text style={styles.memberName}>Carlos Rodríguez</Text>
+          <View style={styles.headerText}>
+            <Text style={styles.greeting}>Hola 👋</Text>
+            <Text style={styles.memberName}>{firstName} {lastName}</Text>
           </View>
-          <TouchableOpacity style={styles.avatarBtn}>
+
+          <TouchableOpacity style={styles.avatarWrap} activeOpacity={0.8}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>CR</Text>
+              <Text style={styles.avatarText}>{initials}</Text>
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* ── FAKE SEARCH BAR ── */}
+        {/* ── Búsqueda ── */}
         <View style={styles.searchWrapper}>
           <FakeSearchBar />
         </View>
 
-        {/* Quick actions */}
+        {/* ── Acciones rápidas ── */}
         <View style={styles.quickActions}>
-          {[
-            { icon: "calendar", label: "Reservar" },
-            { icon: "clock", label: "Mis turnos" },
-            { icon: "users", label: "Socios" },
-            { icon: "award", label: "Torneos" },
-          ].map((a) => (
-            <TouchableOpacity key={a.label} style={styles.quickBtn} activeOpacity={0.75}>
-              <View style={styles.quickIcon}>
-                <Feather name={a.icon as any} size={18} color="#111827" />
-              </View>
+          {QUICK_ACTIONS.map((a) => (
+            <TouchableOpacity key={a.label} style={styles.quickBtn} activeOpacity={0.7}>
+              <Card padding={0} style={styles.quickIconCard}>
+                <Feather name={a.icon} size={18} color={Colors.text} />
+              </Card>
               <Text style={styles.quickLabel}>{a.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Tournaments section */}
+        {/* ── Torneos ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Torneos próximos</Text>
@@ -223,7 +231,7 @@ export default function HomeScreen() {
           </ScrollView>
         </View>
 
-        {/* News section */}
+        {/* ── Novedades ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Novedades</Text>
@@ -239,140 +247,230 @@ export default function HomeScreen() {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F9FAFB" },
-  scrollContent: { paddingBottom: 32 },
+// ── Estilos ────────────────────────────────────────────────────
 
-  // Header
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: Colors.appBackground,
+  },
+  scrollContent: {
+    paddingBottom: 40,
+  },
+
+  // Cabecera
   header: {
-    flexDirection: "row",
+    flexDirection:  "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems:     "center",
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop:  18,
+    paddingBottom: 6,
+  },
+  headerText: {
+    gap: 2,
+  },
+  greeting: {
+    fontSize:   13,
+    color:      Colors.textMuted,
+    fontWeight: "500",
+  },
+  memberName: {
+    fontSize:      20,
+    fontWeight:    "700",
+    color:         Colors.text,
+    letterSpacing: -0.3,
+  },
+  avatarWrap: {},
+  avatar: {
+    width:           40,
+    height:          40,
+    borderRadius:    20,
+    backgroundColor: Colors.text,
+    justifyContent:  "center",
+    alignItems:      "center",
+  },
+  avatarText: {
+    color:      Colors.textOnBrand,
+    fontSize:   13,
+    fontWeight: "700",
+  },
+
+  // Búsqueda
+  searchWrapper: {
+    paddingHorizontal: 20,
+    paddingTop:   12,
     paddingBottom: 8,
   },
-  greeting: { fontSize: 13, color: "#6B7280" },
-  memberName: { fontSize: 18, fontWeight: "700", color: "#111827", marginTop: 2 },
-  avatarBtn: {},
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#111827",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarText: { color: "#fff", fontSize: 13, fontWeight: "700" },
-
-  // Fake search
-  searchWrapper: { paddingHorizontal: 20, paddingVertical: 12 },
   fakeSearch: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+    flexDirection:   "row",
+    alignItems:      "center",
+    backgroundColor: Colors.cardBackground,
+    borderRadius:    12,
+    borderWidth:     1,
+    borderColor:     Colors.border,
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === "ios" ? 13 : 11,
+    // Sombra sutil sobre el lienzo gris
+    ...Platform.select({
+      ios: {
+        shadowColor:   Colors.shadow,
+        shadowOffset:  { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius:  6,
+      },
+      android: { elevation: 1 },
+    }),
   },
   searchIcon: { marginRight: 10 },
-  fakeSearchText: { flex: 1, fontSize: 14, color: "#9CA3AF" },
-  fakeSearchKbd: {
-    backgroundColor: "#F3F4F6",
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  fakeSearchText: {
+    flex:     1,
+    fontSize: 14,
+    color:    Colors.placeholder,
   },
-  fakeSearchKbdText: { fontSize: 10, color: "#9CA3AF", fontWeight: "600" },
+  fakeSearchKbd: {
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius:    6,
+    paddingHorizontal: 6,
+    paddingVertical:   2,
+  },
+  fakeSearchKbdText: {
+    fontSize:   10,
+    color:      Colors.textMuted,
+    fontWeight: "600",
+  },
 
-  // Quick actions
+  // Acciones rápidas
   quickActions: {
-    flexDirection: "row",
+    flexDirection:  "row",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 20,
+    paddingTop:  16,
+    paddingBottom: 24,
   },
-  quickBtn: { alignItems: "center", gap: 8 },
-  quickIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    justifyContent: "center",
+  quickBtn: {
     alignItems: "center",
+    gap: 8,
   },
-  quickLabel: { fontSize: 11, color: "#6B7280", fontWeight: "500" },
+  quickIconCard: {
+    width:           56,
+    height:          56,
+    borderRadius:    16,
+    justifyContent:  "center",
+    alignItems:      "center",
+  },
+  quickLabel: {
+    fontSize:   11,
+    color:      Colors.textMuted,
+    fontWeight: "500",
+  },
 
-  // Sections
-  section: { marginBottom: 8 },
+  // Secciones
+  section: {
+    marginBottom: 12,
+  },
   sectionHeader: {
-    flexDirection: "row",
+    flexDirection:  "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems:     "center",
     paddingHorizontal: 20,
     marginBottom: 12,
   },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: "#111827" },
-  seeAll: { fontSize: 13, color: "#6B7280" },
-
-  // Tournaments
-  horizontalList: { paddingHorizontal: 20, gap: 12 },
-  tournamentCard: {
-    width: 240,
-    borderRadius: 16,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+  sectionTitle: {
+    fontSize:      16,
+    fontWeight:    "700",
+    color:         Colors.text,
+    letterSpacing: -0.2,
   },
-  tournamentImage: { width: "100%", height: 120 },
-  tournamentBody: { padding: 14, gap: 6 },
+  seeAll: {
+    fontSize:   13,
+    color:      Colors.textMuted,
+    fontWeight: "500",
+  },
+
+  // Torneos
+  horizontalList: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  tournamentImage: {
+    width:  "100%",
+    height: 110,
+  },
+  tournamentBody: {
+    padding: 14,
+    gap:     6,
+  },
   sportPill: {
-    alignSelf: "flex-start",
+    alignSelf:         "flex-start",
     paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 20,
+    paddingVertical:    3,
+    borderRadius:      20,
   },
-  sportPillText: { fontSize: 11, fontWeight: "700" },
-  tournamentName: { fontSize: 14, fontWeight: "700", color: "#111827" },
-  tournamentDate: { fontSize: 12, color: "#6B7280" },
+  sportPillText: {
+    fontSize:   11,
+    fontWeight: "700",
+  },
+  tournamentName: {
+    fontSize:   14,
+    fontWeight: "700",
+    color:      Colors.text,
+  },
+  tournamentDate: {
+    fontSize: 12,
+    color:    Colors.textMuted,
+  },
   progressTrack: {
-    height: 4,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 2,
-    marginTop: 4,
+    height:          4,
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius:    2,
+    marginTop:       4,
   },
-  progressFill: { height: 4, borderRadius: 2 },
-  spotsText: { fontSize: 11, color: "#6B7280" },
+  progressFill: {
+    height:       4,
+    borderRadius: 2,
+  },
+  spotsText: {
+    fontSize: 11,
+    color:    Colors.textMuted,
+  },
 
-  // News
-  newsList: { paddingHorizontal: 20, gap: 10 },
-  newsCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 16,
-    gap: 6,
+  // Novedades
+  newsList: {
+    paddingHorizontal: 20,
+    gap: 10,
   },
   newsHeader: {
-    flexDirection: "row",
+    flexDirection:  "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems:     "center",
+    marginBottom:   6,
   },
   newsTagPill: {
-    backgroundColor: "#F3F4F6",
+    backgroundColor: Colors.surfaceRaised,
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
+    paddingVertical:   2,
+    borderRadius:      6,
   },
-  newsTagText: { fontSize: 11, fontWeight: "600", color: "#4B5563" },
-  newsDate: { fontSize: 11, color: "#9CA3AF" },
-  newsTitle: { fontSize: 14, fontWeight: "700", color: "#111827" },
-  newsBody: { fontSize: 13, color: "#6B7280", lineHeight: 18 },
+  newsTagText: {
+    fontSize:   11,
+    fontWeight: "600",
+    color:      Colors.textMuted,
+  },
+  newsDate: {
+    fontSize: 11,
+    color:    Colors.placeholder,
+  },
+  newsTitle: {
+    fontSize:   14,
+    fontWeight: "700",
+    color:      Colors.text,
+    lineHeight: 20,
+  },
+  newsBody: {
+    fontSize:   13,
+    color:      Colors.textMuted,
+    lineHeight: 19,
+    marginTop:  2,
+  },
 });

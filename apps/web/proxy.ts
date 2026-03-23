@@ -1,5 +1,5 @@
 /**
- * ClubSync — Next.js Route Guard (proxy.ts)
+ * ClubSystem — Next.js Route Guard (proxy.ts)
  * ==========================================
  * Next.js 16+ usa "proxy" en lugar del deprecated "middleware".
  *

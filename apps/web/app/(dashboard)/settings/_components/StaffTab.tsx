@@ -2,7 +2,7 @@
 // apps/web/app/(dashboard)/settings/_components/StaffTab.tsx
 //
 // Pestaña "Equipo" en la pantalla de Ajustes.
-// Permite al OWNER invitar usuarios registrados en ClubSync, ver el listado
+// Permite al OWNER invitar usuarios registrados en ClubSystem, ver el listado
 // de miembros con sus roles (Badges) y editar los roles de cada miembro.
 
 import { useRef, useState } from "react";
@@ -333,7 +333,7 @@ export function StaffTab() {
             Invitar miembro al equipo
           </h2>
           <p className="mt-0.5 text-xs text-gray-400">
-            El usuario debe estar registrado previamente en ClubSync.
+            El usuario debe estar registrado previamente en ClubSystem.
           </p>
         </div>
 
