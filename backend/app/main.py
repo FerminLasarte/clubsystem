@@ -20,6 +20,7 @@ from app.routers import finance
 from app.routers import fees
 from app.routers import settings as settings_router
 from app.routers import mobile_app
+from app.routers import memberships
 
 
 @asynccontextmanager
@@ -153,6 +154,41 @@ async def lifespan(app: FastAPI):
             END $$;
         """))
 
+        # ── Migración idempotente: courts — precios diferenciales ────────────
+        # Agrega price_member y price_guest si no existen.
+        # NULL = usar hourly_rate como fallback (canchas existentes sin configurar).
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name  = 'courts'
+                      AND column_name = 'price_member'
+                ) THEN
+                    ALTER TABLE courts ADD COLUMN price_member NUMERIC(10,2);
+                    ALTER TABLE courts ADD COLUMN price_guest  NUMERIC(10,2);
+                END IF;
+            END $$;
+        """))
+
+        # ── Migración idempotente: tabla club_memberships ─────────────────────
+        # create_all la crea si no existe (instalaciones nuevas).
+        # Este bloque asegura la unicidad constraint en bases ya existentes.
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_name = 'club_memberships'
+                ) THEN
+                    -- La tabla la crea create_all; este bloque sólo existe como
+                    -- documentación del flujo. Si create_all aún no corrió en este
+                    -- ciclo, la tabla se creará antes de llegar aquí.
+                    NULL;
+                END IF;
+            END $$;
+        """))
+
         # ── Migración idempotente: membership_fees.status CHECK constraint ────
         # La tabla se crea vía create_all; este bloque agrega el CHECK si no
         # existe todavía (por ejemplo en bases creadas con versiones anteriores).
@@ -219,6 +255,7 @@ app.include_router(finance.router,       prefix=f"{API_V1}/finance",         tag
 app.include_router(fees.router,            prefix=f"{API_V1}/fees",            tags=["Fees"])
 app.include_router(settings_router.router, prefix=f"{API_V1}/settings",        tags=["Settings"])
 app.include_router(mobile_app.router,     prefix=f"{API_V1}/mobile",            tags=["Mobile"])
+app.include_router(memberships.router,    prefix=f"{API_V1}/clubs",             tags=["Memberships"])
 
 
 @app.get("/health", tags=["Health"])

@@ -25,8 +25,8 @@ export const Colors = {
   primaryBorder: "rgba(15, 23, 42, 0.18)",
 
   // ── Backgrounds ────────────────────────────────────────────
-  /** Lienzo global de la app — gris ultra sutil (slate-50) */
-  appBackground:  "#F8FAFC",
+  /** Lienzo global de la app — blanco puro (contraste via sombra en Cards) */
+  appBackground:  "#FFFFFF",
   /** Superficie de cards, inputs y formularios — blanco puro */
   cardBackground: "#FFFFFF",
   /** Alias semántico de cardBackground (retrocompatibilidad) */

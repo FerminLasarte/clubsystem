@@ -35,7 +35,15 @@ class Court(Base):
     is_indoor: Mapped[bool]       = mapped_column(Boolean, nullable=False, default=False)
     is_active: Mapped[bool]       = mapped_column(Boolean, nullable=False, default=True)
     capacity:  Mapped[int]        = mapped_column(Integer, default=2)
-    hourly_rate: Mapped[float]    = mapped_column(Numeric(10, 2), nullable=False, default=0)
+    # Precio base (retrocompatibilidad — usado cuando price_member/price_guest son NULL)
+    hourly_rate: Mapped[float]       = mapped_column(Numeric(10, 2), nullable=False, default=0)
+
+    # ── Precios diferenciales ─────────────────────────────────
+    # price_member → precio para socios con ClubMembership.status == APPROVED
+    # price_guest  → precio para visitantes o socios PENDING/REJECTED
+    # NULL = usar hourly_rate como fallback (compatibilidad con canchas existentes)
+    price_member: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    price_guest:  Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
 
     description: Mapped[str | None] = mapped_column(Text)
     image_url:   Mapped[str | None] = mapped_column(Text)

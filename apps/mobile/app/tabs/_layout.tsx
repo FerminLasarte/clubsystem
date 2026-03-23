@@ -91,6 +91,17 @@ export default function TabsLayout() {
         }}
       />
 
+      {/* ── Explorar ── */}
+      <Tabs.Screen
+        name="explore"
+        options={{
+          title: "Explorar",
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="compass" color={color} focused={focused} />
+          ),
+        }}
+      />
+
       {/* ── Perfil ── */}
       <Tabs.Screen
         name="profile"

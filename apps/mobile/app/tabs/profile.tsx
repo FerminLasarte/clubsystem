@@ -17,12 +17,10 @@
 import React, { useCallback } from "react";
 import {
   Alert,
-  Platform,
   Pressable,
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -31,6 +29,8 @@ import { Feather } from "@expo/vector-icons";
 
 import { Colors } from "@/constants/Colors";
 import { Card } from "@/components/Card";
+import { Text } from "@/components/ui/Text";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useAuth } from "@/context/AuthContext";
 
 // ── Tipos ─────────────────────────────────────────────────────
@@ -58,7 +58,9 @@ function Avatar({ initials }: { initials: string }) {
   return (
     <View style={styles.avatarRing}>
       <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{initials}</Text>
+        <Text variant="heading" weight="700" color={Colors.textOnBrand} style={styles.avatarText}>
+          {initials}
+        </Text>
       </View>
     </View>
   );
@@ -86,7 +88,10 @@ function ProfileOptionRow({ item, isLast }: { item: MenuItem; isLast: boolean })
       </View>
 
       {/* Label */}
-      <Text style={[styles.menuLabel, item.danger && styles.menuLabelDanger]}>
+      <Text
+        variant="subheading"
+        style={[styles.menuLabel, item.danger && styles.menuLabelDanger]}
+      >
         {item.label}
       </Text>
 
@@ -138,6 +143,9 @@ export default function ProfileScreen() {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.appBackground} />
 
+      {/* ── Cabecera unificada (fuera del scroll para que sea consistente) ── */}
+      <PageHeader title="Mi Perfil" />
+
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
@@ -145,10 +153,6 @@ export default function ProfileScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Cabecera ── */}
-        <View style={styles.pageHeader}>
-          <Text style={styles.pageTitle}>Mi Perfil</Text>
-        </View>
 
         {/* ── Card: datos del usuario ── */}
         <Card style={styles.userCard} padding={0}>
@@ -156,13 +160,13 @@ export default function ProfileScreen() {
             <Avatar initials={initials} />
 
             <View style={styles.userInfo}>
-              <Text style={styles.userName}>{fullName}</Text>
-              <Text style={styles.userEmail} numberOfLines={1}>{email}</Text>
+              <Text variant="subheading" weight="700" style={styles.userName}>{fullName}</Text>
+              <Text variant="caption" muted style={styles.userEmail} numberOfLines={1}>{email}</Text>
 
               {/* Pill del club */}
               <View style={styles.clubPill}>
                 <Feather name="map-pin" size={10} color={Colors.primary} />
-                <Text style={styles.clubPillText}>{clubName}</Text>
+                <Text variant="label" style={styles.clubPillText}>{clubName}</Text>
               </View>
             </View>
           </View>
@@ -170,18 +174,18 @@ export default function ProfileScreen() {
           {/* Divisor + fila de estadísticas rápidas */}
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>—</Text>
-              <Text style={styles.statLabel}>Reservas</Text>
+              <Text variant="subheading" weight="700" style={styles.statValue}>—</Text>
+              <Text variant="label" muted style={styles.statLabel}>Reservas</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>Activo</Text>
-              <Text style={styles.statLabel}>Estado</Text>
+              <Text variant="subheading" weight="700" style={styles.statValue}>Activo</Text>
+              <Text variant="label" muted style={styles.statLabel}>Estado</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>—</Text>
-              <Text style={styles.statLabel}>Torneos</Text>
+              <Text variant="subheading" weight="700" style={styles.statValue}>—</Text>
+              <Text variant="label" muted style={styles.statLabel}>Torneos</Text>
             </View>
           </View>
         </Card>
@@ -197,23 +201,27 @@ export default function ProfileScreen() {
           ))}
         </Card>
 
-        {/* ── Botón de cierre de sesión ── */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.logoutBtn,
-            pressed && styles.logoutBtnPressed,
-          ]}
-          onPress={handleLogout}
-          accessible
-          accessibilityRole="button"
-          accessibilityLabel="Cerrar sesión"
-        >
-          <Feather name="log-out" size={16} color={Colors.danger} />
-          <Text style={styles.logoutText}>Cerrar sesión</Text>
-        </Pressable>
+        {/* ── Card: cierre de sesión ── */}
+        <Card padding={0} style={styles.logoutCard}>
+          {/* Divisor sutil que separa visualmente la zona de peligro */}
+          <View style={styles.logoutDivider} />
+          <Pressable
+            style={({ pressed }) => [
+              styles.logoutBtn,
+              pressed && styles.logoutBtnPressed,
+            ]}
+            onPress={handleLogout}
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar sesión"
+          >
+            <Feather name="log-out" size={16} color="#FFFFFF" />
+            <Text variant="subheading" weight="600" style={styles.logoutText}>Cerrar sesión</Text>
+          </Pressable>
+        </Card>
 
         {/* ── Versión de la app ── */}
-        <Text style={styles.version}>ClubSync v1.0.0</Text>
+        <Text variant="label" muted style={styles.version}>ClubSync v1.0.0</Text>
       </ScrollView>
     </View>
   );
@@ -224,23 +232,11 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   root: {
     flex:            1,
-    backgroundColor: Colors.appBackground,
+    backgroundColor: Colors.appBackground,  // blanco puro — sombra de Cards da el contraste
   },
   scroll: {
     paddingHorizontal: 20,
     gap:               16,
-  },
-
-  // Cabecera de página
-  pageHeader: {
-    paddingTop:    18,
-    paddingBottom:  4,
-  },
-  pageTitle: {
-    fontSize:      22,
-    fontWeight:    "800",
-    color:         Colors.text,
-    letterSpacing: -0.4,
   },
 
   // ── Card usuario ──────────────────────────────────────────
@@ -271,9 +267,7 @@ const styles = StyleSheet.create({
     justifyContent:  "center",
   },
   avatarText: {
-    color:      Colors.textOnBrand,
-    fontSize:   18,
-    fontWeight: "700",
+    // color viene de la prop color={Colors.textOnBrand} en el componente Text
   },
 
   // Info del usuario
@@ -282,14 +276,10 @@ const styles = StyleSheet.create({
     gap:  4,
   },
   userName: {
-    fontSize:      17,
-    fontWeight:    "700",
-    color:         Colors.text,
-    letterSpacing: -0.2,
+    color: Colors.text,
   },
   userEmail: {
-    fontSize: 13,
-    color:    Colors.textMuted,
+    color: Colors.textMuted,
   },
   clubPill: {
     flexDirection:  "row",
@@ -303,9 +293,7 @@ const styles = StyleSheet.create({
     marginTop:      2,
   },
   clubPillText: {
-    fontSize:   11,
-    fontWeight: "600",
-    color:      Colors.primary,
+    color: Colors.primary,
   },
 
   // Estadísticas rápidas
@@ -326,13 +314,10 @@ const styles = StyleSheet.create({
     marginVertical:  12,
   },
   statValue: {
-    fontSize:   15,
-    fontWeight: "700",
-    color:      Colors.text,
+    color: Colors.text,
   },
   statLabel: {
-    fontSize: 11,
-    color:    Colors.textMuted,
+    color: Colors.textMuted,
   },
 
   // ── Menú ─────────────────────────────────────────────────
@@ -363,10 +348,8 @@ const styles = StyleSheet.create({
     justifyContent:  "center",
   },
   menuLabel: {
-    flex:       1,
-    fontSize:   15,
-    fontWeight: "500",
-    color:      Colors.text,
+    flex:  1,
+    color: Colors.text,
   },
   menuLabelDanger: {
     color: Colors.danger,
@@ -374,41 +357,33 @@ const styles = StyleSheet.create({
 
   // ── Logout ───────────────────────────────────────────────
 
+  logoutCard: {
+    overflow:        "hidden",
+    marginTop:       24,
+    backgroundColor: Colors.danger,   // fondo rojo sólido — botón destructivo
+  },
+  logoutDivider: {
+    // ya no necesario con fondo rojo sólido
+    height: 0,
+  },
   logoutBtn: {
-    flexDirection:   "row",
-    alignItems:      "center",
-    justifyContent:  "center",
-    gap:             8,
-    height:          50,
-    borderRadius:    14,
-    borderWidth:     1.5,
-    borderColor:     Colors.danger + "40",
-    backgroundColor: Colors.dangerSurface,
-    marginTop:       4,
-    ...Platform.select({
-      ios: {
-        shadowColor:   Colors.danger,
-        shadowOffset:  { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius:  6,
-      },
-    }),
+    flexDirection:  "row",
+    alignItems:     "center",
+    justifyContent: "center",
+    gap:            8,
+    height:         54,
   },
   logoutBtnPressed: {
-    backgroundColor: Colors.danger + "18",
-    borderColor:     Colors.danger + "80",
+    backgroundColor: Colors.danger + "CC",  // rojo ligeramente más oscuro en press
   },
   logoutText: {
-    fontSize:   15,
-    fontWeight: "600",
-    color:      Colors.danger,
+    color: "#FFFFFF",
   },
 
   // ── Versión ───────────────────────────────────────────────
 
   version: {
     textAlign: "center",
-    fontSize:  12,
     color:     Colors.placeholder,
     marginTop: 4,
   },

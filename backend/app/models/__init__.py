@@ -9,3 +9,4 @@ from app.models.expense import Expense
 from app.models.stock import StockItem, StockMovement
 from app.models.payment import Payment
 from app.models.fee import MembershipFee
+from app.models.club_membership import ClubMembership  # Membresía multi-club (socio/visitante)

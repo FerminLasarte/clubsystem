@@ -32,41 +32,48 @@ logger = logging.getLogger(__name__)
 # ── Schemas ────────────────────────────────────────────────────────────────
 
 class CourtCreate(BaseModel):
-    name:        str           = Field(..., min_length=1, max_length=100)
-    sport:       str           = Field(..., max_length=50)
-    surface:     Optional[str] = Field(None, max_length=50)
-    is_indoor:   bool          = False
-    capacity:    int           = Field(default=2, ge=1)
-    hourly_rate: float         = Field(..., ge=0)
-    description: Optional[str] = None
-    image_url:   Optional[str] = None
+    name:         str           = Field(..., min_length=1, max_length=100)
+    sport:        str           = Field(..., max_length=50)
+    surface:      Optional[str] = Field(None, max_length=50)
+    is_indoor:    bool          = False
+    capacity:     int           = Field(default=2, ge=1)
+    hourly_rate:  float         = Field(..., ge=0)
+    # Precios diferenciales (opcionales — si no se proveen, se usa hourly_rate)
+    price_member: Optional[float] = Field(None, ge=0)
+    price_guest:  Optional[float] = Field(None, ge=0)
+    description:  Optional[str]  = None
+    image_url:    Optional[str]  = None
 
 
 class CourtUpdate(BaseModel):
-    name:        Optional[str]   = Field(None, min_length=1, max_length=100)
-    sport:       Optional[str]   = Field(None, max_length=50)
-    surface:     Optional[str]   = Field(None, max_length=50)
-    is_indoor:   Optional[bool]  = None
-    capacity:    Optional[int]   = Field(None, ge=1)
-    hourly_rate: Optional[float] = Field(None, ge=0)
-    description: Optional[str]  = None
-    image_url:   Optional[str]  = None
+    name:         Optional[str]   = Field(None, min_length=1, max_length=100)
+    sport:        Optional[str]   = Field(None, max_length=50)
+    surface:      Optional[str]   = Field(None, max_length=50)
+    is_indoor:    Optional[bool]  = None
+    capacity:     Optional[int]   = Field(None, ge=1)
+    hourly_rate:  Optional[float] = Field(None, ge=0)
+    price_member: Optional[float] = Field(None, ge=0)
+    price_guest:  Optional[float] = Field(None, ge=0)
+    description:  Optional[str]  = None
+    image_url:    Optional[str]  = None
 
 
 class CourtOut(BaseModel):
-    id:          UUID
-    club_id:     UUID
-    name:        str
-    sport:       str
-    surface:     Optional[str]
-    is_indoor:   bool
-    is_active:   bool
-    capacity:    int
-    hourly_rate: float
-    description: Optional[str]
-    image_url:   Optional[str]
-    created_at:  datetime
-    updated_at:  datetime
+    id:           UUID
+    club_id:      UUID
+    name:         str
+    sport:        str
+    surface:      Optional[str]
+    is_indoor:    bool
+    is_active:    bool
+    capacity:     int
+    hourly_rate:  float
+    price_member: Optional[float]
+    price_guest:  Optional[float]
+    description:  Optional[str]
+    image_url:    Optional[str]
+    created_at:   datetime
+    updated_at:   datetime
 
     model_config = {"from_attributes": True}
 
