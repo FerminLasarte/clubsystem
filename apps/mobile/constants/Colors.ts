@@ -26,13 +26,13 @@ export const Colors = {
 
   // ── Backgrounds ────────────────────────────────────────────
   /** Lienzo global de la app — gris ultra sutil (slate-50) */
-  appBackground:  "#F7FAFC",
+  appBackground:  "#F8FAFC",
   /** Superficie de cards, inputs y formularios — blanco puro */
   cardBackground: "#FFFFFF",
   /** Alias semántico de cardBackground (retrocompatibilidad) */
   background:     "#FFFFFF",
   /** Superficie secundaria para chips, pills y filas */
-  surface:        "#F7FAFC",
+  surface:        "#F8FAFC",
   surfaceRaised:  "#EDF2F7",
 
   // ── Text ───────────────────────────────────────────────────

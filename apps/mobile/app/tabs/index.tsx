@@ -4,6 +4,7 @@
 import React, { useRef } from "react";
 import {
   Animated,
+  FlatList,
   Image,
   Platform,
   Pressable,
@@ -73,6 +74,9 @@ const NEWS = [
   },
 ];
 
+type NewsItem       = (typeof NEWS)[0];
+type TournamentItem = (typeof TOURNAMENTS)[0];
+
 // ── Quick actions ──────────────────────────────────────────────
 
 const QUICK_ACTIONS = [
@@ -115,7 +119,7 @@ function FakeSearchBar() {
 
 // ── Tournament Card ────────────────────────────────────────────
 
-function TournamentCard({ item }: { item: (typeof TOURNAMENTS)[0] }) {
+function TournamentCard({ item }: { item: TournamentItem }) {
   const pct = ((item.total_spots - item.spots) / item.total_spots) * 100;
 
   return (
@@ -136,7 +140,7 @@ function TournamentCard({ item }: { item: (typeof TOURNAMENTS)[0] }) {
           <View
             style={[
               styles.progressFill,
-              { width: `${pct}%` as any, backgroundColor: item.accentColor },
+              { width: `${pct}%` as `${number}%`, backgroundColor: item.accentColor },
             ]}
           />
         </View>
@@ -148,7 +152,7 @@ function TournamentCard({ item }: { item: (typeof TOURNAMENTS)[0] }) {
 
 // ── News Card ──────────────────────────────────────────────────
 
-function NewsCard({ item }: { item: (typeof NEWS)[0] }) {
+function NewsCard({ item }: { item: NewsItem }) {
   return (
     <Card onPress={() => {}} padding={14}>
       <View style={styles.newsHeader}>
@@ -163,11 +167,80 @@ function NewsCard({ item }: { item: (typeof NEWS)[0] }) {
   );
 }
 
+// ── Screen Header (ListHeaderComponent del FlatList) ──────────
+
+interface ScreenHeaderProps {
+  firstName: string;
+  lastName:  string;
+  initials:  string;
+}
+
+function ScreenHeader({ firstName, lastName, initials }: ScreenHeaderProps) {
+  return (
+    <>
+      {/* ── Cabecera ── */}
+      <View style={styles.header}>
+        <View style={styles.headerText}>
+          <Text style={styles.greeting}>Hola 👋</Text>
+          <Text style={styles.memberName}>{firstName} {lastName}</Text>
+        </View>
+
+        <TouchableOpacity style={styles.avatarWrap} activeOpacity={0.8}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initials}</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Búsqueda ── */}
+      <View style={styles.searchWrapper}>
+        <FakeSearchBar />
+      </View>
+
+      {/* ── Acciones rápidas ── */}
+      <View style={styles.quickActions}>
+        {QUICK_ACTIONS.map((a) => (
+          <TouchableOpacity key={a.label} style={styles.quickBtn} activeOpacity={0.7}>
+            <Card padding={0} style={styles.quickIconCard}>
+              <Feather name={a.icon} size={18} color={Colors.text} />
+            </Card>
+            <Text style={styles.quickLabel}>{a.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* ── Torneos ── */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Torneos próximos</Text>
+          <TouchableOpacity>
+            <Text style={styles.seeAll}>Ver todos</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalList}
+        >
+          {TOURNAMENTS.map((t) => (
+            <TournamentCard key={t.id} item={t} />
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* ── Novedades header ── */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Novedades</Text>
+      </View>
+    </>
+  );
+}
+
 // ── Main Screen ────────────────────────────────────────────────
 
 export default function HomeScreen() {
-  const insets    = useSafeAreaInsets();
-  const { user }  = useAuth();
+  const insets   = useSafeAreaInsets();
+  const { user } = useAuth();
 
   const firstName = user?.firstName ?? "";
   const lastName  = user?.lastName  ?? "";
@@ -177,72 +250,25 @@ export default function HomeScreen() {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.appBackground} />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
+      <FlatList<NewsItem>
+        data={NEWS}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <View style={styles.newsItemWrapper}>
+            <NewsCard item={item} />
+          </View>
+        )}
+        ItemSeparatorComponent={() => <View style={styles.newsSeparator} />}
+        ListHeaderComponent={
+          <ScreenHeader
+            firstName={firstName}
+            lastName={lastName}
+            initials={initials}
+          />
+        }
+        contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-      >
-        {/* ── Cabecera ── */}
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.greeting}>Hola 👋</Text>
-            <Text style={styles.memberName}>{firstName} {lastName}</Text>
-          </View>
-
-          <TouchableOpacity style={styles.avatarWrap} activeOpacity={0.8}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{initials}</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Búsqueda ── */}
-        <View style={styles.searchWrapper}>
-          <FakeSearchBar />
-        </View>
-
-        {/* ── Acciones rápidas ── */}
-        <View style={styles.quickActions}>
-          {QUICK_ACTIONS.map((a) => (
-            <TouchableOpacity key={a.label} style={styles.quickBtn} activeOpacity={0.7}>
-              <Card padding={0} style={styles.quickIconCard}>
-                <Feather name={a.icon} size={18} color={Colors.text} />
-              </Card>
-              <Text style={styles.quickLabel}>{a.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* ── Torneos ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Torneos próximos</Text>
-            <TouchableOpacity>
-              <Text style={styles.seeAll}>Ver todos</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-          >
-            {TOURNAMENTS.map((t) => (
-              <TournamentCard key={t.id} item={t} />
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* ── Novedades ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Novedades</Text>
-          </View>
-          <View style={styles.newsList}>
-            {NEWS.map((n) => (
-              <NewsCard key={n.id} item={n} />
-            ))}
-          </View>
-        </View>
-      </ScrollView>
+      />
     </View>
   );
 }
@@ -251,21 +277,21 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   root: {
-    flex: 1,
+    flex:            1,
     backgroundColor: Colors.appBackground,
   },
-  scrollContent: {
+  listContent: {
     paddingBottom: 40,
   },
 
   // Cabecera
   header: {
-    flexDirection:  "row",
-    justifyContent: "space-between",
-    alignItems:     "center",
+    flexDirection:     "row",
+    justifyContent:    "space-between",
+    alignItems:        "center",
     paddingHorizontal: 20,
-    paddingTop:  18,
-    paddingBottom: 6,
+    paddingTop:        18,
+    paddingBottom:     6,
   },
   headerText: {
     gap: 2,
@@ -286,7 +312,7 @@ const styles = StyleSheet.create({
     width:           40,
     height:          40,
     borderRadius:    20,
-    backgroundColor: Colors.text,
+    backgroundColor: Colors.primary,
     justifyContent:  "center",
     alignItems:      "center",
   },
@@ -299,19 +325,18 @@ const styles = StyleSheet.create({
   // Búsqueda
   searchWrapper: {
     paddingHorizontal: 20,
-    paddingTop:   12,
-    paddingBottom: 8,
+    paddingTop:        12,
+    paddingBottom:     8,
   },
   fakeSearch: {
-    flexDirection:   "row",
-    alignItems:      "center",
-    backgroundColor: Colors.cardBackground,
-    borderRadius:    12,
-    borderWidth:     1,
-    borderColor:     Colors.border,
+    flexDirection:     "row",
+    alignItems:        "center",
+    backgroundColor:   Colors.cardBackground,
+    borderRadius:      12,
+    borderWidth:       1,
+    borderColor:       Colors.border,
     paddingHorizontal: 14,
-    paddingVertical: Platform.OS === "ios" ? 13 : 11,
-    // Sombra sutil sobre el lienzo gris
+    paddingVertical:   Platform.OS === "ios" ? 13 : 11,
     ...Platform.select({
       ios: {
         shadowColor:   Colors.shadow,
@@ -329,8 +354,8 @@ const styles = StyleSheet.create({
     color:    Colors.placeholder,
   },
   fakeSearchKbd: {
-    backgroundColor: Colors.surfaceRaised,
-    borderRadius:    6,
+    backgroundColor:   Colors.surfaceRaised,
+    borderRadius:      6,
     paddingHorizontal: 6,
     paddingVertical:   2,
   },
@@ -342,22 +367,22 @@ const styles = StyleSheet.create({
 
   // Acciones rápidas
   quickActions: {
-    flexDirection:  "row",
-    justifyContent: "space-between",
+    flexDirection:     "row",
+    justifyContent:    "space-between",
     paddingHorizontal: 20,
-    paddingTop:  16,
-    paddingBottom: 24,
+    paddingTop:        16,
+    paddingBottom:     24,
   },
   quickBtn: {
     alignItems: "center",
-    gap: 8,
+    gap:        8,
   },
   quickIconCard: {
-    width:           56,
-    height:          56,
-    borderRadius:    16,
-    justifyContent:  "center",
-    alignItems:      "center",
+    width:          56,
+    height:         56,
+    borderRadius:   16,
+    justifyContent: "center",
+    alignItems:     "center",
   },
   quickLabel: {
     fontSize:   11,
@@ -370,11 +395,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionHeader: {
-    flexDirection:  "row",
-    justifyContent: "space-between",
-    alignItems:     "center",
+    flexDirection:     "row",
+    justifyContent:    "space-between",
+    alignItems:        "center",
     paddingHorizontal: 20,
-    marginBottom: 12,
+    marginBottom:      12,
   },
   sectionTitle: {
     fontSize:      16,
@@ -391,7 +416,7 @@ const styles = StyleSheet.create({
   // Torneos
   horizontalList: {
     paddingHorizontal: 20,
-    gap: 12,
+    gap:               12,
   },
   tournamentImage: {
     width:  "100%",
@@ -404,7 +429,7 @@ const styles = StyleSheet.create({
   sportPill: {
     alignSelf:         "flex-start",
     paddingHorizontal: 10,
-    paddingVertical:    3,
+    paddingVertical:   3,
     borderRadius:      20,
   },
   sportPillText: {
@@ -435,10 +460,12 @@ const styles = StyleSheet.create({
     color:    Colors.textMuted,
   },
 
-  // Novedades
-  newsList: {
+  // Novedades (FlatList items)
+  newsItemWrapper: {
     paddingHorizontal: 20,
-    gap: 10,
+  },
+  newsSeparator: {
+    height: 10,
   },
   newsHeader: {
     flexDirection:  "row",
@@ -447,7 +474,7 @@ const styles = StyleSheet.create({
     marginBottom:   6,
   },
   newsTagPill: {
-    backgroundColor: Colors.surfaceRaised,
+    backgroundColor:   Colors.surfaceRaised,
     paddingHorizontal: 8,
     paddingVertical:   2,
     borderRadius:      6,

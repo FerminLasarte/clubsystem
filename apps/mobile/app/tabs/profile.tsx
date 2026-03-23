@@ -64,7 +64,7 @@ function Avatar({ initials }: { initials: string }) {
   );
 }
 
-function MenuRow({ item, isLast }: { item: MenuItem; isLast: boolean }) {
+function ProfileOptionRow({ item, isLast }: { item: MenuItem; isLast: boolean }) {
   return (
     <Pressable
       style={({ pressed }) => [
@@ -189,7 +189,7 @@ export default function ProfileScreen() {
         {/* ── Card: menú de opciones ── */}
         <Card padding={0} style={styles.menuCard}>
           {MENU_ITEMS.map((item, idx) => (
-            <MenuRow
+            <ProfileOptionRow
               key={item.label}
               item={item}
               isLast={idx === MENU_ITEMS.length - 1}
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     width:           56,
     height:          56,
     borderRadius:    28,
-    backgroundColor: Colors.text,
+    backgroundColor: Colors.primary,
     alignItems:      "center",
     justifyContent:  "center",
   },
