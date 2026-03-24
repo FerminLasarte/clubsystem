@@ -5,16 +5,19 @@ import { Colors } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 
 /**
- * Punto de entrada de la app.
- * Mientras se restaura la sesión desde SecureStore muestra un spinner.
- * Luego redirige al flujo correcto según el estado de la sesión:
+ * Punto de entrada de la app mobile de socios (Portal del Jugador).
  *
- *   Sin token               → pantalla de login
- *   Token + sin club activo → pantalla de invitaciones pendientes
- *   Token + con club activo → panel principal (tabs)
+ * Flujo de navegación:
+ *   isLoading = true  → spinner mientras se restaura la sesión desde SecureStore
+ *   token = null      → pantalla de login/registro
+ *   token ≠ null      → panel principal (tabs)
+ *
+ * Nota: el campo `user.hasClub` y la pantalla `/pending` corresponden al flujo
+ * de invitaciones de staff del panel web. En esta app mobile NO se aplican;
+ * cualquier usuario autenticado accede directamente a /tabs.
  */
 export default function Index() {
-  const { token, user, isLoading } = useAuth();
+  const { token, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -32,6 +35,5 @@ export default function Index() {
   }
 
   if (!token) return <Redirect href="/(auth)/login" />;
-  if (!user?.hasClub) return <Redirect href="/pending" />;
   return <Redirect href="/tabs" />;
 }

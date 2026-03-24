@@ -24,6 +24,12 @@ export const Colors = {
   primarySubtle: "rgba(15, 23, 42, 0.07)",
   primaryBorder: "rgba(15, 23, 42, 0.18)",
 
+  // ── Accent — Verde deportivo vibrante (Emerald-500) ────────
+  /** Estado activo de pills, slots seleccionados y CTA de reserva */
+  accent:        "#10B981",
+  accentSubtle:  "rgba(16, 185, 129, 0.10)",
+  accentBorder:  "rgba(16, 185, 129, 0.30)",
+
   // ── Backgrounds ────────────────────────────────────────────
   /** Lienzo global de la app — blanco puro (contraste via sombra en Cards) */
   appBackground:  "#FFFFFF",

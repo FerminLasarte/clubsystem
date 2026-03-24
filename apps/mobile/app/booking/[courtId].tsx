@@ -11,7 +11,7 @@
  *   5. Grilla en intervalos de 30 min:
  *      • Siempre fetcha base=30 min del backend.
  *      • Calcula client-side si hay bloques consecutivos suficientes.
- *      • Slots insuficientes → deshabilitados (opacidad baja).
+ *      • Slots insuficientes → deshabilitados (opacidad baja + stripes).
  *   6. Footer absolute de confirmación → POST /mobile/reservations.
  *
  * Bugfix is_member:
@@ -31,7 +31,6 @@ import {
   Alert,
   FlatList,
   Platform,
-  Pressable,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -42,10 +41,16 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
-import { Colors } from "@/constants/Colors";
-import { Text } from "@/components/ui/Text";
-import { useAuth } from "@/context/AuthContext";
-import { apiClient } from "@/utils/api";
+import { Colors }       from "@/constants/Colors";
+import { Text }         from "@/components/ui/Text";
+import { Card }         from "@/components/Card";
+import { useAuth }      from "@/context/AuthContext";
+import { apiClient }    from "@/utils/api";
+
+import { DatePill }     from "@/components/booking/DatePill";
+import { DurationPill } from "@/components/booking/DurationPill";
+import { SlotCard }     from "@/components/booking/SlotCard";
+import { SummaryBar }   from "@/components/booking/SummaryBar";
 
 // ── Tipos ─────────────────────────────────────────────────────
 
@@ -116,10 +121,16 @@ function formatDateParam(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function datePillLabel(d: Date, idx: number): { top: string; bottom: string } {
-  if (idx === 0) return { top: "Hoy",    bottom: String(d.getDate()) };
-  if (idx === 1) return { top: "Mañana", bottom: String(d.getDate()) };
-  return { top: DAYS_ES[d.getDay()], bottom: String(d.getDate()) };
+function datePillLabels(
+  d: Date,
+  idx: number
+): { dayLabel: string; dayNumber: string; accessLabel: string } {
+  const day = d.getDate();
+  const month = MONTHS_ES[d.getMonth()];
+  if (idx === 0) return { dayLabel: "Hoy",    dayNumber: String(day), accessLabel: `Hoy, ${day} de ${month}` };
+  if (idx === 1) return { dayLabel: "Mañana", dayNumber: String(day), accessLabel: `Mañana, ${day} de ${month}` };
+  const weekDay = DAYS_ES[d.getDay()];
+  return { dayLabel: weekDay, dayNumber: String(day), accessLabel: `${weekDay} ${day} de ${month}` };
 }
 
 /** Suma `mins` a un string "HH:MM" y devuelve "HH:MM" */
@@ -148,7 +159,7 @@ export default function UnifiedBookingScreen() {
   const [selectedCourtId, setSelectedCourtId] = useState<string | null>(null);
 
   // ── Estado: disponibilidad ────────────────────────────────
-  const dates    = useRef(buildDateList(14)).current;
+  const dates   = useRef(buildDateList(14)).current;
   const [dateIdx,       setDateIdx]       = useState(0);
   const [availability,  setAvailability]  = useState<CourtAvailability | null>(null);
   const [slotsLoading,  setSlotsLoading]  = useState(false);
@@ -163,8 +174,6 @@ export default function UnifiedBookingScreen() {
   const activeCourt  = courts.find((c) => c.id === selectedCourtId) ?? null;
 
   // ── is_member fiable desde el contexto de autenticación ──
-  // Evita depender del campo is_member de la API de canchas (que no tenía
-  // fallback para usuarios con club_id legacy asignado directamente).
   const isMember = useMemo(() => {
     if (!activeCourt || !user) return false;
     const cid = activeCourt._clubId;
@@ -297,6 +306,14 @@ export default function UnifiedBookingScreen() {
     }
   };
 
+  // ── Summary bar labels ────────────────────────────────────
+
+  const summaryDateLabel = `${DAYS_ES[selectedDate.getDay()]} ${selectedDate.getDate()} ${MONTHS_ES[selectedDate.getMonth()]}`;
+
+  const summaryPriceLabel = selectedSlot
+    ? `$${(selectedSlot.price * (selectedDuration / 30)).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`
+    : "";
+
   // ── Render ─────────────────────────────────────────────────
 
   return (
@@ -304,45 +321,49 @@ export default function UnifiedBookingScreen() {
       <StatusBar barStyle="dark-content" backgroundColor={Colors.appBackground} />
 
       {/* ── Header ── */}
-      <View style={styles.header}>
+      <View style={styles.headerWrapper}>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => router.back()}
           activeOpacity={0.7}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel="Volver"
         >
-          <Feather name="chevron-left" size={22} color={Colors.text} />
+          <Feather name="chevron-left" size={20} color={Colors.primary} />
         </TouchableOpacity>
 
-        <View style={styles.headerTitle}>
-          <Text variant="subheading" weight="700" style={styles.courtNameText} numberOfLines={1}>
-            {activeCourt?.name ?? sportLabel}
-          </Text>
-          <Text variant="label" muted numberOfLines={1}>
-            {sportLabel}
-            {activeCourt ? (isMember ? " · Precio socio" : " · Precio visitante") : ""}
-          </Text>
-        </View>
-
-        {!slotsLoading && !courtsLoading && availableCount > 0 && (
-          <View style={styles.availPill}>
-            <Text variant="label" style={styles.availText}>
-              {availableCount} {availableCount === 1 ? "libre" : "libres"}
+        <Card style={styles.headerCard} padding={0} noShadow={false}>
+          <View style={styles.headerCardInner}>
+            <Text variant="heading" weight="800" numberOfLines={1} style={styles.courtTitle}>
+              {activeCourt?.name ?? sportLabel}
+            </Text>
+            <Text variant="label" muted numberOfLines={1} style={styles.courtSubtitle}>
+              {sportLabel}
+              {activeCourt ? (isMember ? " · Socio" : " · Visitante") : ""}
             </Text>
           </View>
-        )}
+          {!slotsLoading && !courtsLoading && availableCount > 0 && (
+            <View style={styles.availPill}>
+              <Text variant="label" style={styles.availText}>
+                {availableCount} libre{availableCount !== 1 ? "s" : ""}
+              </Text>
+            </View>
+          )}
+        </Card>
       </View>
 
       {/* ── Carga de canchas ── */}
       {courtsLoading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={Colors.accent} />
         </View>
       ) : courtsError ? (
         <View style={styles.centered}>
           <Feather name="alert-circle" size={32} color={Colors.danger} />
           <Text variant="body" muted style={styles.centeredText}>{courtsError}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={loadCourts} activeOpacity={0.8}>
-            <Text variant="caption" weight="600" style={{ color: Colors.primary }}>
+            <Text variant="caption" weight="600" color={Colors.primary}>
               Reintentar
             </Text>
           </TouchableOpacity>
@@ -390,70 +411,50 @@ export default function UnifiedBookingScreen() {
           )}
 
           {/* ── Selector de duración ── */}
-          <View style={styles.durationRow}>
-            <Text variant="label" muted style={styles.durationLabel}>Duración</Text>
+          <View style={styles.durationSection}>
+            <Text variant="label" muted style={styles.sectionLabel}>
+              Duración
+            </Text>
             <View style={styles.durationGroup}>
-              {DURATION_OPTIONS.map((d) => {
-                const active = d === selectedDuration;
-                return (
-                  <TouchableOpacity
-                    key={d}
-                    style={[styles.durationPill, active && styles.durationPillActive]}
-                    onPress={() => setSelectedDuration(d)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      variant="caption"
-                      weight="600"
-                      style={[styles.durationText, active && styles.durationTextActive]}
-                    >
-                      {d} min
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+              {DURATION_OPTIONS.map((d) => (
+                <DurationPill
+                  key={d}
+                  minutes={d}
+                  isActive={d === selectedDuration}
+                  onPress={() => setSelectedDuration(d)}
+                />
+              ))}
             </View>
           </View>
 
-          {/* ── Tira de fechas (width fijo → sin layout shift) ── */}
+          {/* ── Tira de fechas horizontal ── */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.dateStrip}
           >
             {dates.map((d, idx) => {
-              const { top, bottom } = datePillLabel(d, idx);
-              const isActive = idx === dateIdx;
+              const labels = datePillLabels(d, idx);
               return (
-                <TouchableOpacity
+                <DatePill
                   key={idx}
-                  style={[styles.datePill, isActive && styles.datePillActive]}
+                  dayLabel={labels.dayLabel}
+                  dayNumber={labels.dayNumber}
+                  isActive={idx === dateIdx}
                   onPress={() => setDateIdx(idx)}
-                  activeOpacity={0.75}
-                >
-                  <Text
-                    variant="label"
-                    weight="600"
-                    style={[styles.datePillTop, isActive && styles.dateTextActive]}
-                  >
-                    {top}
-                  </Text>
-                  <Text
-                    variant="subheading"
-                    weight="700"
-                    style={[styles.datePillBottom, isActive && styles.dateTextActive]}
-                  >
-                    {bottom}
-                  </Text>
-                </TouchableOpacity>
+                  accessLabel={labels.accessLabel}
+                />
               );
             })}
           </ScrollView>
 
+          {/* ── Separador sutil ── */}
+          <View style={styles.divider} />
+
           {/* ── Grilla de horarios (intervalos de 30 min) ── */}
           {slotsLoading ? (
             <View style={styles.centered}>
-              <ActivityIndicator size="large" color={Colors.primary} />
+              <ActivityIndicator size="large" color={Colors.accent} />
             </View>
           ) : slotsError ? (
             <View style={styles.centered}>
@@ -464,7 +465,7 @@ export default function UnifiedBookingScreen() {
                 onPress={() => selectedCourtId && fetchAvailability(selectedCourtId, dateIdx)}
                 activeOpacity={0.8}
               >
-                <Text variant="caption" weight="600" style={{ color: Colors.primary }}>
+                <Text variant="caption" weight="600" color={Colors.primary}>
                   Reintentar
                 </Text>
               </TouchableOpacity>
@@ -478,7 +479,7 @@ export default function UnifiedBookingScreen() {
               style={styles.slotFlatList}
               contentContainerStyle={[
                 styles.slotList,
-                hasCheckout && { paddingBottom: insets.bottom + 120 },
+                hasCheckout && { paddingBottom: insets.bottom + 180 },
               ]}
               showsVerticalScrollIndicator={false}
               ListEmptyComponent={
@@ -491,65 +492,16 @@ export default function UnifiedBookingScreen() {
               }
               renderItem={({ item }) => {
                 const isSelected = selectedSlot?.start_time === item.start_time;
-                // Deshabilitado si el slot base no está libre O si no hay suficientes bloques consecutivos
-                const isDisabled = !item.is_available || !item.canSelect;
-
                 return (
-                  <Pressable
-                    style={[
-                      styles.slotCard,
-                      isDisabled  && styles.slotCardDisabled,
-                      isSelected  && styles.slotCardSelected,
-                    ]}
-                    onPress={() => {
-                      if (isDisabled) return;
-                      setSelectedSlot(isSelected ? null : item);
-                    }}
-                    disabled={isDisabled}
-                  >
-                    {isSelected && (
-                      <View style={styles.slotCheck}>
-                        <Feather name="check" size={11} color="#FFFFFF" />
-                      </View>
-                    )}
-
-                    <Text
-                      variant="subheading"
-                      weight="700"
-                      style={[
-                        styles.slotTime,
-                        isDisabled && styles.slotTextDisabled,
-                        isSelected && styles.slotTextSelected,
-                      ]}
-                    >
-                      {item.start_time}
-                    </Text>
-
-                    <Text
-                      variant="label"
-                      style={[
-                        styles.slotEnd,
-                        isDisabled && styles.slotTextDisabled,
-                        isSelected && styles.slotTextSelected,
-                      ]}
-                    >
-                      → {item.displayEndTime}
-                    </Text>
-
-                    {isDisabled ? (
-                      <Text variant="label" style={styles.occupiedLabel}>
-                        {item.is_available ? "Insuficiente" : "Ocupado"}
-                      </Text>
-                    ) : (
-                      <Text
-                        variant="label"
-                        weight="600"
-                        style={[styles.slotPrice, isSelected && styles.slotTextSelected]}
-                      >
-                        ${item.totalPrice.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
-                      </Text>
-                    )}
-                  </Pressable>
+                  <SlotCard
+                    startTime={item.start_time}
+                    endTime={item.displayEndTime}
+                    totalPrice={item.totalPrice}
+                    isAvailable={item.is_available}
+                    canSelect={item.canSelect}
+                    isSelected={isSelected}
+                    onPress={() => setSelectedSlot(isSelected ? null : item)}
+                  />
                 );
               }}
             />
@@ -557,37 +509,19 @@ export default function UnifiedBookingScreen() {
         </>
       )}
 
-      {/* ── Checkout bar (position: absolute → no squish) ── */}
+      {/* ── Summary bar flotante (position: absolute) ── */}
       {hasCheckout && selectedSlot && activeCourt && (
-        <View style={[styles.checkoutBar, { paddingBottom: insets.bottom + 12 }]}>
-          <View style={styles.checkoutInfo}>
-            <Text variant="label" muted style={styles.checkoutDateLabel}>
-              {DAYS_ES[selectedDate.getDay()]} {selectedDate.getDate()} {MONTHS_ES[selectedDate.getMonth()]}
-            </Text>
-            <Text variant="subheading" weight="700" style={{ color: Colors.text }}>
-              {selectedSlot.start_time} – {addMins(selectedSlot.start_time, selectedDuration)}
-            </Text>
-          </View>
-
-          <View style={styles.checkoutPrice}>
-            <Text variant="label" muted>Total</Text>
-            <Text variant="heading" weight="700" style={{ color: Colors.primary }}>
-              ${(selectedSlot.price * (selectedDuration / 30)).toLocaleString("es-AR", { maximumFractionDigits: 0 })}
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.confirmBtn, isSubmitting && styles.confirmBtnDisabled]}
-            onPress={handleConfirm}
-            disabled={isSubmitting}
-            activeOpacity={0.85}
-          >
-            {isSubmitting
-              ? <ActivityIndicator size="small" color="#FFFFFF" />
-              : <Text variant="subheading" weight="700" color="#FFFFFF">Confirmar</Text>
-            }
-          </TouchableOpacity>
-        </View>
+        <SummaryBar
+          dateLabel={summaryDateLabel}
+          startTime={selectedSlot.start_time}
+          endTime={addMins(selectedSlot.start_time, selectedDuration)}
+          duration={selectedDuration}
+          priceLabel={summaryPriceLabel}
+          isMember={isMember}
+          onConfirm={handleConfirm}
+          isSubmitting={isSubmitting}
+          bottomInset={insets.bottom}
+        />
       )}
     </View>
   );
@@ -602,50 +536,77 @@ const styles = StyleSheet.create({
   },
 
   // ── Header ────────────────────────────────────────────────
-  header: {
+  headerWrapper: {
     flexDirection:     "row",
     alignItems:        "center",
     paddingHorizontal: 16,
-    paddingTop:        12,
-    paddingBottom:     10,
+    paddingTop:        10,
+    paddingBottom:     12,
     gap:               10,
   },
   backBtn: {
-    width:           36,
-    height:          36,
-    borderRadius:    10,
+    width:           38,
+    height:          38,
+    borderRadius:    12,
     backgroundColor: Colors.surface,
+    borderWidth:     1,
+    borderColor:     Colors.border,
     alignItems:      "center",
     justifyContent:  "center",
     flexShrink:      0,
+    ...Platform.select({
+      ios: {
+        shadowColor:   Colors.shadow,
+        shadowOffset:  { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius:  4,
+      },
+      android: { elevation: 1 },
+    }),
   },
-  headerTitle: {
+  headerCard: {
+    flex:          1,
+    flexDirection: "row",
+    alignItems:    "center",
+    borderRadius:  14,
+    paddingVertical:   12,
+    paddingHorizontal: 14,
+  },
+  headerCardInner: {
     flex: 1,
-    gap:  2,
+    gap:  3,
   },
-  courtNameText: {
-    color: Colors.text,
+  courtTitle: {
+    color:         Colors.primary,
+    letterSpacing: -0.4,
+    fontSize:      16,
+  },
+  courtSubtitle: {
+    letterSpacing: 0.1,
   },
   availPill: {
     paddingHorizontal: 10,
-    paddingVertical:   4,
-    borderRadius:      999,
-    backgroundColor:   Colors.successSurface,
+    paddingVertical:   5,
+    borderRadius:      20,
+    backgroundColor:   Colors.accentSubtle,
+    borderWidth:       1,
+    borderColor:       Colors.accentBorder,
     flexShrink:        0,
   },
   availText: {
-    color: Colors.success,
+    color:         Colors.accent,
+    letterSpacing: 0.1,
   },
 
   // ── Court strip (pastillas compactas) ─────────────────────
   courtStrip: {
     paddingHorizontal: 16,
-    paddingBottom:     8,
+    paddingBottom:     10,
     gap:               6,
   },
   courtPill: {
-    paddingHorizontal: 12,
-    paddingVertical:   6,
+    paddingHorizontal: 14,
+    paddingVertical:   7,
     borderRadius:      20,
     backgroundColor:   Colors.surface,
     borderWidth:       1,
@@ -656,81 +617,49 @@ const styles = StyleSheet.create({
     borderColor:     Colors.primary,
   },
   courtPillText: {
-    color: Colors.text,
+    color: Colors.textMuted,
   },
   courtPillTextActive: {
     color: "#FFFFFF",
   },
 
   // ── Selector de duración ──────────────────────────────────
-  durationRow: {
+  durationSection: {
     flexDirection:     "row",
     alignItems:        "center",
     paddingHorizontal: 16,
-    paddingBottom:     10,
-    gap:               10,
+    paddingBottom:     12,
+    gap:               12,
   },
-  durationLabel: {
-    flexShrink: 0,
+  sectionLabel: {
+    flexShrink:    0,
+    letterSpacing: 0.2,
+    textTransform: "uppercase",
+    fontSize:      10,
   },
   durationGroup: {
     flexDirection: "row",
     gap:           6,
   },
-  durationPill: {
-    paddingHorizontal: 14,
-    paddingVertical:   6,
-    borderRadius:      20,
-    backgroundColor:   Colors.surface,
-    borderWidth:       1,
-    borderColor:       Colors.border,
-  },
-  durationPillActive: {
-    backgroundColor: Colors.primary,
-    borderColor:     Colors.primary,
-  },
-  durationText: {
-    color: Colors.textMuted,
-  },
-  durationTextActive: {
-    color: "#FFFFFF",
-  },
 
-  // ── Date strip (width fijo → sin layout shift) ────────────
+  // ── Date strip ────────────────────────────────────────────
   dateStrip: {
     paddingHorizontal: 16,
-    paddingBottom:     10,
+    paddingBottom:     12,
     gap:               6,
   },
-  datePill: {
-    width:           60,   // fijo → nunca cambia al activar/desactivar
-    alignItems:      "center",
-    justifyContent:  "center",
-    paddingVertical: 8,
-    borderRadius:    12,
-    backgroundColor: Colors.surface,
-    borderWidth:     1,
-    borderColor:     Colors.border,
-    gap:             1,
-  },
-  datePillActive: {
-    backgroundColor: Colors.primary,
-    borderColor:     Colors.primary,
-  },
-  datePillTop: {
-    color:    Colors.textMuted,
-    fontSize: 10,
-  },
-  datePillBottom: {
-    color: Colors.text,
-  },
-  dateTextActive: {
-    color: "#FFFFFF",
+
+  // ── Divisor sutil ─────────────────────────────────────────
+  divider: {
+    height:          1,
+    marginHorizontal: 16,
+    backgroundColor: Colors.border,
+    marginBottom:    12,
   },
 
   // ── Slot grid ─────────────────────────────────────────────
   slotFlatList: {
-    flex: 1,  // evita el squish cuando aparece el checkout bar
+    flex: 1,
   },
   slotList: {
     paddingHorizontal: 16,
@@ -740,117 +669,6 @@ const styles = StyleSheet.create({
   slotRow: {
     gap:          8,
     marginBottom: 8,
-  },
-  slotCard: {
-    flex:            1,
-    backgroundColor: Colors.cardBackground,
-    borderRadius:    12,
-    borderWidth:     1,
-    borderColor:     Colors.border,
-    padding:         12,
-    gap:             3,
-    position:        "relative",
-    ...Platform.select({
-      ios: {
-        shadowColor:   Colors.shadow,
-        shadowOffset:  { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius:  4,
-      },
-      android: { elevation: 1 },
-    }),
-  },
-  slotCardDisabled: {
-    backgroundColor: Colors.surface,
-    borderColor:     Colors.border,
-    opacity:         0.4,
-  },
-  slotCardSelected: {
-    backgroundColor: Colors.primary,
-    borderColor:     Colors.primary,
-  },
-  slotCheck: {
-    position:        "absolute",
-    top:             8,
-    right:           8,
-    width:           18,
-    height:          18,
-    borderRadius:    9,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    alignItems:      "center",
-    justifyContent:  "center",
-  },
-  slotTime: {
-    color: Colors.text,
-  },
-  slotEnd: {
-    color:    Colors.textMuted,
-    fontSize: 11,
-  },
-  slotPrice: {
-    color:     Colors.primary,
-    marginTop: 4,
-  },
-  occupiedLabel: {
-    color:     Colors.placeholder,
-    marginTop: 4,
-    fontSize:  10,
-  },
-  slotTextDisabled: {
-    color: Colors.placeholder,
-  },
-  slotTextSelected: {
-    color: "#FFFFFF",
-  },
-
-  // ── Checkout bar (position: absolute) ────────────────────
-  checkoutBar: {
-    position:          "absolute",
-    bottom:            0,
-    left:              0,
-    right:             0,
-    backgroundColor:   Colors.cardBackground,
-    borderTopWidth:    1,
-    borderTopColor:    Colors.border,
-    paddingTop:        14,
-    paddingHorizontal: 16,
-    flexDirection:     "row",
-    alignItems:        "center",
-    gap:               12,
-    ...Platform.select({
-      ios: {
-        shadowColor:   Colors.shadow,
-        shadowOffset:  { width: 0, height: -4 },
-        shadowOpacity: 0.08,
-        shadowRadius:  12,
-      },
-      android: { elevation: 8 },
-    }),
-  },
-  checkoutInfo: {
-    flex: 1,
-    gap:  3,
-  },
-  checkoutDateLabel: {
-    textTransform: "capitalize",
-  },
-  checkoutPrice: {
-    alignItems: "flex-end",
-    gap:        2,
-    flexShrink: 0,
-  },
-  confirmBtn: {
-    backgroundColor:   Colors.primary,
-    borderRadius:      12,
-    paddingHorizontal: 18,
-    paddingVertical:   12,
-    alignItems:        "center",
-    justifyContent:    "center",
-    minWidth:          100,
-    flexShrink:        0,
-  },
-  confirmBtnDisabled: {
-    opacity: 0.6,
   },
 
   // ── Estados ───────────────────────────────────────────────
