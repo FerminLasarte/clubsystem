@@ -5,11 +5,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import cast, func, select, String, Date
+from sqlalchemy import and_, cast, func, select, String, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.tenant import get_current_club_id, require_role
+from app.models.club_membership import ClubMembership
 from app.models.club_staff import ClubStaff
 from app.models.court import Court
 from app.models.expense import Expense
@@ -73,7 +74,7 @@ async def get_dashboard_metrics(
     total_courts_res = await db.execute(
         select(func.count()).where(
             Court.club_id == club_id,
-            Court.is_active == True,
+            Court.is_active.is_(True),
         )
     )
     total_courts = total_courts_res.scalar() or 0
@@ -205,21 +206,20 @@ async def get_dashboard_kpis(
     )
 
     # ── Socios ────────────────────────────────────────────────
-    # Tras el RBAC, los usuarios no tienen `role` propio.
-    # Todos los Users con club_id == club activo son socios.
+    # Socios = Users con ClubMembership APPROVED en el club activo.
+    _cm_join = and_(ClubMembership.user_id == User.id, ClubMembership.club_id == club_id)
+
     active_members_res = await db.execute(
-        select(func.count()).where(
-            User.club_id == club_id,
-            User.is_active == True,
-        )
+        select(func.count(User.id))
+        .join(ClubMembership, _cm_join)
+        .where(ClubMembership.status == "APPROVED", User.is_active.is_(True))
     )
     active_members = active_members_res.scalar() or 0
 
     new_members_res = await db.execute(
-        select(func.count()).where(
-            User.club_id == club_id,
-            User.joined_at >= month_start,
-        )
+        select(func.count(User.id))
+        .join(ClubMembership, _cm_join)
+        .where(ClubMembership.status == "APPROVED", User.joined_at >= month_start)
     )
     new_members_this_month = new_members_res.scalar() or 0
 
@@ -320,10 +320,9 @@ async def get_manager_summary(
 
     # ── 1. Socios activos ─────────────────────────────────────────────────────
     members_res = await db.execute(
-        select(func.count()).where(
-            User.club_id   == club_id,
-            User.is_active.is_(True),
-        )
+        select(func.count(User.id))
+        .join(ClubMembership, and_(ClubMembership.user_id == User.id, ClubMembership.club_id == club_id))
+        .where(ClubMembership.status == "APPROVED", User.is_active.is_(True))
     )
     total_members = int(members_res.scalar() or 0)
 

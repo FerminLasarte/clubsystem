@@ -8,15 +8,11 @@ Endpoints:
   POST /api/v1/auth/register     → Registro de usuario base (sin rol).
   POST /api/v1/auth/logout       → Placeholder (token stateless).
 
-Flujo RBAC (sistema nuevo):
+Flujo RBAC:
   1. Verifica credenciales contra users.password_hash.
   2. Busca ClubStaff activos para ese email.
   3. Emite JWT con: sub=user_id, club_id, roles=[...], email.
   4. Retorna available_clubs para el ClubSwitcher del frontend.
-
-Flujo legacy (auto-migración):
-  Si existe user.club_id pero no hay ClubStaff, se crea un registro OWNER
-  automáticamente. Esto migra silenciosamente los usuarios pre-RBAC.
 
 JWT:
   - `roles` es un array: ["OWNER"] o ["RESERVATIONS_MANAGER", "STOCK_MANAGER"]
@@ -52,13 +48,11 @@ class RegisterRequest(BaseModel):
     last_name:  str
     email:      EmailStr
     password:   str
-    club_id:    Optional[UUID] = None
 
 
 class UserOut(BaseModel):
-    """Respuesta del endpoint /register. Sin campo role (users son globales)."""
+    """Respuesta del endpoint /register."""
     id:            UUID
-    club_id:       Optional[UUID] = None
     email:         str
     first_name:    str
     last_name:     str
@@ -160,15 +154,12 @@ def _primary_roles(staff_rows: list) -> tuple:
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     """
     Login para el panel de administración web.
-
     Solo usuarios con ClubStaff activo pueden acceder.
-    Los usuarios sin ClubStaff pero con club_id legacy se auto-migran
-    creando un registro ClubStaff OWNER en el momento del primer login.
     """
     # 1. Verificar credenciales
     user_result = await db.execute(
         select(User)
-        .where(User.email == payload.email, User.is_active == True)
+        .where(User.email == payload.email, User.is_active.is_(True))
         .limit(1)
     )
     user = user_result.scalar_one_or_none()
@@ -185,49 +176,18 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         .join(Club, Club.id == ClubStaff.club_id)
         .where(
             ClubStaff.email == payload.email,
-            ClubStaff.is_active == True,
-            Club.is_active == True,
+            ClubStaff.is_active.is_(True),
+            Club.is_active.is_(True),
         )
         .order_by(ClubStaff.created_at)
     )
     staff_rows = staff_result.all()
 
-    # ── Auto-migración legacy → RBAC ──────────────────────────
     if not staff_rows:
-        if user.club_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Tu cuenta no tiene acceso a ningún panel de administración.",
-            )
-
-        club_result = await db.execute(
-            select(Club).where(Club.id == user.club_id, Club.is_active == True)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tu cuenta no tiene acceso a ningún panel de administración.",
         )
-        club = club_result.scalar_one_or_none()
-
-        if not club:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="El club asociado a tu cuenta no está activo",
-            )
-
-        # Primera vez: crear ClubStaff OWNER para este usuario legacy
-        logger.info(
-            "Auto-migrando usuario legacy %s → ClubStaff[OWNER] en '%s'",
-            user.email, club.name,
-        )
-        new_staff = ClubStaff(
-            email=user.email,
-            club_id=club.id,
-            user_id=user.id,
-            roles=["OWNER"],
-            status="ACTIVE",
-            is_active=True,
-        )
-        db.add(new_staff)
-        await db.commit()
-        await db.refresh(new_staff)
-        staff_rows = [(new_staff, club)]
 
     # ── Caso RBAC: hay registros ClubStaff ───────────────────
     available_clubs = [_club_to_staff_out(club, staff.roles) for staff, club in staff_rows]
@@ -279,8 +239,8 @@ async def switch_club(
         .where(
             ClubStaff.email == email,
             ClubStaff.club_id == payload.club_id,
-            ClubStaff.is_active == True,
-            Club.is_active == True,
+            ClubStaff.is_active.is_(True),
+            Club.is_active.is_(True),
         )
     )
     row = row_result.one_or_none()
@@ -305,8 +265,8 @@ async def switch_club(
         .join(Club, Club.id == ClubStaff.club_id)
         .where(
             ClubStaff.email == email,
-            ClubStaff.is_active == True,
-            Club.is_active == True,
+            ClubStaff.is_active.is_(True),
+            Club.is_active.is_(True),
         )
         .order_by(ClubStaff.created_at)
     )
@@ -333,7 +293,7 @@ async def mobile_login(payload: LoginRequest, db: AsyncSession = Depends(get_db)
     """
     user_result = await db.execute(
         select(User)
-        .where(User.email == payload.email, User.is_active == True)
+        .where(User.email == payload.email, User.is_active.is_(True))
         .limit(1)
     )
     user = user_result.scalar_one_or_none()
@@ -349,8 +309,8 @@ async def mobile_login(payload: LoginRequest, db: AsyncSession = Depends(get_db)
         .join(Club, Club.id == ClubStaff.club_id)
         .where(
             ClubStaff.email == payload.email,
-            ClubStaff.is_active == True,
-            Club.is_active == True,
+            ClubStaff.is_active.is_(True),
+            Club.is_active.is_(True),
         )
         .order_by(ClubStaff.created_at)
     )
@@ -400,24 +360,12 @@ async def mobile_login(payload: LoginRequest, db: AsyncSession = Depends(get_db)
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """
-    Registra un nuevo usuario global (sin rol).
+    Registra un nuevo usuario global (sin rol, sin club).
 
-    Los roles se asignan posteriormente vía invitación ClubStaff.
-    El usuario registrado podrá iniciar sesión en la app móvil pero
-    no en el panel de administración hasta aceptar una invitación de club.
+    Los roles se asignan vía invitación ClubStaff.
+    La membresía a un club se solicita vía ClubMembership.
     """
-    if payload.club_id is not None:
-        club_result = await db.execute(
-            select(Club).where(Club.id == payload.club_id, Club.is_active == True)
-        )
-        if club_result.scalar_one_or_none() is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Club no encontrado o inactivo",
-            )
-
     # El email es único globalmente — los usuarios son entidades globales (B2B2C).
-    # No se permite el mismo email aunque sea en distintos clubs.
     existing = await db.execute(select(User).where(User.email == payload.email))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(
@@ -426,7 +374,6 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
         )
 
     user = User(
-        club_id=payload.club_id,
         email=payload.email,
         password_hash=hash_password(payload.password),
         first_name=payload.first_name,
@@ -438,7 +385,6 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
 
     return UserOut(
         id=user.id,
-        club_id=user.club_id,
         email=user.email,
         first_name=user.first_name,
         last_name=user.last_name,

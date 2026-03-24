@@ -5,33 +5,38 @@ ClubSystem — Members Router
 CRUD completo de socios del club activo.
 
 Endpoints:
-  GET    /api/v1/members         → lista paginada + búsqueda
-  POST   /api/v1/members         → crear socio (requiere OWNER)
-  PUT    /api/v1/members/{id}    → editar socio (requiere OWNER)
-  DELETE /api/v1/members/{id}    → soft-delete (requiere OWNER)
+  GET    /api/v1/members           → lista paginada + búsqueda
+  POST   /api/v1/members           → crear socio (requiere OWNER)
+  PUT    /api/v1/members/{id}      → editar socio (requiere OWNER)
+  DELETE /api/v1/members/{id}      → soft-delete (requiere OWNER)
   GET    /api/v1/members/export/csv → exportar CSV
 
 Permisos:
   - GET       → cualquier rol autenticado con club_id válido
   - POST / PUT / DELETE → solo OWNER
+
+Un socio es un User con ClubMembership APPROVED para el club activo.
+Al crear un socio (POST) se generan simultáneamente el User y el registro
+ClubMembership con status=APPROVED.
 """
 import csv
 import io
 import secrets
 import string
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select, func, or_
+from sqlalchemy import and_, select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import hash_password
 from app.middleware.tenant import get_current_club_id, require_role
+from app.models.club_membership import ClubMembership
 from app.models.user import User
 
 router = APIRouter()
@@ -100,6 +105,11 @@ def _random_password(length: int = 20) -> str:
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
+def _member_join(club_id: UUID):
+    """Condición de join User ↔ ClubMembership para el club activo."""
+    return and_(ClubMembership.user_id == User.id, ClubMembership.club_id == club_id)
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 @router.get("/export/csv")
@@ -109,7 +119,11 @@ async def export_members_csv(
     db:        AsyncSession   = Depends(get_db),
 ):
     """Exporta todos los socios del club como CSV (UTF-8 BOM)."""
-    q = select(User).where(User.club_id == club_id)
+    q = (
+        select(User)
+        .join(ClubMembership, _member_join(club_id))
+        .where(ClubMembership.status == "APPROVED")
+    )
     if is_active is not None:
         q = q.where(User.is_active == is_active)
     q = q.order_by(User.last_name, User.first_name)
@@ -117,8 +131,7 @@ async def export_members_csv(
     members = result.scalars().all()
 
     output = io.StringIO()
-    # BOM para Excel
-    output.write("\ufeff")
+    output.write("\ufeff")  # BOM para Excel
     writer = csv.writer(output)
     writer.writerow([
         "N° Socio", "Apellido", "Nombre", "Email",
@@ -158,7 +171,11 @@ async def list_members(
     club_id:   UUID           = Depends(get_current_club_id),
     db:        AsyncSession   = Depends(get_db),
 ):
-    q = select(User).where(User.club_id == club_id)
+    q = (
+        select(User)
+        .join(ClubMembership, _member_join(club_id))
+        .where(ClubMembership.status == "APPROVED")
+    )
 
     if search:
         term = f"%{search.lower()}%"
@@ -193,7 +210,11 @@ async def create_member(
     _:        dict         = Depends(require_role("OWNER")),
     db:       AsyncSession = Depends(get_db),
 ):
-    # Verificar email único
+    """
+    Crea un socio y lo vincula al club con ClubMembership APPROVED.
+    El User se crea como entidad global; la relación club se establece
+    exclusivamente a través de ClubMembership.
+    """
     existing = await db.execute(select(User).where(User.email == payload.email))
     if existing.scalar_one_or_none():
         raise HTTPException(
@@ -202,7 +223,6 @@ async def create_member(
         )
 
     member = User(
-        club_id=club_id,
         email=payload.email,
         password_hash=hash_password(_random_password()),
         first_name=payload.first_name,
@@ -217,6 +237,15 @@ async def create_member(
         is_active=True,
     )
     db.add(member)
+    await db.flush()  # obtener member.id antes del commit
+
+    db.add(ClubMembership(
+        user_id=member.id,
+        club_id=club_id,
+        status="APPROVED",
+        approved_at=datetime.now(timezone.utc),
+    ))
+
     await db.commit()
     await db.refresh(member)
     return member
@@ -231,7 +260,9 @@ async def update_member(
     db:        AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(User).where(User.id == member_id, User.club_id == club_id)
+        select(User)
+        .join(ClubMembership, _member_join(club_id))
+        .where(User.id == member_id, ClubMembership.status == "APPROVED")
     )
     member = result.scalar_one_or_none()
     if not member:
@@ -252,9 +283,11 @@ async def delete_member(
     _:         dict         = Depends(require_role("OWNER")),
     db:        AsyncSession = Depends(get_db),
 ):
-    """Soft-delete: setea is_active=False."""
+    """Soft-delete: setea is_active=False en el User."""
     result = await db.execute(
-        select(User).where(User.id == member_id, User.club_id == club_id)
+        select(User)
+        .join(ClubMembership, _member_join(club_id))
+        .where(User.id == member_id, ClubMembership.status == "APPROVED")
     )
     member = result.scalar_one_or_none()
     if not member:

@@ -27,11 +27,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.tenant import get_current_club_id, require_role
+from app.models.club_membership import ClubMembership
 from app.models.fee import MembershipFee, VALID_FEE_STATUSES
 from app.models.payment import Payment
 from app.models.user import User
@@ -120,9 +121,12 @@ async def list_fees(
             MembershipFee.is_active.is_(True),
         )
     )
-    if month:  q = q.where(MembershipFee.month  == month)
-    if year:   q = q.where(MembershipFee.year   == year)
-    if status: q = q.where(MembershipFee.status == status)
+    if month:
+        q = q.where(MembershipFee.month == month)
+    if year:
+        q = q.where(MembershipFee.year == year)
+    if status:
+        q = q.where(MembershipFee.status == status)
 
     q = q.order_by(MembershipFee.due_date, MembershipFee.created_at)
     fees = (await db.execute(q)).scalars().all()
@@ -175,9 +179,10 @@ async def generate_fees(
     due_date          = date(payload.year, payload.month, safe_due_day)
 
     # ── Obtener todos los socios activos del club ─────────────────────────────
-    members_q = select(User).where(
-        User.club_id   == club_id,
-        User.is_active.is_(True),
+    members_q = (
+        select(User)
+        .join(ClubMembership, and_(ClubMembership.user_id == User.id, ClubMembership.club_id == club_id))
+        .where(ClubMembership.status == "APPROVED", User.is_active.is_(True))
     )
     members = (await db.execute(members_q)).scalars().all()
 
@@ -390,11 +395,8 @@ async def list_plans(
     """
     q = (
         select(User.membership_plan)
-        .where(
-            User.club_id   == club_id,
-            User.is_active.is_(True),
-            User.membership_plan.isnot(None),
-        )
+        .join(ClubMembership, and_(ClubMembership.user_id == User.id, ClubMembership.club_id == club_id))
+        .where(ClubMembership.status == "APPROVED", User.is_active.is_(True), User.membership_plan.isnot(None))
         .distinct()
         .order_by(User.membership_plan)
     )

@@ -19,30 +19,30 @@ Notas de diseño:
 """
 
 from collections import defaultdict
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, timezone
 from uuid import UUID
 from typing import Optional
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, model_validator
 from sqlalchemy import and_, select, update
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.tenant import get_current_club_id, require_role
 from app.models.club import Club
+from app.models.club_membership import ClubMembership
 from app.models.court import Court
 from app.models.reservation import Reservation
 from app.models.user import User
+from app.services.reservation_service import (
+    create_core_reservation,
+    day_utc_bounds,
+    to_tz_aware,
+    validate_operational_hours,
+)
 
 router = APIRouter()
-
-# ── Timezone ──────────────────────────────────────────────────
-# Argentina no cambia hora (UTC-3 fijo). La abstracción ZoneInfo
-# permite reemplazar esto por Club.timezone cuando ese campo exista.
-_CLUB_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
 
 
 # ── Schemas ───────────────────────────────────────────────────
@@ -125,22 +125,6 @@ class ReservationUpdate(BaseModel):
 
 
 # ── Helpers privados ──────────────────────────────────────────
-
-def _day_utc_bounds(day: date) -> tuple[datetime, datetime]:
-    """
-    Convierte una fecha local (Argentina) a un rango UTC start/end.
-    Ejemplo: 2026-03-17 ART → (2026-03-17T03:00:00Z, 2026-03-18T02:59:59.999999Z)
-
-    Sin esto, una reserva a las 00:30 ART (03:30 UTC) quedaría fuera
-    del rango si se consultara con naive UTC midnight boundaries.
-    """
-    local_start = datetime.combine(day, time.min, tzinfo=_CLUB_TZ)
-    local_end   = datetime.combine(day, time.max, tzinfo=_CLUB_TZ)
-    return (
-        local_start.astimezone(timezone.utc),
-        local_end.astimezone(timezone.utc),
-    )
-
 
 def _build_out(r: Reservation, court_name: str, user_name: str) -> ReservationOut:
     """Construye ReservationOut desde un ORM object + nombres ya resueltos."""
@@ -225,7 +209,7 @@ async def get_availability(
     y eliminando la necesidad de join en el cliente.
     """
     await _auto_transition_past(db, club_id)
-    day_start, day_end = _day_utc_bounds(target_date)
+    day_start, day_end = day_utc_bounds(target_date)
 
     # 1. Canchas activas del club — ordenadas por nombre para grilla estable
     courts_result = await db.execute(
@@ -328,7 +312,7 @@ async def list_reservations(
 
     if not all_dates:
         day = target_date or date.today()
-        day_start, day_end = _day_utc_bounds(day)
+        day_start, day_end = day_utc_bounds(day)
         q = q.where(
             and_(
                 Reservation.starts_at >= day_start,
@@ -370,84 +354,37 @@ async def create_reservation(
     if not court or court.club_id != club_id:
         raise HTTPException(status_code=404, detail="Cancha no encontrada en este club.")
 
-    # Verificar que el usuario pertenece al club activo
+    # Verificar que el usuario existe y tiene membresía en el club activo
     user = await db.get(User, payload.user_id)
-    if not user or user.club_id != club_id:
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado en este club.")
+    membership_check = await db.execute(
+        select(ClubMembership).where(
+            ClubMembership.user_id == payload.user_id,
+            ClubMembership.club_id == club_id,
+        )
+    )
+    if membership_check.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Usuario no encontrado en este club.")
 
-    # ── Validación de horario operativo del club ───────────────────────────────
-    # Reglas de negocio:
-    #   · starts_at >= open_time  del club
-    #   · ends_at   <= close_time del club
-    # Solo se aplica cuando el club tiene ambos horarios configurados y
-    # representan un turno dentro del mismo día (open_time < close_time).
-    #
-    # Diseño:
-    #   Se construyen datetimes límite completos (open_bound / close_bound)
-    #   sobre la fecha local de inicio de la reserva.  Esto evita dos bugs
-    #   del enfoque naïve de extraer solo .time():
-    #
-    #   1. Rollover de medianoche: una reserva que termine a las 00:30 del día
-    #      siguiente tendría ends_local.time() == 00:30, que es MENOR que
-    #      close_time == 21:00 → la comparación aceptaría un horario inválido.
-    #
-    #   2. Datetime naive: si el cliente omite el offset de zona horaria,
-    #      .astimezone() asume la TZ del sistema (UTC en producción), no ART,
-    #      desplazando la comparación 3 horas y permitiendo reservas fuera de
-    #      horario que deberían rechazarse.
-    club = await db.get(Club, club_id)
-    if club and club.open_time and club.close_time and club.open_time < club.close_time:
-        # Normalizar a timezone-aware: si llega sin offset, asumir hora local
-        # del club (America/Argentina/Buenos_Aires, UTC-3 fijo).
-        def _to_aware(dt: datetime) -> datetime:
-            return dt if dt.tzinfo is not None else dt.replace(tzinfo=_CLUB_TZ)
-
-        starts_aware = _to_aware(payload.starts_at)
-        ends_aware   = _to_aware(payload.ends_at)
-
-        # Proyectar open/close sobre la fecha local de inicio.
-        # Usar datetime.combine garantiza que la comparación sea entre objetos
-        # del mismo tipo y referencia temporal, sin perder el contexto de fecha.
-        local_date  = starts_aware.astimezone(_CLUB_TZ).date()
-        open_bound  = datetime.combine(local_date, club.open_time,  tzinfo=_CLUB_TZ)
-        close_bound = datetime.combine(local_date, club.close_time, tzinfo=_CLUB_TZ)
-
-        if starts_aware < open_bound or ends_aware > close_bound:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El horario de la reserva está fuera del horario de operación del club.",
-            )
+    # Validar horario operativo del club
+    club         = await db.get(Club, club_id)
+    starts_aware = to_tz_aware(payload.starts_at)
+    ends_aware   = to_tz_aware(payload.ends_at)
+    validate_operational_hours(club, starts_aware, ends_aware)
 
     # El administrador crea la reserva directamente como "confirmed".
-    # Un socio que reserve por autogestión (futuro) recibiría "pending".
-    new_res = Reservation(
+    new_res = await create_core_reservation(
+        db,
         club_id=club_id,
         court_id=payload.court_id,
         user_id=payload.user_id,
         starts_at=payload.starts_at,
         ends_at=payload.ends_at,
         total_price=payload.total_price,
+        reservation_status="confirmed",
         notes=payload.notes,
-        status="confirmed",
     )
-    db.add(new_res)
-
-    try:
-        await db.commit()
-        await db.refresh(new_res)
-    except IntegrityError as exc:
-        await db.rollback()
-        err_msg = str(exc.orig)
-        # Nombre del constraint GiST definido en 01_schema.sql
-        if "no_overlap" in err_msg or "conflicts with existing key" in err_msg:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Ya existe una reserva en ese horario para esta cancha.",
-            )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No se pudo crear la reserva. Verificá los datos enviados.",
-        )
 
     return _build_out(new_res, court.name, f"{user.first_name} {user.last_name}")
 

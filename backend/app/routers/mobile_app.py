@@ -18,15 +18,13 @@ Notas:
 """
 
 import logging
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from typing import Optional
 from uuid import UUID
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -37,6 +35,14 @@ from app.models.club_membership import ClubMembership
 from app.models.court import Court
 from app.models.reservation import Reservation
 from app.models.user import User
+from app.services.reservation_service import (
+    CLUB_TZ,
+    check_membership,
+    create_core_reservation,
+    day_utc_bounds,
+    resolve_court_price,
+    validate_operational_hours,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -54,13 +60,11 @@ class MemberLoginRequest(BaseModel):
 
 
 class MemberOut(BaseModel):
-    id: UUID
-    email: str
-    first_name: str
-    last_name: str
+    id:            UUID
+    email:         str
+    first_name:    str
+    last_name:     str
     member_number: str | None = None
-    club_id: UUID | None = None
-    club_name: str | None = None
 
     class Config:
         from_attributes = True
@@ -162,9 +166,9 @@ class MobileReservationOut(BaseModel):
     total_price: float
 
 
-# ── Constantes de timezone ─────────────────────────────────────────────────────
+# ── Constantes de horario por defecto ─────────────────────────────────────────
+# _MOBILE_TZ eliminado — usar CLUB_TZ importado de reservation_service.
 
-_MOBILE_TZ     = ZoneInfo("America/Argentina/Buenos_Aires")
 _DEFAULT_OPEN  = time(8,  0)
 _DEFAULT_CLOSE = time(22, 0)
 
@@ -231,19 +235,9 @@ async def member_login(
             detail="Cuenta inactiva. Contactá a tu club.",
         )
 
-    # Obtener el nombre del club si el socio tiene uno asignado
-    club_name: str | None = None
-    if user.club_id is not None:
-        club_result = await db.execute(
-            select(Club).where(Club.id == user.club_id)
-        )
-        club = club_result.scalar_one_or_none()
-        club_name = club.name if club else None
-
     token = create_access_token(
         sub=str(user.id),
         email=user.email,
-        club_id=user.club_id,
         roles=[],
     )
 
@@ -257,8 +251,6 @@ async def member_login(
             first_name=user.first_name,
             last_name=user.last_name,
             member_number=user.member_number,
-            club_id=user.club_id,
-            club_name=club_name,
         ),
     )
 
@@ -408,20 +400,7 @@ async def get_club_courts_for_member(
         )
 
     # 2. Verificar membresía del usuario en este club
-    membership_result = await db.execute(
-        select(ClubMembership).where(
-            ClubMembership.user_id == user_id,
-            ClubMembership.club_id == club_id,
-        )
-    )
-    membership = membership_result.scalar_one_or_none()
-    is_member  = membership is not None and membership.status == "APPROVED"
-
-    # Fallback legacy: usuario con club_id directo asignado (sin ClubMembership)
-    if not is_member:
-        user_obj = await db.get(User, user_id)
-        if user_obj and user_obj.club_id == club_id:
-            is_member = True
+    is_member, _ = await check_membership(db, user_id, club_id)
 
     # 3. Obtener canchas activas del club
     courts_result = await db.execute(
@@ -439,10 +418,7 @@ async def get_club_courts_for_member(
     # 4. Resolver precio según tipo de usuario
     result = []
     for court in courts:
-        if is_member:
-            price = float(court.price_member if court.price_member is not None else court.hourly_rate)
-        else:
-            price = float(court.price_guest  if court.price_guest  is not None else court.hourly_rate)
+        price = resolve_court_price(court, is_member)
 
         result.append(
             CourtMobileOut(
@@ -497,29 +473,10 @@ async def get_court_availability(
         raise HTTPException(status_code=404, detail="Club no encontrado o inactivo.")
 
     # 3. Verificar membresía del usuario
-    membership_result = await db.execute(
-        select(ClubMembership).where(
-            ClubMembership.user_id == user_id,
-            ClubMembership.club_id == court.club_id,
-        )
-    )
-    membership = membership_result.scalar_one_or_none()
-    is_member  = membership is not None and membership.status == "APPROVED"
+    is_member, _ = await check_membership(db, user_id, court.club_id)
 
-    # Fallback legacy: si el usuario tiene club_id igual al de la cancha, es "miembro"
-    if not is_member:
-        user = await db.get(User, user_id)
-        if user and user.club_id == court.club_id:
-            is_member = True
-
-    # 4. Precio según tipo de usuario
-    price = float(
-        (court.price_member if court.price_member is not None else court.hourly_rate)
-        if is_member else
-        (court.price_guest  if court.price_guest  is not None else court.hourly_rate)
-    )
-    # Ajustar precio por duración (hourly → por slot)
-    price = price * duration / 60.0
+    # 4. Precio según tipo de usuario y duración del slot
+    price = resolve_court_price(court, is_member, duration)
 
     # 5. Parsear fecha
     try:
@@ -535,8 +492,7 @@ async def get_court_availability(
     raw_slots = _generate_slots(open_t, close_t, duration)
 
     # 8. Reservas no canceladas del día para esta cancha
-    day_start = datetime.combine(target_date, time.min, tzinfo=_MOBILE_TZ).astimezone(timezone.utc)
-    day_end   = datetime.combine(target_date, time.max, tzinfo=_MOBILE_TZ).astimezone(timezone.utc)
+    day_start, day_end = day_utc_bounds(target_date)
 
     res_result = await db.execute(
         select(Reservation).where(
@@ -553,8 +509,8 @@ async def get_court_availability(
     slots_out: list[TimeSlotOut] = []
 
     for slot_start, slot_end in raw_slots:
-        start_utc = datetime.combine(target_date, slot_start, tzinfo=_MOBILE_TZ).astimezone(timezone.utc)
-        end_utc   = datetime.combine(target_date, slot_end,   tzinfo=_MOBILE_TZ).astimezone(timezone.utc)
+        start_utc = datetime.combine(target_date, slot_start, tzinfo=CLUB_TZ).astimezone(timezone.utc)
+        end_utc   = datetime.combine(target_date, slot_end,   tzinfo=CLUB_TZ).astimezone(timezone.utc)
 
         # Slot pasado → no disponible
         if start_utc <= now_utc:
@@ -606,7 +562,7 @@ async def create_mobile_reservation(
 
     Diferencias respecto al endpoint de admin (POST /api/v1/reservations/):
       - Requiere JWT de socio (get_current_user_id), no rol de staff.
-      - Verifica que el usuario tenga membresía APPROVED (o legacy club_id).
+      - Requiere ClubMembership con status APPROVED para el club de la cancha.
       - Crea la reserva con status="pending" (el admin puede confirmar luego).
       - Calcula el precio según tipo de usuario y duración.
     """
@@ -615,29 +571,19 @@ async def create_mobile_reservation(
     if not court or not court.is_active:
         raise HTTPException(status_code=404, detail="Cancha no encontrada o inactiva.")
 
-    # 2. Verificar acceso: APPROVED membership o legacy club_id
-    membership_result = await db.execute(
-        select(ClubMembership).where(
-            ClubMembership.user_id == user_id,
-            ClubMembership.club_id == court.club_id,
-            ClubMembership.status  == "APPROVED",
+    # 2. Verificar acceso: requiere ClubMembership APPROVED
+    is_member, _ = await check_membership(db, user_id, court.club_id)
+    if not is_member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tenés membresía activa en este club.",
         )
-    )
-    membership = membership_result.scalar_one_or_none()
-
-    if membership is None:
-        user = await db.get(User, user_id)
-        if not user or user.club_id != court.club_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tenés membresía activa en este club.",
-            )
 
     # 3. Parsear fecha y hora de inicio
     try:
         target_date = datetime.strptime(payload.date, "%Y-%m-%d").date()
         h, m = (int(x) for x in payload.start_time.split(":"))
-        starts_local = datetime.combine(target_date, time(h, m), tzinfo=_MOBILE_TZ)
+        starts_local = datetime.combine(target_date, time(h, m), tzinfo=CLUB_TZ)
     except (ValueError, AttributeError):
         raise HTTPException(status_code=400, detail="Formato de fecha/hora inválido.")
 
@@ -651,46 +597,22 @@ async def create_mobile_reservation(
 
     # 5. Validar horario operativo del club
     club = await db.get(Club, court.club_id)
-    if club and club.open_time and club.close_time and club.open_time < club.close_time:
-        local_date  = starts_local.date()
-        open_bound  = datetime.combine(local_date, club.open_time,  tzinfo=_MOBILE_TZ)
-        close_bound = datetime.combine(local_date, club.close_time, tzinfo=_MOBILE_TZ)
-        if starts_local < open_bound or ends_local > close_bound:
-            raise HTTPException(
-                status_code=400,
-                detail="El horario está fuera del horario operativo del club.",
-            )
+    validate_operational_hours(club, starts_local, ends_local)
 
-    # 6. Calcular precio
-    is_member = membership is not None
-    base_price = float(
-        (court.price_member if court.price_member is not None else court.hourly_rate)
-        if is_member else
-        (court.price_guest  if court.price_guest  is not None else court.hourly_rate)
-    )
-    total_price = base_price * payload.duration / 60.0
+    # 6. Calcular precio según membresía (is_member implica ClubMembership APPROVED)
+    total_price = resolve_court_price(court, is_member, payload.duration)
 
     # 7. Crear reserva (status="pending" — el admin confirma)
-    new_res = Reservation(
+    new_res = await create_core_reservation(
+        db,
         club_id=court.club_id,
         court_id=payload.court_id,
         user_id=user_id,
         starts_at=starts_at,
         ends_at=ends_at,
         total_price=total_price,
-        status="pending",
+        reservation_status="pending",
     )
-    db.add(new_res)
-
-    try:
-        await db.commit()
-        await db.refresh(new_res)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Ya existe una reserva en ese horario para esta cancha.",
-        )
 
     logger.info(
         "create_mobile_reservation | user_id=%s court_id=%s starts_at=%s price=%.2f",

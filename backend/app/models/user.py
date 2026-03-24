@@ -4,18 +4,15 @@ Modelo global de usuario (B2B2C).
 
 Reglas de negocio:
   - Un User es una entidad GLOBAL sin rol propio. No existe "admin global".
-  - Los roles SOLO existen en ClubStaff (tabla de relación User ↔ Club).
-  - club_id es un campo DEPRECATED para usuarios pre-RBAC. El primer login
-    de esos usuarios auto-crea su registro ClubStaff OWNER.
-
-Migración pendiente:
-  ALTER TABLE users DROP COLUMN IF EXISTS role;
+  - Los roles de staff se definen en ClubStaff (tabla User ↔ Club con RBAC).
+  - La membresía de socio se define en ClubMembership (User ↔ Club con status).
+  - Un usuario puede pertenecer a 0, 1 o N clubs a través de esas tablas.
 """
 
 import uuid
 from datetime import datetime, date
 
-from sqlalchemy import Boolean, DateTime, Date, String, Text, ForeignKey
+from sqlalchemy import Boolean, DateTime, Date, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -32,15 +29,6 @@ class User(Base):
     # ── Identity ──────────────────────────────────────────────
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-
-    # DEPRECATED: los usuarios son globales; la membresía de club va en ClubStaff.
-    # Se mantiene para retrocompatibilidad con seeds y usuarios pre-RBAC.
-    club_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("clubs.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
     )
 
     # ── Credentials ───────────────────────────────────────────

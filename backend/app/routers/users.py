@@ -4,10 +4,9 @@ ClubSystem — Users (Socios) Router
 ==================================
 Lista y consulta socios del club activo.
 
-Con el nuevo modelo RBAC los usuarios ya NO tienen un campo `role` propio.
-La distinción entre "socio" y "staff" se hace a nivel de ClubStaff:
-  - Socios  → registros en `users` con club_id = club activo.
-  - Staff   → registros en `club_staff` (gestionados en /clubs/{id}/staff).
+Con el modelo Multi-Tenant, un socio es un User que tiene un registro
+ClubMembership con status=APPROVED para el club activo.
+La distinción entre "socio" y "staff" se mantiene en ClubStaff.
 """
 from uuid import UUID
 from typing import Optional
@@ -15,11 +14,12 @@ from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, func, or_
+from sqlalchemy import and_, select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.tenant import get_current_club_id
+from app.models.club_membership import ClubMembership
 from app.models.user import User
 
 router = APIRouter()
@@ -65,9 +65,16 @@ async def list_members(
 ):
     """
     Lista los socios del club activo.
-    Se consideran socios todos los Users con club_id = club activo.
+    Se consideran socios todos los Users con ClubMembership APPROVED en el club.
     """
-    q = select(User).where(User.club_id == club_id)
+    q = (
+        select(User)
+        .join(
+            ClubMembership,
+            and_(ClubMembership.user_id == User.id, ClubMembership.club_id == club_id),
+        )
+        .where(ClubMembership.status == "APPROVED")
+    )
 
     if search:
         term = f"%{search.lower()}%"
@@ -99,9 +106,15 @@ async def get_users_stats(
     club_id: UUID         = Depends(get_current_club_id),
     db:      AsyncSession = Depends(get_db),
 ):
-    q = select(User.is_active, func.count(User.id)).where(
-        User.club_id == club_id,
-    ).group_by(User.is_active)
+    q = (
+        select(User.is_active, func.count(User.id))
+        .join(
+            ClubMembership,
+            and_(ClubMembership.user_id == User.id, ClubMembership.club_id == club_id),
+        )
+        .where(ClubMembership.status == "APPROVED")
+        .group_by(User.is_active)
+    )
 
     result = await db.execute(q)
     rows   = result.all()
@@ -123,7 +136,12 @@ async def get_member(
     db:      AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(User).where(User.id == user_id, User.club_id == club_id)
+        select(User)
+        .join(
+            ClubMembership,
+            and_(ClubMembership.user_id == User.id, ClubMembership.club_id == club_id),
+        )
+        .where(User.id == user_id, ClubMembership.status == "APPROVED")
     )
     user = result.scalar_one_or_none()
     if not user:
