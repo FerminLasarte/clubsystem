@@ -83,3 +83,37 @@ export function buildSlotDate(date: Date, slot: string): Date {
 export function addMinutes(d: Date, min: number): Date {
   return new Date(d.getTime() + min * 60 * 1000);
 }
+
+/**
+ * Genera un array de franjas "HH:MM" cada 30 min en el rango [openTime, closeTime).
+ * closeTime es exclusivo: si el club cierra a las 22:00 el último slot es 21:30.
+ * Fallback: 08:00–22:00 si los valores son nulos o inválidos.
+ */
+export function buildTimeSlots(
+  openTime:  string | null,
+  closeTime: string | null,
+): string[] {
+  const DEFAULT_OPEN  = "08:00";
+  const DEFAULT_CLOSE = "22:00";
+
+  const parseHHMM = (s: string): number => {
+    const [h, m] = s.split(":").map(Number);
+    return h * 60 + m;
+  };
+
+  const openMins  = parseHHMM(openTime  ?? DEFAULT_OPEN);
+  const closeMins = parseHHMM(closeTime ?? DEFAULT_CLOSE);
+
+  // Sanity check: open must be strictly before close
+  if (openMins >= closeMins) {
+    return buildTimeSlots(DEFAULT_OPEN, DEFAULT_CLOSE);
+  }
+
+  const slots: string[] = [];
+  for (let t = openMins; t < closeMins; t += 30) {
+    const h = Math.floor(t / 60);
+    const m = t % 60;
+    slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+  }
+  return slots;
+}

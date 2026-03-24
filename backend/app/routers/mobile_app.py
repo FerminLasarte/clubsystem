@@ -32,6 +32,7 @@ from app.core.security import create_access_token, verify_password
 from app.middleware.tenant import get_current_user_id
 from app.models.club import Club
 from app.models.club_membership import ClubMembership
+from app.models.club_news import ClubNews
 from app.models.court import Court
 from app.models.reservation import Reservation
 from app.models.user import User
@@ -164,6 +165,18 @@ class MobileReservationOut(BaseModel):
     ends_at:     datetime
     status:      str
     total_price: float
+
+
+class MobileNewsOut(BaseModel):
+    id:         UUID
+    club_id:    UUID
+    club_name:  str
+    title:      str
+    body:       str
+    tag:        Optional[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": False}
 
 
 # ── Constantes de horario por defecto ─────────────────────────────────────────
@@ -628,3 +641,62 @@ async def create_mobile_reservation(
         status=new_res.status,
         total_price=total_price,
     )
+
+
+# ── GET /news — novedades de los clubs del socio ───────────────────────────────
+
+@router.get(
+    "/news",
+    response_model=list[MobileNewsOut],
+    summary="Novedades de los clubs con membresía APPROVED del usuario",
+)
+async def get_mobile_news(
+    user_id: UUID         = Depends(get_current_user_id),
+    db:      AsyncSession = Depends(get_db),
+) -> list[MobileNewsOut]:
+    """
+    Devuelve las novedades publicadas por los clubs donde el usuario tiene
+    membresía APPROVED. Si el usuario no pertenece a ningún club, retorna [].
+    Ordenado por created_at descendente (más recientes primero). Máximo 30.
+    """
+    # 1. IDs de clubs donde el usuario tiene membresía APPROVED
+    memberships_result = await db.execute(
+        select(ClubMembership.club_id).where(
+            ClubMembership.user_id == user_id,
+            ClubMembership.status  == "APPROVED",
+        )
+    )
+    club_ids = [row[0] for row in memberships_result.all()]
+
+    if not club_ids:
+        return []
+
+    # 2. Novedades vigentes de esos clubs, con nombre del club.
+    # Una novedad es vigente si expires_at IS NULL o expires_at > NOW().
+    now_utc = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(ClubNews, Club.name.label("club_name"))
+        .join(Club, Club.id == ClubNews.club_id)
+        .where(
+            ClubNews.club_id.in_(club_ids),
+            (ClubNews.expires_at == None) | (ClubNews.expires_at > now_utc),  # noqa: E711
+        )
+        .order_by(ClubNews.created_at.desc())
+        .limit(30)
+    )
+    rows = result.all()
+
+    logger.info("get_mobile_news | user_id=%s news=%d", user_id, len(rows))
+
+    return [
+        MobileNewsOut(
+            id=news.id,
+            club_id=news.club_id,
+            club_name=club_name,
+            title=news.title,
+            body=news.body,
+            tag=news.tag,
+            created_at=news.created_at,
+        )
+        for news, club_name in rows
+    ]

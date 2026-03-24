@@ -16,6 +16,7 @@ import {
   type MemberUpdate,
 } from "@/lib/api";
 import { useClubSession } from "@/contexts/ClubSessionContext";
+import { PageHeader }     from "@/components/ui/page-header";
 
 // ── Health Score ─────────────────────────────────────────────────────────────
 
@@ -557,14 +558,10 @@ export default function MembersPage() {
     <div className="mx-auto max-w-5xl space-y-6">
 
       {/* ── Header ────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Socios</h1>
-          <p className="mt-0.5 text-sm text-gray-400">
-            {isPageLoading ? "Cargando…" : `${stats.total} socios registrados`}
-          </p>
-        </div>
-
+      <PageHeader
+        title="Socios"
+        subtitle={isPageLoading ? "Cargando…" : `${stats.total} socios registrados`}
+      >
         <div className="flex items-center gap-2">
           {/* Export dropdown */}
           <div className="relative" ref={exportRef}>
@@ -606,7 +603,7 @@ export default function MembersPage() {
             Nuevo socio
           </button>
         </div>
-      </div>
+      </PageHeader>
 
       {/* ── Stats cards ───────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4">

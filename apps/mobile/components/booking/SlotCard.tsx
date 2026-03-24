@@ -32,12 +32,13 @@ import { Text }   from "@/components/ui/Text";
 // ── Tipos ────────────────────────────────────────────────────
 
 interface SlotCardProps {
-  startTime:      string;   // "18:00"
-  endTime:        string;   // "19:30" (ya calculado: start + duration)
+  startTime:      string;    // "18:00"
+  endTime:        string;    // "19:30" (ya calculado: start + duration)
   totalPrice:     number;
-  isAvailable:    boolean;  // el bloque base está libre
-  canSelect:      boolean;  // hay N bloques consecutivos disponibles
+  isAvailable:    boolean;   // el bloque base está libre
+  canSelect:      boolean;   // hay N bloques consecutivos disponibles
   isSelected:     boolean;
+  courtName?:     string;    // "Cancha 3" — visible cuando el selector de cancha está oculto
   onPress:        () => void;
 }
 
@@ -70,6 +71,7 @@ export function SlotCard({
   isAvailable,
   canSelect,
   isSelected,
+  courtName,
   onPress,
 }: SlotCardProps) {
   const isDisabled = !isAvailable || !canSelect;
@@ -162,6 +164,21 @@ export function SlotCard({
           → {endTime}
         </Text>
 
+        {/* Nombre de cancha */}
+        {courtName && (
+          <Text
+            variant="label"
+            numberOfLines={1}
+            style={[
+              styles.courtLabel,
+              isDisabled && styles.textDisabled,
+              isSelected && styles.textSelectedMuted,
+            ]}
+          >
+            {courtName}
+          </Text>
+        )}
+
         {/* Precio / estado */}
         {isDisabled ? (
           <Text variant="label" style={styles.occupiedTag}>
@@ -253,6 +270,11 @@ const styles = StyleSheet.create({
   timeEnd: {
     color:    Colors.textMuted,
     fontSize: 11,
+  },
+  courtLabel: {
+    color:         Colors.textMuted,
+    fontSize:      10,
+    letterSpacing: 0.1,
   },
   price: {
     color:     Colors.primary,

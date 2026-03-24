@@ -1,19 +1,20 @@
 /**
- * Motor de Reservas — Pantalla Unificada por Deporte
- * ====================================================
+ * Motor de Reservas — Pantalla Unificada por Deporte (Rediseño UX Definitivo)
+ * ============================================================================
  * Layout:
- *   1. Page Header: "Turnos Disponibles" + back + share
- *   2. Court info Card: nombre bold + subtítulo muted + badge libres (gris)
- *   3. Court selector: pills horizontales compactas (azul activo)
- *   4. Selector de duración: pills horizontales compactas
- *   5. Tira de fechas: pills compactas, sin espacios en blanco extra
- *   6. Grilla 30 min: 2 columnas, disponible/seleccionado/ocupado
- *   7. SummaryBar flotante al seleccionar un slot
+ *   1. Page Header compacto: back + "Turnos Disponibles" + share
+ *   2. Identity Card: avatar iniciales, nombre del club, badge deporte + membresía
+ *   3. Tira de fechas (DatePills) — scroll horizontal
+ *   4. Selector de duración (DurationPills) — 60 / 90 / 120
+ *   5. Grilla 2 columnas de SlotCards — todos los slots de todas las canchas
+ *      agrupados y ordenados cronológicamente, cada card muestra a qué cancha pertenece
+ *   6. SummaryBar flotante al seleccionar un slot
  *
  * Colores: PRIMARY azul marino #0F172A para todos los estados activos.
- * NO SE USA Colors.accent (verde) en ningún elemento.
+ * NO se usa Colors.accent (verde) en ningún elemento.
  *
- * Lógica de negocio: 100% intacta.
+ * Lógica: fetchAvailability obtiene disponibilidad de TODAS las canchas del
+ * deporte/club en paralelo, concatena y ordena cronológicamente.
  */
 
 import React, {
@@ -77,8 +78,15 @@ interface CourtAvailability {
   slots:      TimeSlot[];
 }
 
-interface ProcessedSlot extends TimeSlot {
-  canSelect:      boolean;
+/**
+ * Slot mezclado: incluye datos de la cancha de origen + cálculos de duración.
+ * El array final ordena todos los slots de todas las canchas cronológicamente.
+ */
+interface MergedSlot extends TimeSlot {
+  courtId:        string;
+  courtName:      string;
+  courtClubId:    string;
+  canSelect:      boolean;   // hay N bloques consecutivos libres en esa cancha
   displayEndTime: string;
   totalPrice:     number;
 }
@@ -122,8 +130,8 @@ function datePillLabels(
 ): { dayLabel: string; dayNumber: string; accessLabel: string } {
   const day   = d.getDate();
   const month = MONTHS_ES[d.getMonth()];
-  if (idx === 0) return { dayLabel: "HOY",    dayNumber: String(day), accessLabel: `Hoy, ${day} de ${month}` };
-  if (idx === 1) return { dayLabel: "MÑN",    dayNumber: String(day), accessLabel: `Mañana, ${day} de ${month}` };
+  if (idx === 0) return { dayLabel: "HOY",  dayNumber: String(day), accessLabel: `Hoy, ${day} de ${month}` };
+  if (idx === 1) return { dayLabel: "MÑN",  dayNumber: String(day), accessLabel: `Mañana, ${day} de ${month}` };
   const weekDay = DAYS_ES[d.getDay()];
   return { dayLabel: weekDay.toUpperCase(), dayNumber: String(day), accessLabel: `${weekDay} ${day} de ${month}` };
 }
@@ -132,6 +140,17 @@ function addMins(timeStr: string, mins: number): string {
   const [h, m] = timeStr.split(":").map(Number);
   const total  = h * 60 + m + mins;
   return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** Extrae hasta 2 iniciales mayúsculas de un nombre de club */
+function buildInitials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
 }
 
 // ── Pantalla ──────────────────────────────────────────────────
@@ -146,59 +165,114 @@ export default function UnifiedBookingScreen() {
   const sportLabel = SPORT_LABELS[sport] ?? sport;
 
   // ── Estado: canchas ───────────────────────────────────────
-  const [courts,          setCourts]          = useState<CourtItem[]>([]);
-  const [courtsLoading,   setCourtsLoading]   = useState(true);
-  const [courtsError,     setCourtsError]     = useState<string | null>(null);
-  const [selectedCourtId, setSelectedCourtId] = useState<string | null>(null);
+  const [courts,        setCourts]        = useState<CourtItem[]>([]);
+  const [courtsLoading, setCourtsLoading] = useState(true);
+  const [courtsError,   setCourtsError]   = useState<string | null>(null);
 
-  // ── Estado: disponibilidad ────────────────────────────────
-  const dates   = useRef(buildDateList(14)).current;
-  const [dateIdx,       setDateIdx]       = useState(0);
-  const [availability,  setAvailability]  = useState<CourtAvailability | null>(null);
-  const [slotsLoading,  setSlotsLoading]  = useState(false);
-  const [slotsError,    setSlotsError]    = useState<string | null>(null);
-  const [selectedSlot,  setSelectedSlot]  = useState<TimeSlot | null>(null);
-  const [isSubmitting,  setIsSubmitting]  = useState(false);
+  // ── Estado: disponibilidad (todas las canchas) ────────────
+  const dates = useRef(buildDateList(14)).current;
+  const [dateIdx,          setDateIdx]          = useState(0);
+  const [allAvailabilities, setAllAvailabilities] = useState<CourtAvailability[]>([]);
+  const [slotsLoading,     setSlotsLoading]     = useState(false);
+  const [slotsError,       setSlotsError]       = useState<string | null>(null);
+  const [selectedSlot,     setSelectedSlot]     = useState<MergedSlot | null>(null);
+  const [isSubmitting,     setIsSubmitting]     = useState(false);
 
   // ── Duración ──────────────────────────────────────────────
   const [selectedDuration, setSelectedDuration] = useState<DurationOption>(60);
 
   const selectedDate = dates[dateIdx];
-  const activeCourt  = courts.find((c) => c.id === selectedCourtId) ?? null;
 
-  // ── is_member desde AuthContext ───────────────────────────
-  const isMember = useMemo(() => {
-    if (!activeCourt || !user) return false;
-    const cid = activeCourt._clubId;
+  // ── Limpiar slot al cambiar duración ─────────────────────
+  useEffect(() => { setSelectedSlot(null); }, [selectedDuration]);
+
+  // ── Info del club para la Identity Card ───────────────────
+  const displayClub = useMemo(() => {
+    if (!user || courts.length === 0) return { name: "Mi Club", initials: "MC" };
+    const clubIds = [...new Set(courts.map((c) => c._clubId))];
+    if (clubIds.length === 1) {
+      const membership = (user.memberships ?? []).find((m) => m.clubId === clubIds[0]);
+      const name = membership?.clubName ?? user.clubName ?? "Mi Club";
+      return { name, initials: buildInitials(name) };
+    }
+    return { name: "Mis Clubs", initials: "MC" };
+  }, [courts, user]);
+
+  /** ¿Tiene al menos una membresía aprobada? (para badge Socio/Visitante) */
+  const isGenerallyMember = useMemo(() => {
+    if (!user) return false;
     return (
-      (user.memberships ?? []).some((m) => m.clubId === cid && m.status === "APPROVED")
-      || user.clubId === cid
+      (user.memberships ?? []).some((m) => m.status === "APPROVED") ||
+      user.clubId !== null
     );
-  }, [activeCourt, user]);
+  }, [user]);
 
-  // ── Slots procesados ──────────────────────────────────────
-  const processedSlots = useMemo((): ProcessedSlot[] => {
-    const raw = availability?.slots ?? [];
+  /** isMember para el SummaryBar — basado en el club de la cancha seleccionada */
+  const isMember = useMemo(() => {
+    if (!selectedSlot || !user) return false;
+    const cid = selectedSlot.courtClubId;
+    return (
+      (user.memberships ?? []).some((m) => m.clubId === cid && m.status === "APPROVED") ||
+      user.clubId === cid
+    );
+  }, [selectedSlot, user]);
+
+  // ── Slots mezclados + ordenados cronológicamente ──────────
+  const processedSlots = useMemo((): MergedSlot[] => {
     const blocksNeeded = selectedDuration / 30;
-    return raw.map((slot, idx) => {
-      let canSelect = true;
-      for (let k = 0; k < blocksNeeded; k++) {
-        const s = raw[idx + k];
-        if (!s || !s.is_available) { canSelect = false; break; }
+    const merged: MergedSlot[] = [];
+
+    for (const avail of allAvailabilities) {
+      const court = courts.find((c) => c.id === avail.court_id);
+      if (!court) continue;
+
+      const slots = avail.slots;
+      for (let idx = 0; idx < slots.length; idx++) {
+        const slot = slots[idx];
+        let canSelect = true;
+        for (let k = 0; k < blocksNeeded; k++) {
+          const s = slots[idx + k];
+          if (!s || !s.is_available) { canSelect = false; break; }
+        }
+        merged.push({
+          ...slot,
+          courtId:        court.id,
+          courtName:      avail.court_name,
+          courtClubId:    court._clubId,
+          canSelect,
+          displayEndTime: addMins(slot.start_time, selectedDuration),
+          totalPrice:     slot.price * blocksNeeded,
+        });
       }
-      return {
-        ...slot,
-        canSelect,
-        displayEndTime: addMins(slot.start_time, selectedDuration),
-        totalPrice:     slot.price * blocksNeeded,
-      };
+    }
+
+    // Ordenar cronológicamente; empate → por nombre de cancha
+    merged.sort((a, b) => {
+      if (a.start_time < b.start_time) return -1;
+      if (a.start_time > b.start_time) return  1;
+      return a.courtName.localeCompare(b.courtName, "es");
     });
-  }, [availability, selectedDuration]);
+
+    // ── Filtro estricto de viabilidad ────────────────────────────────────
+    // Regla 1 — No pasados: para HOY descarta slots cuyo inicio ≤ ahora.
+    const isTodaySelected = dateIdx === 0;
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+
+    return merged.filter((s) => {
+      if (isTodaySelected) {
+        const [h, m] = s.start_time.split(":").map(Number);
+        if (h * 60 + m <= nowMins) return false;
+      }
+      // Regla 2 (ocupados) + Regla 3 (desbordamiento horario de cierre):
+      // canSelect ya cubre ambos casos — false si algún bloque está
+      // ocupado o no existe en la lista generada por el backend.
+      return s.canSelect;
+    });
+  }, [allAvailabilities, selectedDuration, courts, dateIdx]);
 
   const hasCheckout    = selectedSlot !== null;
   const availableCount = processedSlots.filter((s) => s.canSelect).length;
-
-  useEffect(() => { setSelectedSlot(null); }, [selectedDuration]);
 
   // ── Cargar canchas ────────────────────────────────────────
   const loadCourts = useCallback(async () => {
@@ -222,7 +296,6 @@ export default function UnifiedBookingScreen() {
       );
       const filtered = results.flat().filter((c) => c.sport === sport);
       setCourts(filtered);
-      if (filtered.length > 0) setSelectedCourtId(filtered[0].id);
     } catch (err) {
       setCourtsError(err instanceof Error ? err.message : "Error al cargar canchas");
     } finally {
@@ -232,48 +305,50 @@ export default function UnifiedBookingScreen() {
 
   useEffect(() => { loadCourts(); }, [loadCourts]);
 
-  // ── Fetch disponibilidad ──────────────────────────────────
+  // ── Fetch disponibilidad de TODAS las canchas ─────────────
   const fetchAvailability = useCallback(
-    async (courtId: string, idx: number) => {
+    async (idx: number) => {
+      if (courts.length === 0) return;
       setSlotsLoading(true);
       setSlotsError(null);
       setSelectedSlot(null);
       const dateStr = formatDateParam(dates[idx]);
       try {
-        const data = await apiClient.get<CourtAvailability>(
-          `/mobile/courts/${courtId}/availability?date=${dateStr}&duration=30`
+        const results = await Promise.all(
+          courts.map((court) =>
+            apiClient.get<CourtAvailability>(
+              `/mobile/courts/${court.id}/availability?date=${dateStr}&duration=30`
+            )
+          )
         );
-        setAvailability(data);
+        setAllAvailabilities(results);
       } catch (err) {
         setSlotsError(err instanceof Error ? err.message : "Error al cargar disponibilidad");
       } finally {
         setSlotsLoading(false);
       }
     },
-    [dates]
+    [dates, courts]
   );
 
   useEffect(() => {
-    if (selectedCourtId) fetchAvailability(selectedCourtId, dateIdx);
-  }, [selectedCourtId, dateIdx, fetchAvailability]);
+    if (courts.length > 0) fetchAvailability(dateIdx);
+  }, [courts, dateIdx, fetchAvailability]);
 
   // ── Confirmar reserva ─────────────────────────────────────
   const handleConfirm = async () => {
-    if (!selectedSlot || !selectedCourtId || !activeCourt) return;
-    const endTime      = addMins(selectedSlot.start_time, selectedDuration);
-    const blocksNeeded = selectedDuration / 30;
-    const total        = selectedSlot.price * blocksNeeded;
+    if (!selectedSlot) return;
     setIsSubmitting(true);
     try {
       await apiClient.post("/mobile/reservations", {
-        court_id:   selectedCourtId,
+        court_id:   selectedSlot.courtId,
         date:       formatDateParam(selectedDate),
         start_time: selectedSlot.start_time,
         duration:   selectedDuration,
       });
       Alert.alert(
         "¡Reserva solicitada!",
-        `${activeCourt.name}\n${selectedSlot.start_time} – ${endTime}\n$${total.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`,
+        `${selectedSlot.courtName}\n${selectedSlot.start_time} – ${selectedSlot.displayEndTime}\n$${selectedSlot.totalPrice.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`,
         [{ text: "Ver mis turnos", onPress: () => router.replace("/tabs/reservations") }]
       );
     } catch (err) {
@@ -286,15 +361,15 @@ export default function UnifiedBookingScreen() {
   // ── Labels para SummaryBar ────────────────────────────────
   const summaryDateLabel = `${DAYS_ES[selectedDate.getDay()]} ${selectedDate.getDate()} ${MONTHS_ES[selectedDate.getMonth()]}`;
   const summaryPriceLabel = selectedSlot
-    ? `$${(selectedSlot.price * (selectedDuration / 30)).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`
+    ? `$${selectedSlot.totalPrice.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`
     : "";
 
-  // ── Render ─────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.appBackground} />
 
-      {/* ── Page Header: "Turnos Disponibles" ── */}
+      {/* ── Page Header ── */}
       <View style={styles.pageHeader}>
         <TouchableOpacity
           style={styles.iconBtn}
@@ -320,23 +395,64 @@ export default function UnifiedBookingScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ── Court info Card ── */}
-      {!courtsLoading && !courtsError && activeCourt && (
-        <View style={styles.courtHeaderWrapper}>
-          <Card style={styles.courtHeaderCard} padding={0}>
-            <View style={styles.courtHeaderInner}>
-              <View style={styles.courtHeaderText}>
-                <Text variant="subheading" weight="700" numberOfLines={1} style={styles.courtName}>
-                  {activeCourt.name}
-                </Text>
-                <Text variant="label" muted numberOfLines={1}>
-                  {sportLabel}{isMember ? " · Socio" : " · Visitante"}
+      {/* ── Identity Card (Top Card Premium) ── */}
+      {!courtsLoading && !courtsError && (
+        <View style={styles.identityWrapper}>
+          <Card padding={0} style={styles.identityCard}>
+            <View style={styles.identityInner}>
+
+              {/* Avatar con iniciales del club */}
+              <View style={styles.clubAvatar}>
+                <Text variant="subheading" weight="800" style={styles.clubAvatarText}>
+                  {displayClub.initials}
                 </Text>
               </View>
+
+              {/* Nombre + badges */}
+              <View style={styles.clubMeta}>
+                <Text
+                  variant="subheading"
+                  weight="700"
+                  numberOfLines={1}
+                  style={styles.clubName}
+                >
+                  {displayClub.name}
+                </Text>
+                <View style={styles.badgeRow}>
+                  {/* Deporte */}
+                  <View style={styles.sportBadge}>
+                    <Text variant="label" style={styles.sportBadgeText}>
+                      {sportLabel}
+                    </Text>
+                  </View>
+                  {/* Membresía */}
+                  <View
+                    style={[
+                      styles.memberBadge,
+                      isGenerallyMember && styles.memberBadgeActive,
+                    ]}
+                  >
+                    <Text
+                      variant="label"
+                      style={[
+                        styles.memberBadgeText,
+                        isGenerallyMember && styles.memberBadgeTextActive,
+                      ]}
+                    >
+                      {isGenerallyMember ? "Socio" : "Visitante"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Badge de slots libres */}
               {!slotsLoading && availableCount > 0 && (
                 <View style={styles.availBadge}>
-                  <Text variant="label" style={styles.availBadgeText}>
-                    {availableCount} libre{availableCount !== 1 ? "s" : ""}
+                  <Text variant="heading" weight="700" style={styles.availCount}>
+                    {availableCount}
+                  </Text>
+                  <Text variant="caption" muted style={styles.availLabel}>
+                    libres
                   </Text>
                 </View>
               )}
@@ -367,53 +483,7 @@ export default function UnifiedBookingScreen() {
         </View>
       ) : (
         <>
-          {/* ── Selector de cancha: pills compactas horizontales ── */}
-          {courts.length > 1 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ flexGrow: 0 }}
-              contentContainerStyle={styles.pillStrip}
-            >
-              {courts.map((court) => {
-                const isActive = court.id === selectedCourtId;
-                return (
-                  <TouchableOpacity
-                    key={court.id}
-                    style={[styles.courtPill, isActive && styles.courtPillActive]}
-                    onPress={() => { setSelectedCourtId(court.id); setSelectedSlot(null); }}
-                    activeOpacity={0.75}
-                  >
-                    <Text
-                      variant="caption"
-                      weight="600"
-                      style={[styles.courtPillText, isActive && styles.pillTextActive]}
-                      numberOfLines={1}
-                    >
-                      {court.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          )}
-
-          {/* ── Selector de duración ── */}
-          <View style={styles.sectionRow}>
-            <Text variant="label" style={styles.sectionTag}>DURACIÓN</Text>
-            <View style={styles.pillGroup}>
-              {DURATION_OPTIONS.map((d) => (
-                <DurationPill
-                  key={d}
-                  minutes={d}
-                  isActive={d === selectedDuration}
-                  onPress={() => setSelectedDuration(d)}
-                />
-              ))}
-            </View>
-          </View>
-
-          {/* ── Tira de fechas ── */}
+          {/* ── 1. Tira de fechas ── */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -435,6 +505,18 @@ export default function UnifiedBookingScreen() {
             })}
           </ScrollView>
 
+          {/* ── 2. Selector de duración ── */}
+          <View style={styles.durationStrip}>
+            {DURATION_OPTIONS.map((d) => (
+              <DurationPill
+                key={d}
+                minutes={d}
+                isActive={d === selectedDuration}
+                onPress={() => setSelectedDuration(d)}
+              />
+            ))}
+          </View>
+
           {/* ── Separador ── */}
           <View style={styles.divider} />
 
@@ -449,7 +531,7 @@ export default function UnifiedBookingScreen() {
               <Text variant="body" muted style={styles.centeredText}>{slotsError}</Text>
               <TouchableOpacity
                 style={styles.retryBtn}
-                onPress={() => selectedCourtId && fetchAvailability(selectedCourtId, dateIdx)}
+                onPress={() => fetchAvailability(dateIdx)}
                 activeOpacity={0.8}
               >
                 <Text variant="caption" weight="600" color={Colors.primary}>Reintentar</Text>
@@ -458,7 +540,7 @@ export default function UnifiedBookingScreen() {
           ) : (
             <FlatList
               data={processedSlots}
-              keyExtractor={(item) => item.start_time}
+              keyExtractor={(item) => `${item.courtId}-${item.start_time}`}
               numColumns={2}
               columnWrapperStyle={styles.slotRow}
               style={styles.slotFlatList}
@@ -476,7 +558,9 @@ export default function UnifiedBookingScreen() {
                 </View>
               }
               renderItem={({ item }) => {
-                const isSelected = selectedSlot?.start_time === item.start_time;
+                const isSelected =
+                  selectedSlot?.courtId === item.courtId &&
+                  selectedSlot?.start_time === item.start_time;
                 return (
                   <SlotCard
                     startTime={item.start_time}
@@ -485,7 +569,12 @@ export default function UnifiedBookingScreen() {
                     isAvailable={item.is_available}
                     canSelect={item.canSelect}
                     isSelected={isSelected}
-                    onPress={() => setSelectedSlot(isSelected ? null : item)}
+                    courtName={item.courtName}
+                    onPress={() =>
+                      setSelectedSlot(
+                        isSelected ? null : item
+                      )
+                    }
                   />
                 );
               }}
@@ -495,11 +584,11 @@ export default function UnifiedBookingScreen() {
       )}
 
       {/* ── Summary bar flotante ── */}
-      {hasCheckout && selectedSlot && activeCourt && (
+      {hasCheckout && selectedSlot && (
         <SummaryBar
           dateLabel={summaryDateLabel}
           startTime={selectedSlot.start_time}
-          endTime={addMins(selectedSlot.start_time, selectedDuration)}
+          endTime={selectedSlot.displayEndTime}
           duration={selectedDuration}
           priceLabel={summaryPriceLabel}
           isMember={isMember}
@@ -526,7 +615,7 @@ const styles = StyleSheet.create({
     alignItems:        "center",
     paddingHorizontal: 16,
     paddingTop:        8,
-    paddingBottom:     10,
+    paddingBottom:     12,
     gap:               4,
   },
   iconBtn: {
@@ -547,101 +636,108 @@ const styles = StyleSheet.create({
     fontSize:      17,
   },
 
-  // ── Court info card ───────────────────────────────────────
-  courtHeaderWrapper: {
+  // ── Identity Card ─────────────────────────────────────────
+  identityWrapper: {
     paddingHorizontal: 16,
-    marginBottom:      10,
+    marginBottom:      14,
   },
-  courtHeaderCard: {
-    borderRadius:      14,
-    paddingVertical:   12,
-    paddingHorizontal: 14,
+  identityCard: {
+    borderRadius: 18,
   },
-  courtHeaderInner: {
-    flexDirection:  "row",
-    alignItems:     "center",
-    justifyContent: "space-between",
+  identityInner: {
+    flexDirection:     "row",
+    alignItems:        "center",
+    paddingHorizontal: 20,
+    paddingVertical:   18,
+    gap:               16,
   },
-  courtHeaderText: {
+  clubAvatar: {
+    width:           52,
+    height:          52,
+    borderRadius:    26,
+    backgroundColor: Colors.primary,
+    alignItems:      "center",
+    justifyContent:  "center",
+    flexShrink:      0,
+  },
+  clubAvatarText: {
+    color:         Colors.textOnBrand,
+    fontSize:      18,
+    letterSpacing: -0.5,
+  },
+  clubMeta: {
     flex: 1,
-    gap:  3,
+    gap:  6,
   },
-  courtName: {
+  clubName: {
     color:         Colors.primary,
     letterSpacing: -0.3,
     fontSize:      16,
   },
-  availBadge: {
+  badgeRow: {
+    flexDirection: "row",
+    alignItems:    "center",
+    gap:           6,
+  },
+  sportBadge: {
     paddingHorizontal: 10,
     paddingVertical:   4,
     borderRadius:      20,
     backgroundColor:   Colors.surface,
     borderWidth:       1,
     borderColor:       Colors.border,
-    flexShrink:        0,
-    marginLeft:        10,
   },
-  availBadgeText: {
-    color:         Colors.text,
-    letterSpacing: 0.1,
-    fontSize:      11,
+  sportBadgeText: {
+    color:     Colors.textMuted,
+    fontSize:  11,
   },
-
-  // ── Pill strips ───────────────────────────────────────────
-  pillStrip: {
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom:     8,
-    gap:               8,
-  },
-  courtPill: {
-    paddingHorizontal: 16,
-    paddingVertical:   8,
+  memberBadge: {
+    paddingHorizontal: 10,
+    paddingVertical:   4,
     borderRadius:      20,
     backgroundColor:   Colors.surface,
     borderWidth:       1,
     borderColor:       Colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  courtPillActive: {
-    backgroundColor: Colors.primary,
-    borderColor:     Colors.primary,
+  memberBadgeActive: {
+    backgroundColor: Colors.primarySubtle,
+    borderColor:     Colors.primaryBorder,
   },
-  courtPillText: {
+  memberBadgeText: {
     color:     Colors.textMuted,
-    fontSize:  13,
-    fontWeight: "600",
+    fontSize:  11,
   },
-  pillTextActive: {
-    color: "#FFFFFF",
+  memberBadgeTextActive: {
+    color: Colors.primary,
   },
-
-  // ── Duración ──────────────────────────────────────────────
-  sectionRow: {
-    flexDirection:     "row",
-    alignItems:        "center",
-    paddingHorizontal: 16,
-    paddingBottom:     8,
-    gap:               12,
+  availBadge: {
+    alignItems:  "center",
+    flexShrink:  0,
+    paddingLeft: 8,
   },
-  sectionTag: {
-    flexShrink:    0,
+  availCount: {
+    color:         Colors.primary,
+    fontSize:      22,
+    letterSpacing: -0.5,
+  },
+  availLabel: {
     fontSize:      10,
-    letterSpacing: 0.4,
-    color:         Colors.placeholder,
-    fontWeight:    "600",
-  },
-  pillGroup: {
-    flexDirection: "row",
-    gap:           6,
+    letterSpacing: 0.2,
   },
 
   // ── Date strip ────────────────────────────────────────────
   dateStrip: {
     paddingHorizontal: 16,
-    paddingBottom:     8,   // ajustado: sin espacio extra inferioir
+    paddingBottom:     10,
     gap:               6,
+  },
+
+  // ── Duration strip ────────────────────────────────────────
+  durationStrip: {
+    flexDirection:     "row",
+    paddingHorizontal: 16,
+    paddingBottom:     12,
+    gap:               8,
   },
 
   // ── Divisor ───────────────────────────────────────────────
@@ -649,7 +745,7 @@ const styles = StyleSheet.create({
     height:           1,
     marginHorizontal: 16,
     backgroundColor:  Colors.border,
-    marginBottom:     10,
+    marginBottom:     12,
   },
 
   // ── Slot grid ─────────────────────────────────────────────
@@ -662,8 +758,8 @@ const styles = StyleSheet.create({
     paddingBottom:     24,
   },
   slotRow: {
-    gap:          8,
-    marginBottom: 8,
+    gap:          10,
+    marginBottom: 10,
   },
 
   // ── Estados ───────────────────────────────────────────────
@@ -681,7 +777,7 @@ const styles = StyleSheet.create({
   emptySlots: {
     alignItems:        "center",
     gap:               12,
-    paddingVertical:   40,
+    paddingVertical:   48,
     paddingHorizontal: 32,
   },
   retryBtn: {

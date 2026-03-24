@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 
 import { ActionButton } from "@/components/ui/action-button";
+import { PageHeader }   from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { useClubSession } from "@/contexts/ClubSessionContext";
 import {
@@ -684,24 +685,19 @@ export default function CourtsPage() {
     <div className="mx-auto max-w-5xl space-y-6">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Canchas</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {loading
-              ? "Cargando…"
-              : `${courts.length} cancha${courts.length !== 1 ? "s" : ""} registrada${courts.length !== 1 ? "s" : ""}`
-            }
-          </p>
-        </div>
-
-        {/* RBAC: solo OWNER puede crear */}
+      <PageHeader
+        title="Canchas"
+        subtitle={loading
+          ? "Cargando…"
+          : `${courts.length} cancha${courts.length !== 1 ? "s" : ""} registrada${courts.length !== 1 ? "s" : ""}`
+        }
+      >
         {isOwner && (
           <ActionButton icon={Plus} onClick={() => setModal({ mode: "create" })}>
             Nueva cancha
           </ActionButton>
         )}
-      </div>
+      </PageHeader>
 
       {/* Error de carga */}
       {error && (

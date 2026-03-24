@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 
 import { ActionButton } from "@/components/ui/action-button";
+import { PageHeader }   from "@/components/ui/page-header";
 import { useClubSession }                                      from "@/contexts/ClubSessionContext";
 import { feesApi, type FeeOut, type GenerateFeesPayload }     from "@/lib/api";
 
@@ -396,14 +397,10 @@ export default function BillingPage() {
     <div className="mx-auto max-w-5xl space-y-6">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Estado de Cuotas</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {MONTH_NAMES[month - 1]} {year} · {activeFees.length} cuota{activeFees.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-
+      <PageHeader
+        title="Estado de Cuotas"
+        subtitle={`${MONTH_NAMES[month - 1]} ${year} · ${activeFees.length} cuota${activeFees.length !== 1 ? "s" : ""}`}
+      >
         <div className="flex items-center gap-2 flex-wrap">
           {/* Navegación mes */}
           <div className="flex items-center rounded-lg border border-border bg-background overflow-hidden">
@@ -442,7 +439,7 @@ export default function BillingPage() {
             Generar cuotas
           </ActionButton>
         </div>
-      </div>
+      </PageHeader>
 
       {/* ── KPI Cards ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

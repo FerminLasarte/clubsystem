@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 
 import { ActionButton } from "@/components/ui/action-button";
+import { PageHeader }   from "@/components/ui/page-header";
 import { useClubSession } from "@/contexts/ClubSessionContext";
 import {
   stockApi,
@@ -842,13 +843,10 @@ export default function StockPage() {
     <div className="mx-auto max-w-5xl space-y-6">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Inventario</h1>
-          <p className="mt-0.5 text-sm text-gray-400">
-            {stats ? `${stats.total_items} producto${stats.total_items !== 1 ? "s" : ""}` : "Cargando…"}
-          </p>
-        </div>
+      <PageHeader
+        title="Inventario"
+        subtitle={stats ? `${stats.total_items} producto${stats.total_items !== 1 ? "s" : ""}` : "Cargando…"}
+      >
         <div className="flex items-center gap-2">
           {/* Export dropdown */}
           <div className="relative">
@@ -897,7 +895,7 @@ export default function StockPage() {
             Agregar ítem
           </ActionButton>
         </div>
-      </div>
+      </PageHeader>
 
       {/* Error */}
       {error && (

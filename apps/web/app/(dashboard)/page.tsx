@@ -22,6 +22,7 @@ import {
 
 import { useClubSession }                                         from "@/contexts/ClubSessionContext";
 import { dashboardApi, type DashboardKPIs, type ManagerSummary } from "@/lib/api";
+import { PageHeader }                                             from "@/components/ui/page-header";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -300,10 +301,10 @@ export default function OverviewPage() {
     <div className="mx-auto max-w-5xl space-y-8">
 
       {/* Encabezado */}
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900">Resumen</h1>
-        <p className="mt-0.5 text-sm text-gray-400 capitalize">{today}</p>
-      </div>
+      <PageHeader
+        title="Resumen"
+        subtitle={<span className="capitalize">{today}</span>}
+      />
 
       {/* Banner de error */}
       {error && (

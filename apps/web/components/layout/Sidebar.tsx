@@ -18,7 +18,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Calendar, DollarSign,
-  LayoutGrid, Package, Users, Settings, ChevronRight, LogOut, X, Bell, Wallet, Receipt,
+  LayoutGrid, Package, Users, Settings, ChevronRight, LogOut, X, Bell, Wallet, Receipt, Newspaper,
 } from "lucide-react";
 import { useClubSession } from "@/contexts/ClubSessionContext";
 import { ROLE_PERMISSIONS } from "@ClubSystem/types";
@@ -34,6 +34,7 @@ const ALL_NAV_ITEMS = [
   { href: "/members",      label: "Socios",   icon: Users },
   { href: "/cash",         label: "Caja",     icon: Wallet },
   { href: "/billing",      label: "Cuotas",   icon: Receipt },
+  { href: "/news",         label: "Novedades", icon: Newspaper },
   { href: "/settings",     label: "Ajustes",  icon: Settings },
 ];
 

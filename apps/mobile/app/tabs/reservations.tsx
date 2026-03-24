@@ -11,7 +11,7 @@
  *   4. Estado vacío amigable.
  */
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -23,7 +23,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
@@ -168,29 +168,46 @@ export default function ReservationsScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error,        setError]        = useState<string | null>(null);
 
-  const fetchReservations = useCallback(async (showRefreshing = false) => {
-    if (showRefreshing) {
+  // Ref para distinguir primera carga (muestra spinner) de re-focus (silencioso).
+  const hasLoadedRef = useRef(false);
+
+  interface FetchOptions {
+    refreshing?: boolean;
+    silent?:     boolean;
+  }
+
+  const fetchReservations = useCallback(async (opts: FetchOptions = {}) => {
+    if (opts.refreshing) {
       setIsRefreshing(true);
-    } else {
+    } else if (!opts.silent) {
       setIsLoading(true);
     }
-    setError(null);
+    if (!opts.silent) setError(null);
 
     try {
       const data = await apiClient.get<ReservationMeOut[]>("/mobile/reservations/me");
       setReservations(data);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error al cargar reservas";
-      setError(message);
+      // En modo silencioso no sobreescribimos el error visible
+      if (!opts.silent) setError(message);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchReservations();
-  }, [fetchReservations]);
+  // Al ganar foco: primera vez muestra spinner; visitas posteriores son silenciosas.
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLoadedRef.current) {
+        fetchReservations();
+        hasLoadedRef.current = true;
+      } else {
+        fetchReservations({ silent: true });
+      }
+    }, [fetchReservations])
+  );
 
   const renderItem: ListRenderItem<ReservationMeOut> = useCallback(
     ({ item }) => (
@@ -251,7 +268,7 @@ export default function ReservationsScreen() {
           <Text variant="body" muted style={styles.errorBody}>{error}</Text>
           <TouchableOpacity
             style={styles.refreshBtn}
-            onPress={() => fetchReservations()}
+            onPress={() => fetchReservations({ silent: false })}
             activeOpacity={0.8}
           >
             <Text variant="caption" weight="600" style={styles.refreshBtnText}>Reintentar</Text>
@@ -284,7 +301,7 @@ export default function ReservationsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
-            onRefresh={() => fetchReservations(true)}
+            onRefresh={() => fetchReservations({ refreshing: true })}
             tintColor={Colors.primary}
             colors={[Colors.primary]}
           />

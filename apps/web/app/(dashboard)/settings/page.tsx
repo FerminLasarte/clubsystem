@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Loader2, Save } from "lucide-react";
 
 import { ActionButton }     from "@/components/ui/action-button";
+import { PageHeader }       from "@/components/ui/page-header";
 import { SettingsTabs }     from "./_components/SettingsTabs";
 import { ProfileTab }       from "./_components/ProfileTab";
 import { ClubTab }          from "./_components/ClubTab";
@@ -206,14 +207,10 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-5xl space-y-8">
 
       {/* ── Page header ── */}
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Ajustes</h1>
-          <p className="mt-0.5 text-sm text-gray-400">
-            Configurá el perfil del administrador, datos del club y preferencias del sistema.
-          </p>
-        </div>
-
+      <PageHeader
+        title="Ajustes"
+        subtitle="Configurá el perfil del administrador, datos del club y preferencias del sistema."
+      >
         {/* Botón guardar — oculto en la pestaña Equipo (las acciones son inmediatas) */}
         {activeTab !== "staff" && (
           <div className="flex items-center gap-3">
@@ -248,7 +245,7 @@ export default function SettingsPage() {
             </ActionButton>
           </div>
         )}
-      </header>
+      </PageHeader>
 
       {/* ── Tab navigation ── */}
       <SettingsTabs

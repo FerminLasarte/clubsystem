@@ -4,7 +4,7 @@
 // Orquestador del módulo de Reservas.
 // Estado, fetching, handlers y composición de subcomponentes.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
   ChevronDown,
@@ -18,7 +18,9 @@ import {
   X,
 } from "lucide-react";
 
-import { courtsApi, membersApi, reservationsApi } from "@/lib/api";
+import { clubApi, courtsApi, membersApi, reservationsApi } from "@/lib/api";
+import { PageHeader } from "@/components/ui/page-header";
+import type { ClubSettingsOut } from "@/lib/api";
 import { useClubSession }                         from "@/contexts/ClubSessionContext";
 
 import { CreateReservationModal }  from "./components/CreateReservationModal";
@@ -30,6 +32,7 @@ import { SPORT_LABELS }            from "./components/constants";
 import {
   addMinutes,
   buildSlotDate,
+  buildTimeSlots,
   formatDisplayDate,
   isToday,
   toDateString,
@@ -104,11 +107,12 @@ export default function ReservationsPage() {
   const { activeClub, isLoading: sessionLoading } = useClubSession();
 
   // ── Data state ─────────────────────────────────────────────────────────
-  const [courts,       setCourts]       = useState<Court[]>([]);
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [memberUsers,  setMemberUsers]  = useState<MemberUser[]>([]);
-  const [loading,      setLoading]      = useState(true);
-  const [error,        setError]        = useState<string | null>(null);
+  const [courts,        setCourts]        = useState<Court[]>([]);
+  const [reservations,  setReservations]  = useState<Reservation[]>([]);
+  const [memberUsers,   setMemberUsers]   = useState<MemberUser[]>([]);
+  const [clubSettings,  setClubSettings]  = useState<ClubSettingsOut | null>(null);
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState<string | null>(null);
 
   // ── Historial state ────────────────────────────────────────────────────
   const [historialData,    setHistorialData]    = useState<Reservation[]>([]);
@@ -133,11 +137,13 @@ export default function ReservationsPage() {
   const [isSaving,       setIsSaving]       = useState(false);
   const [modalError,     setModalError]     = useState<string | null>(null);
 
-  // ── Modal de detalle / cancelación ────────────────────────────────────
+  // ── Modal de detalle / cancelación / confirmación ─────────────────────
   const [detailRes,     setDetailRes]     = useState<Reservation | null>(null);
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const [isCancelling,  setIsCancelling]  = useState(false);
   const [cancelError,   setCancelError]   = useState<string | null>(null);
+  const [isConfirming,  setIsConfirming]  = useState(false);
+  const [confirmError,  setConfirmError]  = useState<string | null>(null);
 
   // ── Toast ──────────────────────────────────────────────────────────────
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -149,10 +155,11 @@ export default function ReservationsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [courtsData, resData, membersData] = await Promise.all([
+      const [courtsData, resData, membersData, settingsData] = await Promise.all([
         (courtsApi.list() as unknown) as Promise<Court[]>,
         (reservationsApi.list({ date: toDateString(selectedDate) }) as unknown) as Promise<Reservation[]>,
         membersApi.list({ pageSize: 200 }),
+        clubApi.getSettings(),
       ]);
       setCourts(courtsData);
       setReservations(resData.filter((r) => r.status !== "cancelled"));
@@ -164,6 +171,7 @@ export default function ReservationsPage() {
           member_number: u.member_number ?? null,
         })),
       );
+      setClubSettings(settingsData);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Error desconocido");
     } finally {
@@ -251,6 +259,12 @@ export default function ReservationsPage() {
 
   const showHistorial = filterStatus === "completed";
 
+  // ── Franjas horarias según el horario del club ─────────────────────────
+  const timeSlots = useMemo(
+    () => buildTimeSlots(clubSettings?.open_time ?? null, clubSettings?.close_time ?? null),
+    [clubSettings],
+  );
+
   // ── Handlers: modal de creación ────────────────────────────────────────
 
   function handleOpenModal(court: Court, slot: string) {
@@ -323,13 +337,15 @@ export default function ReservationsPage() {
     setDetailRes(res);
     setCancelConfirm(false);
     setCancelError(null);
+    setConfirmError(null);
   }
 
   function handleCloseDetail() {
-    if (isCancelling) return;
+    if (isCancelling || isConfirming) return;
     setDetailRes(null);
     setCancelConfirm(false);
     setCancelError(null);
+    setConfirmError(null);
   }
 
   async function handleCancelReservation() {
@@ -346,6 +362,23 @@ export default function ReservationsPage() {
       setCancelError(e instanceof Error ? e.message : "Error al cancelar la reserva.");
     } finally {
       setIsCancelling(false);
+    }
+  }
+
+  async function handleConfirmStatus() {
+    if (!detailRes) return;
+    setIsConfirming(true);
+    setConfirmError(null);
+    try {
+      await reservationsApi.update(detailRes.id, { status: "confirmed" });
+      handleCloseDetail();
+      setSuccessMsg(`Turno confirmado · ${detailRes.court_name} · ${detailRes.user_name}`);
+      setTimeout(() => setSuccessMsg(null), 4000);
+      await fetchData();
+    } catch (e: unknown) {
+      setConfirmError(e instanceof Error ? e.message : "Error al confirmar la reserva.");
+    } finally {
+      setIsConfirming(false);
     }
   }
 
@@ -391,18 +424,14 @@ export default function ReservationsPage() {
       )}
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Reservas</h1>
-          <p className="mt-0.5 text-sm text-gray-400">
-            {loading
-              ? "Cargando…"
-              : `${stats.total} turno${stats.total !== 1 ? "s" : ""} · ${
-                  isToday(selectedDate) ? "hoy" : formatDisplayDate(selectedDate)
-                }`}
-          </p>
-        </div>
-
+      <PageHeader
+        title="Reservas"
+        subtitle={loading
+          ? "Cargando…"
+          : `${stats.total} turno${stats.total !== 1 ? "s" : ""} · ${
+              isToday(selectedDate) ? "hoy" : formatDisplayDate(selectedDate)
+            }`}
+      >
         <div className="flex items-center gap-2">
           {/* Export dropdown */}
           <div className="relative" ref={exportRef}>
@@ -451,7 +480,7 @@ export default function ReservationsPage() {
             Nueva reserva
           </button>
         </div>
-      </div>
+      </PageHeader>
 
       {/* Error global */}
       {error && (
@@ -604,6 +633,7 @@ export default function ReservationsPage() {
           courts={visibleCourts}
           reservations={visibleReservations}
           loading={loading}
+          timeSlots={timeSlots}
           onSlotClick={handleOpenModal}
           onCellClick={handleOpenDetail}
         />
@@ -628,7 +658,7 @@ export default function ReservationsPage() {
         />
       )}
 
-      {/* ── Modal: detalle / cancelar ──────────────────────────────────── */}
+      {/* ── Modal: detalle / cancelar / confirmar ─────────────────────── */}
       {detailRes && (
         <ReservationDetailModal
           reservation={detailRes}
@@ -639,6 +669,9 @@ export default function ReservationsPage() {
           onCancelRequest={() => setCancelConfirm(true)}
           onCancelConfirm={handleCancelReservation}
           onCancelAbort={() => setCancelConfirm(false)}
+          isConfirming={isConfirming}
+          confirmError={confirmError}
+          onConfirmReservation={handleConfirmStatus}
         />
       )}
     </div>

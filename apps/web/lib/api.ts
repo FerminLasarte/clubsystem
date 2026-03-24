@@ -829,6 +829,44 @@ export interface ManagerSummary {
   net_profit:         number;
 }
 
+// ── News (Novedades del Club) ─────────────────────────────────
+
+export interface NewsOut {
+  id:               string;
+  club_id:          string;
+  title:            string;
+  body:             string;
+  tag:              string | null;
+  /** ISO 8601 — null si no tiene vencimiento */
+  expires_at:       string | null;
+  created_at:       string;
+  created_by_id:    string | null;
+  /** Nombre completo del autor; null en registros anteriores a este campo */
+  created_by_name:  string | null;
+  is_expired:       boolean;
+}
+
+export interface NewsCreate {
+  title:      string;
+  body:       string;
+  tag?:       string | null;
+  /** ISO 8601 con timezone — omitir para sin vencimiento */
+  expires_at?: string | null;
+}
+
+export const newsApi = {
+  list: () => request<NewsOut[]>("/api/v1/news/"),
+
+  create: (payload: NewsCreate) =>
+    request<NewsOut>("/api/v1/news/", {
+      method: "POST",
+      body:   JSON.stringify(payload),
+    }),
+
+  remove: (id: string) =>
+    request<void>(`/api/v1/news/${id}`, { method: "DELETE" }),
+};
+
 // ── Fees (Cuotas Societarias) ──────────────────────────────────
 
 export interface FeeMember {

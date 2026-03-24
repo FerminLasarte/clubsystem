@@ -35,6 +35,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { ActionButton } from "@/components/ui/action-button";
+import { PageHeader }   from "@/components/ui/page-header";
 import { useClubSession } from "@/contexts/ClubSessionContext";
 import {
   financeApi,
@@ -535,14 +536,10 @@ export default function CashPage() {
     <div className="mx-auto max-w-5xl space-y-6">
 
       {/* ── Header ────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Caja Diaria</h1>
-          <p className="mt-0.5 text-sm capitalize text-gray-400">
-            {formatDisplayDate(selectedDate)}
-          </p>
-        </div>
-
+      <PageHeader
+        title="Caja Diaria"
+        subtitle={<span className="capitalize">{formatDisplayDate(selectedDate)}</span>}
+      >
         <div className="flex items-center gap-2">
           {/* Prev day */}
           <Button
@@ -590,7 +587,7 @@ export default function CashPage() {
             Registrar cobro
           </ActionButton>
         </div>
-      </div>
+      </PageHeader>
 
       {/* ── Error ─────────────────────────────────────────────────────────── */}
       {error && (

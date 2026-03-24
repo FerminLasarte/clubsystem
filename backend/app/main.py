@@ -21,6 +21,7 @@ from app.routers import fees
 from app.routers import settings as settings_router
 from app.routers import mobile_app
 from app.routers import memberships
+from app.routers import news
 
 
 @asynccontextmanager
@@ -189,6 +190,60 @@ async def lifespan(app: FastAPI):
             END $$;
         """))
 
+        # ── Migración idempotente: tabla club_news ────────────────────────────
+        # create_all la crea si no existe (instalaciones nuevas).
+        # Para bases existentes sin la tabla, este bloque la crea idempotentemente.
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_name = 'club_news'
+                ) THEN
+                    CREATE TABLE club_news (
+                        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        club_id    UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+                        title      VARCHAR(255) NOT NULL,
+                        body       TEXT NOT NULL,
+                        tag        VARCHAR(50),
+                        expires_at TIMESTAMPTZ,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    );
+                    CREATE INDEX ix_club_news_club_id ON club_news(club_id);
+                END IF;
+            END $$;
+        """))
+
+        # ── Migración idempotente: club_news.expires_at ───────────────────────
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name  = 'club_news'
+                      AND column_name = 'expires_at'
+                ) THEN
+                    ALTER TABLE club_news ADD COLUMN expires_at TIMESTAMPTZ;
+                END IF;
+            END $$;
+        """))
+
+        # ── Migración idempotente: club_news.created_by_id ───────────────────
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name  = 'club_news'
+                      AND column_name = 'created_by_id'
+                ) THEN
+                    ALTER TABLE club_news
+                        ADD COLUMN created_by_id UUID
+                        REFERENCES users(id) ON DELETE SET NULL;
+                END IF;
+            END $$;
+        """))
+
         # ── Migración idempotente: membership_fees.status CHECK constraint ────
         # La tabla se crea vía create_all; este bloque agrega el CHECK si no
         # existe todavía (por ejemplo en bases creadas con versiones anteriores).
@@ -256,6 +311,7 @@ app.include_router(fees.router,            prefix=f"{API_V1}/fees",            t
 app.include_router(settings_router.router, prefix=f"{API_V1}/settings",        tags=["Settings"])
 app.include_router(mobile_app.router,     prefix=f"{API_V1}/mobile",            tags=["Mobile"])
 app.include_router(memberships.router,    prefix=f"{API_V1}/clubs",             tags=["Memberships"])
+app.include_router(news.router,           prefix=f"{API_V1}/news",              tags=["News"])
 
 
 @app.get("/health", tags=["Health"])

@@ -4,22 +4,22 @@
 
 import { Plus } from "lucide-react";
 
-import { TIME_SLOTS, SPORT_LABELS, SPORT_COLORS, STATUS_CONFIG } from "./constants";
+import { SPORT_LABELS, SPORT_COLORS, STATUS_CONFIG } from "./constants";
 import { getReservationForSlot, toLocalTime }                    from "./helpers";
 import type { Court, Reservation }                               from "./types";
 
 // ── Skeleton ────────────────────────────────────────────────────────────────
 
-function GridSkeleton({ cols }: { cols: number }) {
+function GridSkeleton({ cols, rowCount }: { cols: number; rowCount: number }) {
   return (
     <>
-      {TIME_SLOTS.map((slot) => (
-        <tr key={slot}>
+      {Array.from({ length: rowCount }).map((_, i) => (
+        <tr key={i}>
           <td className="px-4 py-3 border-r border-gray-50">
             <div className="h-3 w-10 animate-pulse rounded bg-gray-100" />
           </td>
-          {Array.from({ length: cols }).map((_, i) => (
-            <td key={i} className="p-2 border-l border-gray-50">
+          {Array.from({ length: cols }).map((_, j) => (
+            <td key={j} className="p-2 border-l border-gray-50">
               <div className="h-14 animate-pulse rounded-lg bg-gray-50" />
             </td>
           ))}
@@ -35,6 +35,8 @@ interface ReservationGridProps {
   courts:       Court[];
   reservations: Reservation[];
   loading:      boolean;
+  /** Slots generados desde open_time/close_time del club ("HH:MM"). */
+  timeSlots:    readonly string[];
   onSlotClick:  (court: Court, slot: string) => void;
   onCellClick:  (res: Reservation) => void;
 }
@@ -42,7 +44,7 @@ interface ReservationGridProps {
 // ── Component ───────────────────────────────────────────────────────────────
 
 export function ReservationGrid({
-  courts, reservations, loading, onSlotClick, onCellClick,
+  courts, reservations, loading, timeSlots, onSlotClick, onCellClick,
 }: ReservationGridProps) {
   return (
     <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
@@ -103,7 +105,7 @@ export function ReservationGrid({
           {/* ── Filas: slots de tiempo ────────────────────────────────── */}
           <tbody className="divide-y divide-gray-50">
             {loading ? (
-              <GridSkeleton cols={3} />
+              <GridSkeleton cols={3} rowCount={timeSlots.length || 28} />
             ) : courts.length === 0 ? (
               <tr>
                 <td
@@ -114,7 +116,7 @@ export function ReservationGrid({
                 </td>
               </tr>
             ) : (
-              TIME_SLOTS.map((slot) => (
+              timeSlots.map((slot) => (
                 <tr key={slot} className="group">
                   {/* Etiqueta de hora */}
                   <td className="px-4 py-2 border-r border-gray-50 tabular-nums text-xs font-medium text-gray-400 w-20">
@@ -183,11 +185,11 @@ export function ReservationGrid({
         <div className="border-t border-gray-50 px-5 py-3 flex items-center justify-between">
           <p className="text-xs text-gray-400">
             {courts.length} cancha{courts.length !== 1 ? "s" : ""} ·{" "}
-            {TIME_SLOTS.length} franjas horarias
+            {timeSlots.length} franjas horarias
           </p>
           <p className="text-xs text-gray-400">
             {reservations.length} ocupado{reservations.length !== 1 ? "s" : ""} ·{" "}
-            {courts.length * TIME_SLOTS.length - reservations.length} disponibles
+            {courts.length * timeSlots.length - reservations.length} disponibles
           </p>
         </div>
       )}
