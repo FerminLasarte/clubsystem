@@ -3,7 +3,7 @@
  *
  * Estados visuales:
  *   - Normal   → superficie gris ultra sutil, texto oscuro
- *   - Activo   → fondo verde deportivo (Colors.accent), texto blanco
+ *   - Activo   → azul marino primario (Colors.primary #0F172A), texto blanco
  *
  * Usa el componente <Card /> para elevación consistente con el design system.
  */
@@ -95,8 +95,8 @@ const styles = StyleSheet.create({
     gap:             2,
   },
   pillActive: {
-    backgroundColor: Colors.accent,
-    borderColor:     Colors.accent,
+    backgroundColor: Colors.primary,
+    borderColor:     Colors.primary,
   },
   dayLabel: {
     color:         Colors.textMuted,

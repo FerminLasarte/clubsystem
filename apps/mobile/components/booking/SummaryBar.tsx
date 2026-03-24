@@ -124,7 +124,7 @@ export function SummaryBar({
                 Confirmar Reserva
               </Text>
               <View style={styles.arrowBadge}>
-                <Text variant="label" weight="700" color={Colors.accent}>
+                <Text variant="label" weight="700" color={Colors.textOnBrand}>
                   →
                 </Text>
               </View>
@@ -189,13 +189,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   priceValue: {
-    color:         Colors.accent,
+    color:         Colors.primary,
     letterSpacing: -0.6,
   },
 
   // ── CTA button ───────────────────────────────────────────
   confirmBtn: {
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.primary,
     borderRadius:    14,
     paddingVertical: 16,
     flexDirection:   "row",

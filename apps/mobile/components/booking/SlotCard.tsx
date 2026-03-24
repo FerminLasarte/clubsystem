@@ -218,14 +218,13 @@ const styles = StyleSheet.create({
     opacity:         0.45,
   },
   cardSelected: {
-    backgroundColor: Colors.accent,
-    borderColor:     Colors.accent,
-    // Sombra más pronunciada al seleccionar
+    backgroundColor: Colors.primary,
+    borderColor:     Colors.primary,
     ...Platform.select({
       ios: {
-        shadowColor:   Colors.accent,
+        shadowColor:   Colors.primary,
         shadowOffset:  { width: 0, height: 4 },
-        shadowOpacity: 0.35,
+        shadowOpacity: 0.30,
         shadowRadius:  10,
       },
       android: { elevation: 6 },
@@ -256,7 +255,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   price: {
-    color:     Colors.accent,
+    color:     Colors.primary,
     marginTop: 4,
     fontSize:  12,
   },
