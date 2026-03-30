@@ -125,6 +125,25 @@ Si querés levantar todo junto desde la raíz:
 pnpm dev
 ```
 
+### Terminal 3 (opcional) — App mobile en el celular
+
+La forma más rápida de probar la app en tu dispositivo físico es con **Expo Go**.
+
+**Requisitos:**
+- Tener [Expo Go](https://expo.dev/go) instalado en el celular (App Store / Google Play).
+- El celular y la computadora deben estar en la **misma red Wi-Fi**.
+
+```bash
+cd apps/mobile
+npx expo start
+```
+
+En la terminal aparecerá un código QR:
+- **Android**: abrí Expo Go y escaneá el QR desde la pantalla de inicio.
+- **iOS**: escaneá el QR con la cámara del iPhone y tocá la notificación que aparece.
+
+> Si estás en una red con restricciones, usá el modo túnel: `npx expo start --tunnel`
+
 ---
 
 ## Comandos útiles
