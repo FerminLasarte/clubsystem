@@ -23,6 +23,48 @@ In the output, you'll find options to open the app in a
 - [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
 - [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
 
+## Correr en el celular con Expo Go
+
+La forma más rápida de probar la app en tu dispositivo físico es usando **Expo Go**.
+
+### Requisitos
+
+- Tener [Expo Go](https://expo.dev/go) instalado en tu celular (disponible en App Store y Google Play).
+- El celular y la computadora deben estar en la **misma red Wi-Fi**.
+
+### Pasos
+
+1. Desde la raíz del monorepo, instalar dependencias si no lo hiciste:
+
+   ```bash
+   pnpm install
+   ```
+
+2. Navegar a la app mobile e iniciar el servidor:
+
+   ```bash
+   cd apps/mobile
+   npx expo start
+   ```
+
+   O desde la raíz usando turbo:
+
+   ```bash
+   pnpm dev
+   ```
+
+3. En la terminal aparecerá un **código QR**.
+
+   - **Android**: abrí la app Expo Go y escaneá el QR desde la pantalla de inicio.
+   - **iOS**: escaneá el QR con la cámara del iPhone (iOS 11+) y tocá la notificación que aparece.
+
+4. La app se cargará directamente en tu celular. Cualquier cambio en el código se reflejará automáticamente gracias al hot reload.
+
+### Troubleshooting
+
+- Si el QR no conecta, probá presionar `w` en la terminal para obtener la URL y abrirla manualmente desde Expo Go.
+- Si estás en una red con restricciones (oficina, universidad), usá el modo túnel: `npx expo start --tunnel` (requiere tener `@expo/ngrok` instalado).
+
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
 ## Get a fresh project
