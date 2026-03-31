@@ -1,20 +1,20 @@
 /**
- * Motor de Reservas — Pantalla Unificada por Deporte (Rediseño UX Definitivo)
+ * Motor de Reservas — Pantalla Unificada por Deporte
  * ============================================================================
- * Layout:
- *   1. Page Header compacto: back + "Turnos Disponibles" + share
- *   2. Identity Card: avatar iniciales, nombre del club, badge deporte + membresía
- *   3. Tira de fechas (DatePills) — scroll horizontal
- *   4. Selector de duración (DurationPills) — 60 / 90 / 120
- *   5. Grilla 2 columnas de SlotCards — todos los slots de todas las canchas
- *      agrupados y ordenados cronológicamente, cada card muestra a qué cancha pertenece
- *   6. SummaryBar flotante al seleccionar un slot
+ * Flujo jerárquico paso a paso:
+ *   1. Selector de Día      (DatePills — tira horizontal)
+ *   2. Selector de Horario  (TimePills — grilla de chips envolvente)
+ *   3. Selector de Duración (DurationPills — 60 / 90 / 120 min)
+ *   4. Canchas disponibles  (CourtCards — lista vertical)
  *
- * Colores: PRIMARY azul marino #0F172A para todos los estados activos.
- * NO se usa Colors.accent (verde) en ningún elemento.
+ * Cada nivel reacciona al anterior:
+ *   · Cambiar Día     → limpia Horario y Cancha seleccionada.
+ *   · Cambiar Horario → limpia Cancha seleccionada.
+ *   · Cambiar Duración → limpia Cancha seleccionada y re-filtra canchas.
  *
- * Lógica: fetchAvailability obtiene disponibilidad de TODAS las canchas del
- * deporte/club en paralelo, concatena y ordena cronológicamente.
+ * Los horarios disponibles se calculan independientemente de la duración
+ * (cualquier cancha con al menos un bloque de 30 min libre), mientras que
+ * las CourtCards solo muestran canchas que pueden acomodar la duración elegida.
  */
 
 import React, {
@@ -27,7 +27,6 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Platform,
   ScrollView,
   StatusBar,
@@ -46,8 +45,9 @@ import { useAuth }      from "@/context/AuthContext";
 import { apiClient }    from "@/utils/api";
 
 import { DatePill }     from "@/components/booking/DatePill";
+import { TimePill }     from "@/components/booking/TimePill";
 import { DurationPill } from "@/components/booking/DurationPill";
-import { SlotCard }     from "@/components/booking/SlotCard";
+import { CourtCard }    from "@/components/booking/CourtCard";
 import { SummaryBar }   from "@/components/booking/SummaryBar";
 
 // ── Tipos ─────────────────────────────────────────────────────
@@ -79,14 +79,16 @@ interface CourtAvailability {
 }
 
 /**
- * Slot mezclado: incluye datos de la cancha de origen + cálculos de duración.
- * El array final ordena todos los slots de todas las canchas cronológicamente.
+ * Slot procesado: datos de origen de la cancha + cálculos de duración.
+ * Incluye surface e is_indoor para que CourtCard no necesite lookups extra.
  */
 interface MergedSlot extends TimeSlot {
   courtId:        string;
   courtName:      string;
   courtClubId:    string;
-  canSelect:      boolean;   // hay N bloques consecutivos libres en esa cancha
+  courtSurface:   string | null;
+  courtIsIndoor:  boolean;
+  canSelect:      boolean;
   displayEndTime: string;
   totalPrice:     number;
 }
@@ -142,7 +144,6 @@ function addMins(timeStr: string, mins: number): string {
   return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
-/** Extrae hasta 2 iniciales mayúsculas de un nombre de club */
 function buildInitials(name: string): string {
   return name
     .split(" ")
@@ -164,26 +165,33 @@ export default function UnifiedBookingScreen() {
   const sport      = sportKey ?? "other";
   const sportLabel = SPORT_LABELS[sport] ?? sport;
 
-  // ── Estado: canchas ───────────────────────────────────────
+  // ── Estado: canchas del club ──────────────────────────────
   const [courts,        setCourts]        = useState<CourtItem[]>([]);
   const [courtsLoading, setCourtsLoading] = useState(true);
   const [courtsError,   setCourtsError]   = useState<string | null>(null);
 
-  // ── Estado: disponibilidad (todas las canchas) ────────────
+  // ── Estado: disponibilidad cruda de todas las canchas ─────
   const dates = useRef(buildDateList(14)).current;
-  const [dateIdx,          setDateIdx]          = useState(0);
+  const [dateIdx,           setDateIdx]           = useState(0);
   const [allAvailabilities, setAllAvailabilities] = useState<CourtAvailability[]>([]);
-  const [slotsLoading,     setSlotsLoading]     = useState(false);
-  const [slotsError,       setSlotsError]       = useState<string | null>(null);
+  const [slotsLoading,      setSlotsLoading]      = useState(false);
+  const [slotsError,        setSlotsError]        = useState<string | null>(null);
+
+  // ── Estado: selecciones jerárquicas ──────────────────────
+  const [selectedTime,     setSelectedTime]     = useState<string | null>(null);
+  const [selectedDuration, setSelectedDuration] = useState<DurationOption>(60);
   const [selectedSlot,     setSelectedSlot]     = useState<MergedSlot | null>(null);
   const [isSubmitting,     setIsSubmitting]     = useState(false);
 
-  // ── Duración ──────────────────────────────────────────────
-  const [selectedDuration, setSelectedDuration] = useState<DurationOption>(60);
-
   const selectedDate = dates[dateIdx];
 
-  // ── Limpiar slot al cambiar duración ─────────────────────
+  // ── Cascada de reset al cambiar selecciones ───────────────
+  useEffect(() => {
+    setSelectedTime(null);
+    setSelectedSlot(null);
+  }, [dateIdx]);
+
+  useEffect(() => { setSelectedSlot(null); }, [selectedTime]);
   useEffect(() => { setSelectedSlot(null); }, [selectedDuration]);
 
   // ── Info del club para la Identity Card ───────────────────
@@ -198,7 +206,6 @@ export default function UnifiedBookingScreen() {
     return { name: "Mis Clubs", initials: "MC" };
   }, [courts, user]);
 
-  /** ¿Tiene al menos una membresía aprobada? (para badge Socio/Visitante) */
   const isGenerallyMember = useMemo(() => {
     if (!user) return false;
     return (
@@ -207,7 +214,6 @@ export default function UnifiedBookingScreen() {
     );
   }, [user]);
 
-  /** isMember para el SummaryBar — basado en el club de la cancha seleccionada */
   const isMember = useMemo(() => {
     if (!selectedSlot || !user) return false;
     const cid = selectedSlot.courtClubId;
@@ -217,7 +223,8 @@ export default function UnifiedBookingScreen() {
     );
   }, [selectedSlot, user]);
 
-  // ── Slots mezclados + ordenados cronológicamente ──────────
+  // ── processedSlots: slots viables para la duración elegida ─
+  // Incluye courtSurface y courtIsIndoor para las CourtCards.
   const processedSlots = useMemo((): MergedSlot[] => {
     const blocksNeeded = selectedDuration / 30;
     const merged: MergedSlot[] = [];
@@ -239,6 +246,8 @@ export default function UnifiedBookingScreen() {
           courtId:        court.id,
           courtName:      avail.court_name,
           courtClubId:    court._clubId,
+          courtSurface:   court.surface,
+          courtIsIndoor:  court.is_indoor,
           canSelect,
           displayEndTime: addMins(slot.start_time, selectedDuration),
           totalPrice:     slot.price * blocksNeeded,
@@ -246,17 +255,14 @@ export default function UnifiedBookingScreen() {
       }
     }
 
-    // Ordenar cronológicamente; empate → por nombre de cancha
     merged.sort((a, b) => {
       if (a.start_time < b.start_time) return -1;
       if (a.start_time > b.start_time) return  1;
       return a.courtName.localeCompare(b.courtName, "es");
     });
 
-    // ── Filtro estricto de viabilidad ────────────────────────────────────
-    // Regla 1 — No pasados: para HOY descarta slots cuyo inicio ≤ ahora.
     const isTodaySelected = dateIdx === 0;
-    const now = new Date();
+    const now     = new Date();
     const nowMins = now.getHours() * 60 + now.getMinutes();
 
     return merged.filter((s) => {
@@ -264,15 +270,38 @@ export default function UnifiedBookingScreen() {
         const [h, m] = s.start_time.split(":").map(Number);
         if (h * 60 + m <= nowMins) return false;
       }
-      // Regla 2 (ocupados) + Regla 3 (desbordamiento horario de cierre):
-      // canSelect ya cubre ambos casos — false si algún bloque está
-      // ocupado o no existe en la lista generada por el backend.
       return s.canSelect;
     });
   }, [allAvailabilities, selectedDuration, courts, dateIdx]);
 
-  const hasCheckout    = selectedSlot !== null;
-  const availableCount = processedSlots.filter((s) => s.canSelect).length;
+  // ── availableStartTimes: horarios con al menos 1 bloque libre ─
+  // Calculado sin considerar duración, para poblar los TimePills.
+  const availableStartTimes = useMemo((): string[] => {
+    const timesSet        = new Set<string>();
+    const isTodaySelected = dateIdx === 0;
+    const now             = new Date();
+    const nowMins         = now.getHours() * 60 + now.getMinutes();
+
+    for (const avail of allAvailabilities) {
+      for (const slot of avail.slots) {
+        if (!slot.is_available) continue;
+        if (isTodaySelected) {
+          const [h, m] = slot.start_time.split(":").map(Number);
+          if (h * 60 + m <= nowMins) continue;
+        }
+        timesSet.add(slot.start_time);
+      }
+    }
+    return Array.from(timesSet).sort();
+  }, [allAvailabilities, dateIdx]);
+
+  // ── courtsForSelection: canchas viables para [hora + duración] ─
+  const courtsForSelection = useMemo((): MergedSlot[] => {
+    if (!selectedTime) return [];
+    return processedSlots.filter((s) => s.start_time === selectedTime);
+  }, [processedSlots, selectedTime]);
+
+  const hasCheckout = selectedSlot !== null;
 
   // ── Cargar canchas ────────────────────────────────────────
   const loadCourts = useCallback(async () => {
@@ -294,8 +323,7 @@ export default function UnifiedBookingScreen() {
             .then((list) => list.map((c) => ({ ...c, _clubId: clubId })))
         )
       );
-      const filtered = results.flat().filter((c) => c.sport === sport);
-      setCourts(filtered);
+      setCourts(results.flat().filter((c) => c.sport === sport));
     } catch (err) {
       setCourtsError(err instanceof Error ? err.message : "Error al cargar canchas");
     } finally {
@@ -311,7 +339,6 @@ export default function UnifiedBookingScreen() {
       if (courts.length === 0) return;
       setSlotsLoading(true);
       setSlotsError(null);
-      setSelectedSlot(null);
       const dateStr = formatDateParam(dates[idx]);
       try {
         const results = await Promise.all(
@@ -359,7 +386,7 @@ export default function UnifiedBookingScreen() {
   };
 
   // ── Labels para SummaryBar ────────────────────────────────
-  const summaryDateLabel = `${DAYS_ES[selectedDate.getDay()]} ${selectedDate.getDate()} ${MONTHS_ES[selectedDate.getMonth()]}`;
+  const summaryDateLabel  = `${DAYS_ES[selectedDate.getDay()]} ${selectedDate.getDate()} ${MONTHS_ES[selectedDate.getMonth()]}`;
   const summaryPriceLabel = selectedSlot
     ? `$${selectedSlot.totalPrice.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`
     : "";
@@ -395,20 +422,17 @@ export default function UnifiedBookingScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ── Identity Card (Top Card Premium) ── */}
+      {/* ── Identity Card ── */}
       {!courtsLoading && !courtsError && (
         <View style={styles.identityWrapper}>
           <Card padding={0} style={styles.identityCard}>
             <View style={styles.identityInner}>
-
-              {/* Avatar con iniciales del club */}
               <View style={styles.clubAvatar}>
                 <Text variant="subheading" weight="800" style={styles.clubAvatarText}>
                   {displayClub.initials}
                 </Text>
               </View>
 
-              {/* Nombre + badges */}
               <View style={styles.clubMeta}>
                 <Text
                   variant="subheading"
@@ -419,25 +443,15 @@ export default function UnifiedBookingScreen() {
                   {displayClub.name}
                 </Text>
                 <View style={styles.badgeRow}>
-                  {/* Deporte */}
                   <View style={styles.sportBadge}>
                     <Text variant="label" style={styles.sportBadgeText}>
                       {sportLabel}
                     </Text>
                   </View>
-                  {/* Membresía */}
-                  <View
-                    style={[
-                      styles.memberBadge,
-                      isGenerallyMember && styles.memberBadgeActive,
-                    ]}
-                  >
+                  <View style={[styles.memberBadge, isGenerallyMember && styles.memberBadgeActive]}>
                     <Text
                       variant="label"
-                      style={[
-                        styles.memberBadgeText,
-                        isGenerallyMember && styles.memberBadgeTextActive,
-                      ]}
+                      style={[styles.memberBadgeText, isGenerallyMember && styles.memberBadgeTextActive]}
                     >
                       {isGenerallyMember ? "Socio" : "Visitante"}
                     </Text>
@@ -445,14 +459,13 @@ export default function UnifiedBookingScreen() {
                 </View>
               </View>
 
-              {/* Badge de slots libres */}
-              {!slotsLoading && availableCount > 0 && (
+              {!slotsLoading && availableStartTimes.length > 0 && (
                 <View style={styles.availBadge}>
                   <Text variant="heading" weight="700" style={styles.availCount}>
-                    {availableCount}
+                    {availableStartTimes.length}
                   </Text>
                   <Text variant="caption" muted style={styles.availLabel}>
-                    libres
+                    horarios
                   </Text>
                 </View>
               )}
@@ -461,7 +474,7 @@ export default function UnifiedBookingScreen() {
         </View>
       )}
 
-      {/* ── Carga de canchas ── */}
+      {/* ── Carga inicial de canchas ── */}
       {courtsLoading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={Colors.primary} />
@@ -482,8 +495,16 @@ export default function UnifiedBookingScreen() {
           </Text>
         </View>
       ) : (
-        <>
-          {/* ── 1. Tira de fechas ── */}
+        // ── Contenido scrolleable ──
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.scrollContent,
+            hasCheckout && { paddingBottom: insets.bottom + 190 },
+          ]}
+        >
+
+          {/* ── Paso 1: Selector de día ── */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -505,85 +526,130 @@ export default function UnifiedBookingScreen() {
             })}
           </ScrollView>
 
-          {/* ── 2. Selector de duración ── */}
-          <View style={styles.durationStrip}>
-            {DURATION_OPTIONS.map((d) => (
-              <DurationPill
-                key={d}
-                minutes={d}
-                isActive={d === selectedDuration}
-                onPress={() => setSelectedDuration(d)}
-              />
-            ))}
-          </View>
-
-          {/* ── Separador ── */}
           <View style={styles.divider} />
 
-          {/* ── Grilla de horarios ── */}
+          {/* ── Paso 2: Selector de horario ── */}
+          <View style={styles.sectionHeader}>
+            <Text variant="label" weight="700" style={styles.sectionLabel}>
+              HORARIO DE INICIO
+            </Text>
+          </View>
+
           {slotsLoading ? (
-            <View style={styles.centered}>
-              <ActivityIndicator size="large" color={Colors.primary} />
+            <View style={styles.sectionLoader}>
+              <ActivityIndicator color={Colors.primary} />
             </View>
           ) : slotsError ? (
-            <View style={styles.centered}>
-              <Feather name="alert-circle" size={32} color={Colors.danger} />
-              <Text variant="body" muted style={styles.centeredText}>{slotsError}</Text>
+            <View style={styles.sectionEmpty}>
+              <Feather name="alert-circle" size={22} color={Colors.danger} />
+              <Text variant="caption" muted style={styles.centeredText}>
+                {slotsError}
+              </Text>
               <TouchableOpacity
                 style={styles.retryBtn}
                 onPress={() => fetchAvailability(dateIdx)}
                 activeOpacity={0.8}
               >
-                <Text variant="caption" weight="600" color={Colors.primary}>Reintentar</Text>
+                <Text variant="caption" weight="600" color={Colors.primary}>
+                  Reintentar
+                </Text>
               </TouchableOpacity>
             </View>
+          ) : availableStartTimes.length === 0 ? (
+            <View style={styles.sectionEmpty}>
+              <Feather name="clock" size={22} color={Colors.surfaceRaised} />
+              <Text variant="caption" muted style={styles.centeredText}>
+                No hay horarios disponibles para este día
+              </Text>
+            </View>
           ) : (
-            <FlatList
-              data={processedSlots}
-              keyExtractor={(item) => `${item.courtId}-${item.start_time}`}
-              numColumns={2}
-              columnWrapperStyle={styles.slotRow}
-              style={styles.slotFlatList}
-              contentContainerStyle={[
-                styles.slotList,
-                hasCheckout && { paddingBottom: insets.bottom + 190 },
-              ]}
-              showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
-                <View style={styles.emptySlots}>
-                  <Feather name="clock" size={32} color={Colors.surfaceRaised} />
-                  <Text variant="body" muted style={styles.centeredText}>
-                    No hay horarios disponibles para este día
+            <View style={styles.timeChipsWrap}>
+              {availableStartTimes.map((time) => (
+                <TimePill
+                  key={time}
+                  time={time}
+                  isActive={selectedTime === time}
+                  onPress={() => setSelectedTime(selectedTime === time ? null : time)}
+                />
+              ))}
+            </View>
+          )}
+
+          {/* ── Paso 3: Selector de duración (visible al elegir horario) ── */}
+          {selectedTime !== null && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.sectionHeader}>
+                <Text variant="label" weight="700" style={styles.sectionLabel}>
+                  DURACIÓN DEL TURNO
+                </Text>
+              </View>
+              <View style={styles.durationStrip}>
+                {DURATION_OPTIONS.map((d) => (
+                  <DurationPill
+                    key={d}
+                    minutes={d}
+                    isActive={d === selectedDuration}
+                    onPress={() => setSelectedDuration(d)}
+                  />
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* ── Paso 4: Canchas disponibles (visible al elegir horario + duración) ── */}
+          {selectedTime !== null && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.sectionHeader}>
+                <Text variant="label" weight="700" style={styles.sectionLabel}>
+                  CANCHAS DISPONIBLES
+                </Text>
+                {courtsForSelection.length > 0 && (
+                  <View style={styles.countBadge}>
+                    <Text variant="label" weight="700" style={styles.countBadgeText}>
+                      {courtsForSelection.length}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {courtsForSelection.length === 0 ? (
+                <View style={styles.sectionEmpty}>
+                  <Feather name="slash" size={22} color={Colors.surfaceRaised} />
+                  <Text variant="caption" muted style={styles.centeredText}>
+                    No hay canchas disponibles para {selectedTime} · {selectedDuration} min
                   </Text>
                 </View>
-              }
-              renderItem={({ item }) => {
-                const isSelected =
-                  selectedSlot?.courtId === item.courtId &&
-                  selectedSlot?.start_time === item.start_time;
-                return (
-                  <SlotCard
-                    startTime={item.start_time}
-                    endTime={item.displayEndTime}
-                    totalPrice={item.totalPrice}
-                    isAvailable={item.is_available}
-                    canSelect={item.canSelect}
-                    isSelected={isSelected}
-                    courtName={item.courtName}
-                    onPress={() =>
-                      setSelectedSlot(
-                        isSelected ? null : item
-                      )
-                    }
-                  />
-                );
-              }}
-            />
+              ) : (
+                <View style={styles.courtsList}>
+                  {courtsForSelection.map((slot) => {
+                    const isSelected =
+                      selectedSlot?.courtId === slot.courtId &&
+                      selectedSlot?.start_time === slot.start_time;
+                    return (
+                      <CourtCard
+                        key={`${slot.courtId}-${slot.start_time}`}
+                        courtName={slot.courtName}
+                        surface={slot.courtSurface}
+                        isIndoor={slot.courtIsIndoor}
+                        startTime={slot.start_time}
+                        endTime={slot.displayEndTime}
+                        totalPrice={slot.totalPrice}
+                        isSelected={isSelected}
+                        onPress={() => setSelectedSlot(isSelected ? null : slot)}
+                      />
+                    );
+                  })}
+                </View>
+              )}
+            </>
           )}
-        </>
+
+        </ScrollView>
       )}
 
-      {/* ── Summary bar flotante ── */}
+      {/* ── SummaryBar flotante al seleccionar una cancha ── */}
       {hasCheckout && selectedSlot && (
         <SummaryBar
           dateLabel={summaryDateLabel}
@@ -688,8 +754,8 @@ const styles = StyleSheet.create({
     borderColor:       Colors.border,
   },
   sportBadgeText: {
-    color:     Colors.textMuted,
-    fontSize:  11,
+    color:    Colors.textMuted,
+    fontSize: 11,
   },
   memberBadge: {
     paddingHorizontal: 10,
@@ -704,8 +770,8 @@ const styles = StyleSheet.create({
     borderColor:     Colors.primaryBorder,
   },
   memberBadgeText: {
-    color:     Colors.textMuted,
-    fontSize:  11,
+    color:    Colors.textMuted,
+    fontSize: 11,
   },
   memberBadgeTextActive: {
     color: Colors.primary,
@@ -725,6 +791,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 
+  // ── Scroll container ──────────────────────────────────────
+  scrollContent: {
+    paddingBottom: 32,
+  },
+
   // ── Date strip ────────────────────────────────────────────
   dateStrip: {
     paddingHorizontal: 16,
@@ -732,37 +803,76 @@ const styles = StyleSheet.create({
     gap:               6,
   },
 
-  // ── Duration strip ────────────────────────────────────────
-  durationStrip: {
-    flexDirection:     "row",
-    paddingHorizontal: 16,
-    paddingBottom:     12,
-    gap:               8,
-  },
-
   // ── Divisor ───────────────────────────────────────────────
   divider: {
     height:           1,
     marginHorizontal: 16,
     backgroundColor:  Colors.border,
-    marginBottom:     12,
+    marginBottom:     16,
   },
 
-  // ── Slot grid ─────────────────────────────────────────────
-  slotFlatList: {
-    flex: 1,
-  },
-  slotList: {
+  // ── Section headers ───────────────────────────────────────
+  sectionHeader: {
+    flexDirection:     "row",
+    alignItems:        "center",
     paddingHorizontal: 16,
-    paddingTop:        4,
-    paddingBottom:     24,
+    marginBottom:      12,
+    gap:               8,
   },
-  slotRow: {
-    gap:          10,
-    marginBottom: 10,
+  sectionLabel: {
+    color:         Colors.placeholder,
+    fontSize:      11,
+    letterSpacing: 0.8,
+  },
+  countBadge: {
+    width:           20,
+    height:          20,
+    borderRadius:    10,
+    backgroundColor: Colors.primarySubtle,
+    alignItems:      "center",
+    justifyContent:  "center",
+  },
+  countBadgeText: {
+    color:    Colors.primary,
+    fontSize: 11,
   },
 
-  // ── Estados ───────────────────────────────────────────────
+  // ── Time chips ────────────────────────────────────────────
+  timeChipsWrap: {
+    flexDirection:     "row",
+    flexWrap:          "wrap",
+    paddingHorizontal: 16,
+    gap:               8,
+    marginBottom:      4,
+  },
+
+  // ── Duration strip ────────────────────────────────────────
+  durationStrip: {
+    flexDirection:     "row",
+    paddingHorizontal: 16,
+    gap:               8,
+    marginBottom:      4,
+  },
+
+  // ── Courts list ───────────────────────────────────────────
+  courtsList: {
+    paddingHorizontal: 16,
+    gap:               10,
+  },
+
+  // ── Section states ────────────────────────────────────────
+  sectionLoader: {
+    alignItems:    "center",
+    paddingVertical: 24,
+  },
+  sectionEmpty: {
+    alignItems:        "center",
+    gap:               10,
+    paddingVertical:   28,
+    paddingHorizontal: 32,
+  },
+
+  // ── Estados globales ──────────────────────────────────────
   centered: {
     flex:              1,
     justifyContent:    "center",
@@ -773,12 +883,6 @@ const styles = StyleSheet.create({
   },
   centeredText: {
     textAlign: "center",
-  },
-  emptySlots: {
-    alignItems:        "center",
-    gap:               12,
-    paddingVertical:   48,
-    paddingHorizontal: 32,
   },
   retryBtn: {
     paddingHorizontal: 20,
