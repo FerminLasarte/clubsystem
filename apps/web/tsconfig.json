@@ -19,8 +19,7 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"],
-      "@ClubSystem/types": ["../../packages/types/src"]
+      "@/*": ["./*"]
     }
   },
   "include": [
