@@ -1141,9 +1141,10 @@ Instalé Python 3.12 vía `uv`, el venv del backend con poetry, pyright, pip-aud
 ## Anexo D: estado de la remediación (rama `refactor/fundaciones`)
 
 El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile se reescribió en paralelo (ver el estado al final de este anexo). Las verificaciones fueron:
-- **Backend:** 139 tests de API contra Postgres real con RLS (`FORCE` y rol de app sin privilegios), ruff, pyright 0 y `alembic check`.
+- **Backend:** 158 tests de API contra Postgres real con RLS (`FORCE` y rol de app sin privilegios), ruff, pyright 0 y `alembic check`.
 - **Web:** `tsc`, `eslint --max-warnings 0` y `next build` sin errores, y pruebas manuales en el navegador de login, ajustes, socios, stock, novedades, gastos, cuotas, caja, inicio y reservas.
 - **Seguridad:** una revisión independiente posterior a la reescritura encontró 11 puntos. Están corregidos en `af7dfd0`, con tests en `tests/test_hardening.py`.
+- **Integración:** PR [#2](https://github.com/FerminLasarte/clubsystem/pull/2) contra `main`. Es la primera corrida de la CI en GitHub y está en verde en los dos jobs.
 
 | Hallazgo | Estado | Cómo / dónde |
 |---|---|---|
@@ -1154,13 +1155,13 @@ El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile
 | SEC-05 El club edita al `User` global | ✅ | La identidad la edita solo su dueño (`/me`). El alta de socios es una invitación que la persona acepta |
 | SEC-06 Rate limit / enumeración | ✅ parcial | Rate limit por IP en auth, `/me` e invitaciones; hash dummy; mensajes uniformes. Pendiente: límite por identificador y storage compartido (README) |
 | SEC-07 RLS inactiva | ✅ | RLS con `FORCE` en todas las tablas de tenant, rol de app sin ownership y políticas con `WITH CHECK`. Los tests corren con ese rol |
-| SEC-08 DNI autodeclarado | ⚠️ parcial | DNI único, rate limit y mensaje genérico. **Decisión pendiente:** mantener el login por DNI o pedir verificación del DNI |
-| SEC-09 Verificación de email | ✅ (requiere proveedor) | Verificación, reset e invitaciones por token. Aceptar una membresía exige email verificado. **Falta el proveedor de email** |
+| SEC-08 DNI autodeclarado | ✅ | El login de la app es solo con email (decisión 1). El DNI queda como dato del perfil, único, y ya no sirve para entrar |
+| SEC-09 Verificación de email | ✅ (falta el dominio) | Verificación, reset e invitaciones por token; aceptar una membresía exige email verificado. Envío con Resend fuera del request (`services/email.py`). En producción solo arranca con Resend configurado. Falta verificar el dominio y cargar la clave real (README) |
 | SEC-10 CSV | ✅ | `core/csv.py` neutraliza fórmulas |
 | SEC-11 LLM | ✅ | JSON delimitado, la severidad la decide la estadística, el LLM corre fuera del request con tope diario en tabla propia, y la UI lo marca como "Generado por IA · no verificado" |
 | SEC-12 Token en localStorage | ✅ | Cookies HttpOnly del mismo origen (rewrite de Next), CSP y anti-CSRF |
 | SEC-13 Validación de input | ✅ | `Field` con límites, enums con `Literal`/`StrEnum`, montos `Decimal`, contraseñas ≤ 72 bytes |
-| SEC-14 Dependencias | ✅ backend/web | FastAPI 0.142, Next 16.3.8. Expo: ver el estado de mobile. Hay `pip-audit` y `pnpm audit` en la CI |
+| SEC-14 Dependencias | ✅ | FastAPI 0.142, Next 16.3.8 y transitivas de Expo/Metro actualizadas. `pip-audit` y `pnpm audit` corren en la CI. `pnpm audit` ignora dos CVE sin parche del tooling de Expo (braces y node-forge, ver README) |
 | SEC-15 Seeds | ✅ | `scripts/seed_dev.py` con datos ficticios y contraseña aleatoria; se niega a correr en producción |
 | SEC-16 Detalles internos / config | ✅ | Errores uniformes con `request_id`, docs apagados en producción, ENV por defecto `production`, CORS sin `*` |
 | BE-01 Invitaciones rotas | ✅ | Reescritas con token por email y tests (incluye la toma de una cuenta sin verificar) |
@@ -1183,31 +1184,30 @@ El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile
 | WEB-01..10 | ✅ | Panel reescrito por feature: TanStack Query, paginación en servidor, Dialog/ConfirmDialog accesibles, tokens semánticos con lint, App Router con `metadata`/`error`/`loading` |
 | MOB-01..08 | ver abajo | Reescritura de la app (Expo, `Stack.Protected`, cliente compartido con refresh y SecureStore, tokens únicos) |
 
-**Decisiones de producto pendientes** (surgieron durante la implementación; el código tomó la opción indicada entre paréntesis):
-1. Login con DNI en la app: el DNI lo declara el usuario (se mantiene, con DNI único y rate limit).
-2. Neto del dashboard: ingresos − egresos de caja − gastos. Si un gasto también se registra como egreso de caja, se cuenta dos veces (sin cambios; hay que definir la relación entre egreso de caja y gasto).
-3. Cancelar reservas desde la app (no existe; solo cancela el staff).
-4. Límites de reserva desde la app (14 días de anticipación y 3 pendientes por socio).
-5. Desactivar una cancha con reservas futuras (409; alternativa: cancelarlas automáticamente).
-6. Stock: motivo obligatorio en todo movimiento; el costo unitario de una entrada no actualiza el costo del ítem (se dejó así).
-7. Novedades: no se pueden editar después de publicadas (no hay PATCH).
-8. Faltan exports CSV de caja y de cuotas.
+**Decisiones de producto e infraestructura (2026-10-06).** Las de producto (1 a 9) están implementadas; quedan pendientes la verificación del dominio de email y el hosting.
 
-**Decisiones tomadas sobre lo pendiente (2026-10-06):**
-1. Login de la app solo con email. El DNI queda como dato del perfil y deja de ser identificador de login.
-2. El dashboard muestra dos números separados: "Resultado" (ingresos − gastos) y "Caja" (ingresos − egresos de caja).
-3. El socio puede cancelar desde la app las reservas pendientes siempre, y las confirmadas hasta N horas antes del inicio. N es configurable por club, con 24 por defecto.
-4. Los límites de reserva desde la app quedan fijos: 14 días de anticipación y 3 pendientes.
-5. Desactivar una cancha con reservas futuras sigue dando 409. El panel agrega una acción explícita "cancelar las N reservas futuras y desactivar".
-6. Stock: el motivo es opcional en las entradas y obligatorio en salidas y ajustes. El `unit_cost` de una entrada actualiza el costo del ítem.
-7. Las novedades se pueden editar: título, cuerpo, etiqueta y vencimiento.
-8. Se agregan exports CSV de caja y de cuotas.
-9. No se pueden registrar ingresos nuevos sobre una reserva cancelada; las devoluciones (egresos) sí.
-10. El proveedor de email es Resend.
-11. Hosting: la web en Vercel, la API en Render y Postgres administrado en Neon. No hay nada contratado todavía.
-12. La rama `refactor/fundaciones` se integra con un PR contra `main` y CI en verde.
+| # | Decisión | Estado | Cómo / dónde |
+|---|---|---|---|
+| 1 | Login de la app solo con email; el DNI queda como dato del perfil | ✅ | `MobileLoginRequest.email` (un DNI da 422). Pantalla de login de mobile solo con email |
+| 2 | Dashboard con "Resultado" (ingresos − gastos) y "Caja" (ingresos − egresos de caja) | ✅ | `MonthFinance.result` y `cash_balance` reemplazan a `net`, que contaba dos veces un gasto pagado en efectivo. Tarjetas separadas en la web |
+| 3 | Cancelación desde la app: pendientes siempre, confirmadas hasta N h antes (N por club, 24 por defecto) | ✅ | `domain/cancellation.py`, `clubs.member_cancel_notice_hours` (migración `f9da7f4fb94c`, editable en Ajustes), `POST /mobile/clubs/{club_id}/reservations/{id}/cancel` con motivo `BY_MEMBER`. `can_cancel` y `cancel_deadline` en la respuesta y botón en el detalle de la app |
+| 4 | Límites de la app fijos: 14 días y 3 pendientes | ✅ sin cambios | `tests/test_hardening.py::test_app_bookings_have_a_horizon_and_a_cap_on_pending`. Además se prueba que cancelar una pendiente libera el cupo |
+| 5 | Desactivar cancha con reservas futuras: 409 + acción explícita | ✅ | `GET /admin/courts/{id}/upcoming-reservations` y `POST /admin/courts/{id}/deactivate` con la N confirmada (409 si cambió). La web muestra N antes de confirmar |
+| 6 | Stock: motivo opcional en entradas; el `unit_cost` de una entrada actualiza el ítem | ✅ | `MovementCreate` y el mismo UPDATE atómico de la cantidad |
+| 7 | Novedades editables | ✅ | `PATCH /admin/news/{id}` (título, cuerpo, etiqueta y vencimiento). Diálogo de alta/edición en la web |
+| 8 | Exports CSV de caja (día o rango) y de cuotas (mes) | ✅ | `GET /admin/cash/export.csv` y `/admin/fees/export.csv` con `core/csv.py`. Diálogo de rango en Caja y `ExportButton` en Cuotas |
+| 9 | Sin ingresos nuevos sobre una reserva cancelada; devoluciones sí | ✅ | 422 `reservation_cancelled` en `CashService.create` |
+| 10 | Email con Resend | ✅ (falta el dominio) | Ver SEC-09 |
+| 11 | Hosting: Vercel (web), Render (API) y Neon (Postgres) | ⏳ | No hay nada contratado |
+| 12 | Integración por PR contra `main` con CI en verde | ✅ | PR #2 en verde, sin mergear |
 
-**Pendientes técnicos:** proveedor de email; rate limit por identificador con storage compartido; tests de frontend (no hay; se recomienda un e2e de humo con Playwright para la web y Maestro para mobile); endpoint de cotización de precio antes de reservar en el panel.
+**Pendientes técnicos:**
+- Verificar el dominio de envío en Resend y cargar `RESEND_API_KEY` y `EMAIL_FROM` reales (pasos en el README). El envío real todavía no se probó contra la API de Resend: los tests la simulan.
+- Contratar y configurar el hosting (decisión 11), con las migraciones como paso aparte del deploy y los roles de base del README.
+- Rate limit por identificador con storage compartido (SEC-06).
+- Tests de frontend: no hay. Se recomienda un e2e de humo con Playwright para la web y Maestro para mobile. Los cambios de mobile de esta etapa (login y cancelación) se verificaron con `tsc`, `eslint`, el bundle de iOS y la API, no en un simulador.
+- Endpoint de cotización de precio antes de reservar en el panel.
+- `pnpm audit`: sacar la excepción de las dos CVE de Expo cuando haya versiones parcheadas.
 
 ---
 
