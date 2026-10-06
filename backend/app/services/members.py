@@ -325,6 +325,8 @@ class MemberService:
                 Reservation.club_id == ClubMembership.club_id,
                 Reservation.user_id == ClubMembership.user_id,
                 Reservation.status != ReservationStatus.CANCELLED,
+                # "Última reserva" = la más reciente que ya empezó, no una futura.
+                Reservation.starts_at <= func.now(),
             )
             .correlate(ClubMembership)
             .scalar_subquery()
