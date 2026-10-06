@@ -1193,6 +1193,20 @@ El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile
 7. Novedades: no se pueden editar después de publicadas (no hay PATCH).
 8. Faltan exports CSV de caja y de cuotas.
 
+**Decisiones tomadas sobre lo pendiente (2026-10-06):**
+1. Login de la app solo con email. El DNI queda como dato del perfil y deja de ser identificador de login.
+2. El dashboard muestra dos números separados: "Resultado" (ingresos − gastos) y "Caja" (ingresos − egresos de caja).
+3. El socio puede cancelar desde la app las reservas pendientes siempre, y las confirmadas hasta N horas antes del inicio. N es configurable por club, con 24 por defecto.
+4. Los límites de reserva desde la app quedan fijos: 14 días de anticipación y 3 pendientes.
+5. Desactivar una cancha con reservas futuras sigue dando 409. El panel agrega una acción explícita "cancelar las N reservas futuras y desactivar".
+6. Stock: el motivo es opcional en las entradas y obligatorio en salidas y ajustes. El `unit_cost` de una entrada actualiza el costo del ítem.
+7. Las novedades se pueden editar: título, cuerpo, etiqueta y vencimiento.
+8. Se agregan exports CSV de caja y de cuotas.
+9. No se pueden registrar ingresos nuevos sobre una reserva cancelada; las devoluciones (egresos) sí.
+10. El proveedor de email es Resend.
+11. Hosting: la web en Vercel, la API en Render y Postgres administrado en Neon. No hay nada contratado todavía.
+12. La rama `refactor/fundaciones` se integra con un PR contra `main` y CI en verde.
+
 **Pendientes técnicos:** proveedor de email; rate limit por identificador con storage compartido; tests de frontend (no hay; se recomienda un e2e de humo con Playwright para la web y Maestro para mobile); endpoint de cotización de precio antes de reservar en el panel.
 
 ---
