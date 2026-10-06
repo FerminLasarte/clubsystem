@@ -1205,7 +1205,7 @@ El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile
 - Verificar el dominio de envío en Resend y cargar `RESEND_API_KEY` y `EMAIL_FROM` reales (pasos en el README). El envío real todavía no se probó contra la API de Resend: los tests la simulan.
 - Hosting (decisión 11: Vercel, Railway y Supabase): la configuración está en el repo y los pasos en `docs/deploy.md`. Ya se verificó contra la imagen de Supabase en local (ver decisión 11). Falta repetirlo contra el proyecto real, antes de crear el primer club, y después contratar y configurar cada plataforma.
 - Rate limit por identificador (SEC-06). El storage compartido ya es configurable (`RATE_LIMIT_STORAGE_URI`).
-- Tests de frontend: no hay. Se recomienda un e2e de humo con Playwright para la web y Maestro para mobile. Los cambios de mobile de esta etapa (login y cancelación) se verificaron con `tsc`, `eslint`, el bundle de iOS y la API, no en un simulador.
+- Tests de frontend: hay e2e de humo (ver `docs/e2e.md`). Playwright prueba el panel en cada PR (job `e2e-web`) y Maestro prueba la app en un simulador de iOS, a mano o cada noche (`e2e-mobile.yml`). Faltan tests de componentes.
 - Endpoint de cotización de precio antes de reservar en el panel.
 - `pnpm audit`: sacar la excepción de las dos CVE de Expo cuando haya versiones parcheadas.
 

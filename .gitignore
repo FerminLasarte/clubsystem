@@ -32,6 +32,7 @@ out/
 apps/mobile/.expo/
 apps/mobile/android/
 apps/mobile/ios/
+apps/mobile/e2e/output/
 
 # ── Build artifacts ──────────────────────
 *.log
