@@ -1,0 +1,23 @@
+# Postgres local para desarrollo y tests.
+# Roles (ver docker/init-db.sql):
+#   clubsystem_owner → dueño del esquema; lo usa Alembic.
+#   clubsystem_app   → rol de la aplicación; sin ownership y sujeto a RLS.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:
