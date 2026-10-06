@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.enums import (
     CustomerType,
+    ExpenseCategory,
     MembershipStatus,
     ReservationSource,
     ReservationStatus,
@@ -22,6 +23,7 @@ from app.models import (
     ClubMembership,
     ClubStaff,
     Court,
+    Expense,
     MembershipPlan,
     Reservation,
     StockItem,
@@ -133,6 +135,17 @@ class Factory:
         n = next(_seq)
         defaults: dict[str, object] = {"club_id": club.id, "name": f"Item {n}"}
         return await self._save(StockItem(**{**defaults, **kw}))
+
+    async def expense(self, club: Club, amount: str = "1000", **kw: object) -> Expense:
+        """Gasto cargado directo en la base (sin pasar por el análisis estadístico)."""
+        defaults: dict[str, object] = {
+            "club_id": club.id,
+            "category": ExpenseCategory.MAINTENANCE,
+            "description": "Gasto de prueba",
+            "amount": Decimal(amount),
+            "expense_date": date.today(),
+        }
+        return await self._save(Expense(**{**defaults, **kw}))
 
 
 async def login_web(client: httpx.AsyncClient, user: User) -> httpx.Response:

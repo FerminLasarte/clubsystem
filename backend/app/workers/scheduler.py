@@ -13,9 +13,13 @@ Job = tuple[str, float, Callable[[], Awaitable[None]]]
 
 
 def _jobs() -> list[Job]:
+    from app.workers.anomalies import explain_anomalies
     from app.workers.reservations import expire_unconfirmed_reservations
 
-    return [("expire_unconfirmed_reservations", 300.0, expire_unconfirmed_reservations)]
+    return [
+        ("expire_unconfirmed_reservations", 300.0, expire_unconfirmed_reservations),
+        ("explain_anomalies", 60.0, explain_anomalies),
+    ]
 
 
 def start_scheduler() -> Callable[[], Awaitable[None]]:

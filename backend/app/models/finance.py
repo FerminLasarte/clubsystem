@@ -134,6 +134,15 @@ class Expense(UUIDPk, Timestamps, Base):
         ),
         Index("ix_expenses_club_date", "club_id", "expense_date"),
         Index("ix_expenses_club_category", "club_id", "category"),
+        # Lo que el job de explicaciones busca cada minuto en cada club.
+        Index(
+            "ix_expenses_pending_explanation",
+            "club_id",
+            postgresql_where=text(
+                "deleted_at IS NULL AND anomaly_explained_at IS NULL"
+                " AND anomaly_severity IN ('medium', 'high', 'critical')"
+            ),
+        ),
     )
 
     club_id: Mapped[uuid.UUID] = mapped_column(
@@ -162,7 +171,11 @@ class Expense(UUIDPk, Timestamps, Base):
     anomaly_reasons: Mapped[str | None] = mapped_column(Text)
     anomaly_analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     anomaly_explanation: Mapped[str | None] = mapped_column(Text)
+    anomaly_recommended_action: Mapped[str | None] = mapped_column(Text)
+    # Con explained_at y sin explicación: el LLM no la pudo dar (no se reintenta).
     anomaly_explained_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Batch de Anthropic en curso que va a traer la explicación.
+    anomaly_batch_id: Mapped[str | None] = mapped_column(String(100))
     reviewed_by_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
     )
