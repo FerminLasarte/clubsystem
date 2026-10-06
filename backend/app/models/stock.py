@@ -15,6 +15,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.enums import StockMovementType, StockUnit
@@ -48,6 +49,11 @@ class StockItem(UUIDPk, Timestamps, Base):
     supplier: Mapped[str | None] = mapped_column(String(255))
     location: Mapped[str | None] = mapped_column(String(100))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    @hybrid_property
+    def is_low_stock(self) -> bool:
+        # Única definición de "stock bajo": sirve en Python y como expresión SQL.
+        return self.quantity <= self.min_quantity
 
 
 class StockMovement(UUIDPk, Base):

@@ -20,6 +20,7 @@ from app.domain.enums import (
 from app.models import (
     Club,
     ClubMembership,
+    ClubNews,
     ClubStaff,
     Court,
     MembershipPlan,
@@ -133,6 +134,11 @@ class Factory:
         n = next(_seq)
         defaults: dict[str, object] = {"club_id": club.id, "name": f"Item {n}"}
         return await self._save(StockItem(**{**defaults, **kw}))
+
+    async def news(self, club: Club, **kw: object) -> ClubNews:
+        n = next(_seq)
+        defaults: dict[str, object] = {"club_id": club.id, "title": f"Novedad {n}", "body": "..."}
+        return await self._save(ClubNews(**{**defaults, **kw}))
 
 
 async def login_web(client: httpx.AsyncClient, user: User) -> httpx.Response:
