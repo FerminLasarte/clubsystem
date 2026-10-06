@@ -1,0 +1,42 @@
+# Login con email → reservar un turno de mañana → verlo en "Mis reservas" → cancelarlo.
+# Las variables las pasa apps/mobile/e2e/run-ios.sh (salen de backend/scripts/e2e_fixtures.json).
+appId: com.clubsystem.app
+name: Reservar y cancelar desde la app
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+
+# Login
+- tapOn: "tu@email.com"
+- inputText: ${MEMBER_EMAIL}
+- tapOn:
+    text: "Contraseña"
+    index: 1
+- inputText: ${PASSWORD}
+- tapOn: "Ingresar"
+# iOS ofrece guardar la contraseña (español en local, inglés en la CI).
+- tapOn:
+    text: "Ahora no|Not Now"
+    optional: true
+
+# Reservar mañana a las 18:00 en la primera cancha
+- tapOn: "Reservar, tab.*"
+- tapOn: "Mañana.*"
+- tapOn: "${COURT} a las 18:00"
+- tapOn: "Confirmar reserva"
+- assertVisible: "Pendiente de confirmación"
+- tapOn: "Volver"
+
+# La reserva aparece en "Mis reservas"
+- tapOn: "Mis reservas, tab.*"
+- tapOn: "Reserva del .*18:00.*${COURT}.*Pendiente"
+
+# Cancelarla
+- tapOn: "Cancelar reserva"
+# El botón de la alerta (el de la pantalla, detrás, también queda debajo del mensaje).
+- tapOn:
+    text: "Cancelar reserva"
+    below: "¿Querés cancelar esta reserva.*"
+    index: 0
+- assertVisible: "Cancelada"

@@ -1,0 +1,9 @@
+{
+  "password": "e2e-Password-123",
+  "owner_email": "e2e-owner@example.com",
+  "member_email": "e2e-socia@example.com",
+  "member_name": "Ana Pruebas",
+  "club_name": "Club E2E",
+  "courts": ["Pádel 1", "Pádel 2"],
+  "pending_reservation_time": "12:00"
+}
