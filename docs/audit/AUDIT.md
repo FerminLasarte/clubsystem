@@ -1105,6 +1105,39 @@ Si no se pudieron correr, decirlo explícitamente.
 
 ---
 
+## Anexo B: resultados de herramientas (2026-10-06, segunda pasada)
+
+Instalé Python 3.12 vía `uv`, el venv del backend con poetry, pyright, pip-audit y las dependencias de pnpm.
+
+| Herramienta | Resultado | Hallazgos nuevos o confirmados |
+|---|---|---|
+| `poetry install` (Python 3.13) | **Falla**: `asyncpg 0.29` no compila en 3.13 | **PLAT-09 (Medio)**: `pyproject.toml` declara `python >=3.12,<3.14`, pero con 3.13 la instalación falla. Subir asyncpg a ≥0.30 |
+| `pnpm install --frozen-lockfile` | **Falla**: `pnpm-lock.yaml` no coincide con `apps/mobile/package.json` (falta `expo-secure-store`) | Confirma que mobile se instaló con npm (PLAT-04). Una CI con lockfile congelado fallaría |
+| `pyright` según `pyrightconfig.json` | 149 errores "Import could not be resolved" | Confirma que `"venv"` sin `"venvPath"` se ignora. Con `--pythonpath` quedan **12 errores**: `invitations.py:178` *No parameter named "role"* (BE-01), `database.py:15-21` (`sessionmaker` clásico con `AsyncSession` mal tipado, BE-16→BE-05), `members.py:203`/`users.py:101` (`Sequence[User]` como `list[MemberOut]`) y `anomaly_detector.py:226,245` (`.strip()` sobre `None` posible) |
+| `ruff` (E, F, W, B, ASYNC, S, UP, SIM, DTZ) | 215 B008 (patrón de FastAPI, se ignora), 26 B904, 17 F401, **9 DTZ011 + 6 DTZ003 + 4 DTZ00x** (BE-08), 1 S110 (`except: pass`, BE-05) | Confirma los hallazgos de zona horaria y errores tragados |
+| `pip-audit` | **starlette 0.37.2: 8 advisories** (fix en 0.40 a 1.3.1), python-multipart 0.0.22: 5, urllib3 2.6.3: 5, requests 2.32.5: 1 | Confirma SEC-14 y lo eleva: el fix exige FastAPI actual |
+| `tsc --noEmit` web | 0 errores | — |
+| `eslint` web | 11 errores y 18 warnings: **5 "Cannot create components during render"** (componentes definidos dentro del render, WEB-06), 3 `setState` en efectos, deps faltantes en hooks | Confirma WEB-06 y WEB-03 |
+| `tsc --noEmit` mobile | 2 errores, en archivos muertos de la plantilla | PLAT-08 |
+| `eslint` mobile | 3 errores: **reglas de hooks en `pending.tsx:68,84`** (MOB-07) y `display-name` | Confirma MOB-07 |
+| `pnpm audit --prod` | 5 críticas, 91 altas | **`next` 16.1.7: crítica (fix ≥16.3.3), dependencia de runtime de la web**. `proxy-addr` crítica (web). `tar` y `shell-quote` críticas (tooling de mobile). Eleva SEC-14 a **Alto** |
+
+## Anexo C: decisiones tomadas (2026-10-06)
+
+| Tema | Decisión |
+|---|---|
+| Datos existentes | No hay datos reales. El esquema se rediseña limpio en los modelos y se recrea la base. Alembic arranca con una migración inicial nueva. Seeds con un script Python |
+| Aislación multi-tenant | Ambas: repositorio con scope obligatorio (vía principal) + RLS real con `FORCE`, rol no dueño y `SET LOCAL` por transacción (red de seguridad) |
+| Token web | Cookie HttpOnly emitida por el backend. Access token de 15 min + refresh rotativo revocable. Next reenvía `/api/*` al backend (mismo origen). Mobile usa Bearer en SecureStore con el mismo refresh |
+| Datos de socio | Plan, número de socio, alta y estado son **por club** (`ClubMembership`) |
+| Reservas desde la app | Quedan `pending` y requieren confirmación del staff. Si vencen sin confirmar, un job programado las cancela y registra que fue el sistema |
+| Precios | Se mantienen los precios socio e invitado, configurables en el panel. Solo los socios reservan desde la app; las reservas de invitados las carga el staff |
+| Configuración sin efecto | Se quitan notificaciones, avisos de WhatsApp, reporte de caja, seña obligatoria y política de cancelación hasta implementarlos |
+| IA de anomalías | API de Anthropic: `claude-opus-5-5` con esfuerzo `low`, salida estructurada, `AsyncAnthropic` con timeout, en background y con Batch API para el análisis masivo. Se quitan `openai` y `google-genai` |
+| Enfoque | Rehacer desde los cimientos donde corresponda. Backend: estructura nueva y migración dominio por dominio con tests. La Fase 0 de hotfixes se absorbe en la reescritura, porque no hay usuarios reales |
+
+---
+
 ## Anexo A: tabla de endpoints y aislación por tenant
 
 Leyenda:
