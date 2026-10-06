@@ -38,7 +38,7 @@ async def get_scoped[M](
 
 
 async def paginate(
-    session: AsyncSession, stmt: Select[Any], params: PageParams
+    session: AsyncSession, stmt: Select[*tuple[Any, ...]], params: PageParams
 ) -> tuple[list[Any], int]:
     """Devuelve (filas de la página, total). `stmt` ya debe tener ORDER BY."""
     total = (

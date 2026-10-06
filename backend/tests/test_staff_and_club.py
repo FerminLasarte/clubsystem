@@ -149,7 +149,7 @@ async def test_revoking_staff_cuts_access_immediately_but_not_for_self_or_owners
 ) -> None:
     club = await factory.club()
     owner, owner_row = await factory.staff(club)
-    co_owner, co_owner_row = await factory.staff(club)
+    _, co_owner_row = await factory.staff(club)
     clerk, clerk_row = await factory.staff(club, roles=[StaffRole.STOCK_MANAGER])
 
     clerk_client = httpx.AsyncClient(
