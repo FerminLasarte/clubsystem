@@ -156,6 +156,20 @@ class Factory:
         }
         return await self._save(Payment(**{**defaults, **kw}))
 
+    async def reservation_payment(
+        self, reservation: Reservation, amount: str, **kw: object
+    ) -> Payment:
+        defaults: dict[str, object] = {
+            "club_id": reservation.club_id,
+            "reservation_id": reservation.id,
+            "type": TransactionType.INCOME,
+            "amount": Decimal(amount),
+            "method": PaymentMethod.CASH,
+            "description": "Cobro de reserva",
+            "occurred_at": datetime.now(UTC),
+        }
+        return await self._save(Payment(**{**defaults, **kw}))
+
     async def fee(
         self, membership: ClubMembership, year: int, month: int, amount: str = "10000", **kw: object
     ) -> MembershipFee:

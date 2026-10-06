@@ -26,6 +26,7 @@ _CONSTRAINT_ERRORS: dict[str, tuple[int, str]] = {
     "uq_membership_fees_period_active": (409, "El socio ya tiene una cuota para ese período."),
     "ck_stock_items_quantity_non_negative": (422, "Stock insuficiente para ese movimiento."),
     "fk_reservations_user_id_users": (409, "El usuario tiene reservas asociadas."),
+    "fk_reservations_court_same_club": (409, "La cancha tiene reservas asociadas."),
 }
 
 
