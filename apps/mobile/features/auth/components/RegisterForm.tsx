@@ -77,7 +77,6 @@ export function RegisterForm() {
         onChangeText={setDni}
         keyboardType="number-pad"
         error={fieldError(error, "dni")}
-        hint="Con tu DNI también podés ingresar."
       />
       <Input label="Teléfono (opcional)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" error={fieldError(error, "phone")} />
       {register.isError ? <Notice tone="danger" message={errorMessage(error)} /> : null}

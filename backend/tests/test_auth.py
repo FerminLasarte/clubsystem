@@ -151,14 +151,14 @@ async def test_switch_club_rejects_clubs_without_access(
     await switch_club(client, mine)
 
 
-async def test_mobile_login_with_dni_returns_tokens_and_memberships(
+async def test_mobile_login_with_email_returns_tokens_and_memberships(
     client: httpx.AsyncClient, factory: Factory
 ) -> None:
     club = await factory.club()
     user, _ = await factory.membership(club, await factory.user(dni="30111222"))
 
     response = await client.post(
-        f"{API}/mobile/login", json={"identifier": "30111222", "password": PASSWORD}
+        f"{API}/mobile/login", json={"email": user.email.upper(), "password": PASSWORD}
     )
     assert response.status_code == 200
     body = response.json()
@@ -169,6 +169,22 @@ async def test_mobile_login_with_dni_returns_tokens_and_memberships(
         f"{API}/mobile/refresh", json={"refresh_token": body["refresh_token"]}
     )
     assert refreshed.status_code == 200
+
+
+async def test_mobile_login_does_not_accept_the_dni(
+    client: httpx.AsyncClient, factory: Factory
+) -> None:
+    club = await factory.club()
+    await factory.membership(club, await factory.user(dni="30111222"))
+
+    by_dni = await client.post(
+        f"{API}/mobile/login", json={"email": "30111222", "password": PASSWORD}
+    )
+    assert by_dni.status_code == 422
+    legacy = await client.post(
+        f"{API}/mobile/login", json={"identifier": "30111222", "password": PASSWORD}
+    )
+    assert legacy.status_code == 422
 
 
 async def test_register_verify_email_and_duplicates(
@@ -226,13 +242,11 @@ async def test_password_reset_changes_password_and_revokes_sessions(
     assert reset.status_code == 204
 
     assert (await client.get(f"{API}/mobile/session", headers=headers)).status_code == 401
-    old = await client.post(
-        f"{API}/mobile/login", json={"identifier": user.email, "password": PASSWORD}
-    )
+    old = await client.post(f"{API}/mobile/login", json={"email": user.email, "password": PASSWORD})
     assert old.status_code == 401
     new = await client.post(
         f"{API}/mobile/login",
-        json={"identifier": user.email, "password": "otra-contraseña-larga"},
+        json={"email": user.email, "password": "otra-contraseña-larga"},
     )
     assert new.status_code == 200
 

@@ -18,10 +18,8 @@ class WebLoginRequest(BaseModel):
 
 
 class MobileLoginRequest(BaseModel):
-    # Email o DNI
-    identifier: Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=3, max_length=255)
-    ]
+    # El DNI es un dato del perfil, no un identificador de login.
+    email: EmailStr
     password: Annotated[str, StringConstraints(min_length=1, max_length=72)]
 
 

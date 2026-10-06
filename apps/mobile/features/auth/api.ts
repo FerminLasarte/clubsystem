@@ -7,8 +7,8 @@ export const authKeys = {
 };
 
 export const authApi = {
-  login: (identifier: string, password: string) =>
-    unwrap(api.POST("/api/v1/auth/mobile/login", { body: { identifier, password } })),
+  login: (email: string, password: string) =>
+    unwrap(api.POST("/api/v1/auth/mobile/login", { body: { email, password } })),
   register: (body: RegisterRequest) => unwrap(api.POST("/api/v1/auth/register", { body })),
   session: () => unwrap(api.GET("/api/v1/auth/mobile/session")),
   logout: () => unwrap(api.POST("/api/v1/auth/logout")),

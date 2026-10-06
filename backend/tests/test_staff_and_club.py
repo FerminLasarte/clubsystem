@@ -120,7 +120,7 @@ async def test_invitation_takes_over_an_unverified_account_registered_by_someone
     # La sesión de quien había registrado la cuenta queda cerrada y su contraseña ya no sirve.
     assert (await client.get("/api/v1/me", headers=squatter_headers)).status_code == 401
     old = await client.post(
-        "/api/v1/auth/mobile/login", json={"identifier": squatter.email, "password": PASSWORD}
+        "/api/v1/auth/mobile/login", json={"email": squatter.email, "password": PASSWORD}
     )
     assert old.status_code == 401
 

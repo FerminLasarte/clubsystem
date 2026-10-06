@@ -255,7 +255,7 @@ async def test_inviting_a_new_person_creates_the_account_and_needs_acceptance(
     assert reset.status_code == 204
     login = await guest.post(
         "/api/v1/auth/mobile/login",
-        json={"identifier": "socia@example.com", "password": "una-clave-nueva-1"},
+        json={"email": "socia@example.com", "password": "una-clave-nueva-1"},
     )
     assert login.status_code == 200
     headers = {"authorization": f"Bearer {login.json()['access_token']}"}

@@ -56,12 +56,11 @@ class AuthService:
 
     # ── Credenciales ────────────────────────────────────────────────────────
 
-    async def authenticate(self, identifier: str, password: str) -> User:
-        """Email o DNI + contraseña. El mismo error y el mismo tiempo si el usuario no existe."""
-        identifier = identifier.strip()
-        column = User.email if "@" in identifier else User.dni
-        value = identifier.lower() if "@" in identifier else identifier
-        user = (await self.db.execute(select(User).where(column == value))).scalar_one_or_none()
+    async def authenticate(self, email: str, password: str) -> User:
+        """Email + contraseña. El mismo error y el mismo tiempo si el usuario no existe."""
+        user = (
+            await self.db.execute(select(User).where(User.email == email.strip().lower()))
+        ).scalar_one_or_none()
 
         valid = await verify_password(password, user.password_hash if user else None)
         if user is None or not valid or not user.is_active:

@@ -2325,8 +2325,11 @@ export interface components {
         };
         /** MobileLoginRequest */
         MobileLoginRequest: {
-            /** Identifier */
-            identifier: string;
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
             /** Password */
             password: string;
         };

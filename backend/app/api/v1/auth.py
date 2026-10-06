@@ -233,7 +233,7 @@ async def mobile_login(
     request: Request, body: MobileLoginRequest, session: SessionDep
 ) -> MobileSessionOut:
     service = AuthService(session)
-    user = await service.authenticate(body.identifier, body.password)
+    user = await service.authenticate(body.email, body.password)
     tokens = await service.start_session(user, client="mobile", info=client_info(request))
     return await _mobile_session(service, user, tokens)
 

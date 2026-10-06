@@ -23,8 +23,7 @@ async function startSession(queryClient: QueryClient, data: MobileSessionOut): P
 export function useLogin() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ identifier, password }: { identifier: string; password: string }) =>
-      authApi.login(identifier, password),
+    mutationFn: ({ email, password }: { email: string; password: string }) => authApi.login(email, password),
     onSuccess: (data) => startSession(queryClient, data),
   });
 }

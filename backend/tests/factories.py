@@ -215,7 +215,7 @@ async def switch_club(client: httpx.AsyncClient, club: Club) -> None:
 async def login_mobile(client: httpx.AsyncClient, user: User) -> dict[str, str]:
     """Devuelve headers con el Bearer del usuario."""
     response = await client.post(
-        "/api/v1/auth/mobile/login", json={"identifier": user.email, "password": PASSWORD}
+        "/api/v1/auth/mobile/login", json={"email": user.email, "password": PASSWORD}
     )
     assert response.status_code == 200, response.text
     return {"authorization": f"Bearer {response.json()['access_token']}"}

@@ -2919,10 +2919,9 @@
       },
       "MobileLoginRequest": {
         "properties": {
-          "identifier": {
-            "maxLength": 255,
-            "minLength": 3,
-            "title": "Identifier",
+          "email": {
+            "format": "email",
+            "title": "Email",
             "type": "string"
           },
           "password": {
@@ -2933,7 +2932,7 @@
           }
         },
         "required": [
-          "identifier",
+          "email",
           "password"
         ],
         "title": "MobileLoginRequest",
