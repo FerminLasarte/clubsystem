@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.core.config import get_settings
 from app.domain.enums import (
     CustomerType,
+    ExpenseCategory,
     MembershipStatus,
     ReservationSource,
     ReservationStatus,
@@ -35,6 +36,7 @@ from app.models import (
     ClubNews,
     ClubStaff,
     Court,
+    Expense,
     MembershipPlan,
     Reservation,
     StockItem,
@@ -236,6 +238,31 @@ async def main() -> None:
                 ),
             ]
         )
+        # Historial de gastos de mantenimiento + uno fuera de lo normal este mes, para probar
+        # la detección de anomalías ("Recalcular anomalías" en el panel).
+        for months_ago, amount in enumerate([52000, 48000, 55000, 47000, 51000, 49000, 53000], 1):
+            session.add(
+                Expense(
+                    club_id=demo.id,
+                    created_by_id=owner.id,
+                    category=ExpenseCategory.MAINTENANCE,
+                    description="Mantenimiento mensual de canchas",
+                    amount=Decimal(amount),
+                    expense_date=(now - timedelta(days=30 * months_ago)).date(),
+                    vendor_name="Canchas SRL",
+                )
+            )
+        session.add(
+            Expense(
+                club_id=demo.id,
+                created_by_id=owner.id,
+                category=ExpenseCategory.MAINTENANCE,
+                description="Mantenimiento de canchas (urgente)",
+                amount=Decimal("420000"),
+                expense_date=now.date(),
+                vendor_name="Proveedor Nuevo SA",
+            )
+        )
         session.add(
             ClubNews(
                 club_id=demo.id,
@@ -248,7 +275,10 @@ async def main() -> None:
 
     await engine.dispose()
     print("Datos de demo creados. Contraseña de todas las cuentas:", password)
-    print("  Panel: owner@demo.example.com (OWNER de 2 clubes), recepcion@demo.example.com, deposito@demo.example.com")
+    print(
+        "  Panel: owner@demo.example.com (OWNER de 2 clubes), "
+        "recepcion@demo.example.com, deposito@demo.example.com"
+    )
     print("  App:   socio1@demo.example.com … socio8@demo.example.com (DNI 30111222 …)")
 
 
