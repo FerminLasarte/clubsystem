@@ -15,7 +15,12 @@ from contextlib import asynccontextmanager
 from uuid import UUID
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from app.core.config import get_settings
 
@@ -55,7 +60,11 @@ async def session_scope() -> AsyncIterator[AsyncSession]:
 
 
 async def set_tenant_context(
-    session: AsyncSession, *, user_id: UUID | None = None, club_id: UUID | None = None
+    session: AsyncSession,
+    *,
+    user_id: UUID | None = None,
+    user_email: str | None = None,
+    club_id: UUID | None = None,
 ) -> None:
     """
     Fija las variables que leen las políticas RLS durante la transacción actual.
@@ -64,6 +73,10 @@ async def set_tenant_context(
     if user_id is not None:
         await session.execute(
             text("SELECT set_config('app.user_id', :v, true)"), {"v": str(user_id)}
+        )
+    if user_email is not None:
+        await session.execute(
+            text("SELECT set_config('app.user_email', :v, true)"), {"v": user_email}
         )
     if club_id is not None:
         await session.execute(

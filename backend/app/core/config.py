@@ -37,9 +37,6 @@ class Settings(BaseSettings):
     COOKIE_SECURE: bool = True
     COOKIE_DOMAIN: str | None = None
 
-    # Cifrado de secretos guardados en la base (Fernet, 32 bytes url-safe base64).
-    DATA_ENCRYPTION_KEY: SecretStr | None = None
-
     CORS_ORIGINS: Annotated[list[str], NoDecode] = Field(default_factory=list)
 
     # Rate limiting de endpoints de autenticación

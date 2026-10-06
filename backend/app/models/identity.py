@@ -50,6 +50,10 @@ class User(UUIDPk, Timestamps, Base):
     def full_name(self) -> str:
         return f"{self.first_name} {self.last_name}"
 
+    @property
+    def email_verified(self) -> bool:
+        return self.email_verified_at is not None
+
 
 class AuthSession(UUIDPk, Base):
     """

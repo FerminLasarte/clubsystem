@@ -49,8 +49,12 @@ class Club(UUIDPk, Timestamps, Base):
         ARRAY(String(20)), default=list, server_default="{}"
     )
     logo_url: Mapped[str | None] = mapped_column(Text)
-    primary_color: Mapped[str] = mapped_column(String(7), default="#111827", server_default="#111827")
-    accent_color: Mapped[str] = mapped_column(String(7), default="#3B82F6", server_default="#3B82F6")
+    primary_color: Mapped[str] = mapped_column(
+        String(7), default="#111827", server_default="#111827"
+    )
+    accent_color: Mapped[str] = mapped_column(
+        String(7), default="#3B82F6", server_default="#3B82F6"
+    )
     address: Mapped[str | None] = mapped_column(Text)
     city: Mapped[str | None] = mapped_column(String(100))
     country: Mapped[str] = mapped_column(String(2), default="AR", server_default="AR")
@@ -159,4 +163,3 @@ class ClubMembership(UUIDPk, Timestamps, Base):
         viewonly=True,
         lazy="raise",
     )
-

@@ -37,7 +37,9 @@ class StockItem(UUIDPk, Timestamps, Base):
     name: Mapped[str] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
     category: Mapped[str | None] = mapped_column(String(100))
-    unit: Mapped[StockUnit] = mapped_column(str_enum(StockUnit, "stock_unit"), default=StockUnit.UNIT)
+    unit: Mapped[StockUnit] = mapped_column(
+        str_enum(StockUnit, "stock_unit"), default=StockUnit.UNIT
+    )
     # Solo cambia a través de movimientos (services/stock.py), nunca con un update directo.
     quantity: Mapped[Decimal] = mapped_column(Numeric(12, 3), default=0, server_default="0")
     min_quantity: Mapped[Decimal] = mapped_column(Numeric(12, 3), default=0, server_default="0")
