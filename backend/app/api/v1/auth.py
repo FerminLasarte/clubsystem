@@ -46,6 +46,7 @@ from app.services.auth import AuthService, ClientInfo, IssuedTokens
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 _AUTH_COOKIE_PATH = "/api/v1/auth"
+SESSION_HINT_COOKIE = "cs_has_session"
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -81,12 +82,25 @@ def set_session_cookies(response: Response, *, access: str, refresh: str | None 
             samesite="lax",
             domain=settings.COOKIE_DOMAIN,
         )
+        # Indicador sin secreto, legible por el proxy de Next para redirigir a /login.
+        # La autorización real depende solo de las cookies HttpOnly.
+        response.set_cookie(
+            SESSION_HINT_COOKIE,
+            "1",
+            max_age=settings.REFRESH_TOKEN_TTL_DAYS * 86400,
+            path="/",
+            httponly=False,
+            secure=settings.COOKIE_SECURE,
+            samesite="lax",
+            domain=settings.COOKIE_DOMAIN,
+        )
 
 
 def _clear_cookies(response: Response) -> None:
     domain = get_settings().COOKIE_DOMAIN
     response.delete_cookie(ACCESS_COOKIE, path="/", domain=domain)
     response.delete_cookie(REFRESH_COOKIE, path=_AUTH_COOKIE_PATH, domain=domain)
+    response.delete_cookie(SESSION_HINT_COOKIE, path="/", domain=domain)
 
 
 def _staff_club_out(staff: ClubStaff, club: Club) -> StaffClubOut:
