@@ -3118,7 +3118,7 @@
         "type": "object"
       },
       "MovementCreate": {
-        "description": "IN/OUT llevan `quantity` (> 0); ADJUSTMENT lleva `target_quantity` (lo contado).",
+        "description": "IN/OUT llevan `quantity` (> 0); ADJUSTMENT lleva `target_quantity` (lo contado).\nEl motivo es opcional en las entradas y obligatorio en salidas y ajustes. El `unit_cost`\nde una entrada pasa a ser el costo del ítem.",
         "properties": {
           "quantity": {
             "anyOf": [
@@ -3137,10 +3137,17 @@
             "title": "Quantity"
           },
           "reason": {
-            "maxLength": 500,
-            "minLength": 1,
-            "title": "Reason",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           },
           "target_quantity": {
             "anyOf": [
@@ -3179,8 +3186,7 @@
           }
         },
         "required": [
-          "type",
-          "reason"
+          "type"
         ],
         "title": "MovementCreate",
         "type": "object"

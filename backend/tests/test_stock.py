@@ -150,10 +150,45 @@ async def test_movement_payload_must_match_its_type(
         {"type": "IN", "quantity": "-1", "reason": "x"},
         {"type": "ADJUSTMENT", "quantity": "1", "reason": "x"},
         {"type": "ADJUSTMENT", "target_quantity": "-1", "reason": "x"},
-        {"type": "IN", "quantity": "1"},
+        # El motivo es obligatorio en salidas y ajustes.
+        {"type": "OUT", "quantity": "1"},
+        {"type": "ADJUSTMENT", "target_quantity": "2"},
+        {"type": "OUT", "quantity": "1", "reason": "   "},
     ]
     for body in bad:
         assert (await client.post(url, json=body)).status_code == 422, body
+
+
+async def test_entry_reason_is_optional_and_its_unit_cost_updates_the_item(
+    client: httpx.AsyncClient, factory: Factory
+) -> None:
+    club = await factory.club()
+    clerk, _ = await factory.staff(club, roles=[StaffRole.STOCK_MANAGER])
+    item = await factory.stock_item(club, quantity=Decimal(5), unit_cost=Decimal("100"))
+    await login_web(client, clerk)
+    url = f"{ITEMS}/{item.id}/movements"
+
+    def cost(response: httpx.Response) -> Decimal:
+        return Decimal(response.json()["item"]["unit_cost"])
+
+    no_cost = await client.post(url, json={"type": "IN", "quantity": "1"})
+    assert no_cost.status_code == 201, no_cost.text
+    assert no_cost.json()["movement"]["reason"] is None
+    assert cost(no_cost) == Decimal("100")  # sin costo informado, se conserva
+
+    restock = await client.post(url, json={"type": "IN", "quantity": "4", "unit_cost": "125.50"})
+    assert restock.status_code == 201, restock.text
+    assert cost(restock) == Decimal("125.50")
+    assert Decimal(restock.json()["movement"]["unit_cost"]) == Decimal("125.50")
+
+    # Solo las entradas fijan el costo del ítem.
+    sale = await client.post(
+        url, json={"type": "OUT", "quantity": "1", "reason": "Venta", "unit_cost": "1"}
+    )
+    assert sale.status_code == 201
+    assert cost(sale) == Decimal("125.50")
+    stats = (await client.get(f"{STOCK}/stats")).json()
+    assert Decimal(stats["inventory_value"]) == Decimal("9") * Decimal("125.50")
 
 
 async def test_concurrent_outs_never_oversell(client: httpx.AsyncClient, factory: Factory) -> None:

@@ -2460,12 +2460,14 @@ export interface components {
         /**
          * MovementCreate
          * @description IN/OUT llevan `quantity` (> 0); ADJUSTMENT lleva `target_quantity` (lo contado).
+         *     El motivo es opcional en las entradas y obligatorio en salidas y ajustes. El `unit_cost`
+         *     de una entrada pasa a ser el costo del ítem.
          */
         MovementCreate: {
             /** Quantity */
             quantity?: number | string | null;
             /** Reason */
-            reason: string;
+            reason?: string | null;
             /** Target Quantity */
             target_quantity?: number | string | null;
             type: components["schemas"]["StockMovementType"];

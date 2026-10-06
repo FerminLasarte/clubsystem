@@ -261,7 +261,9 @@ class StockService:
         reason: str | None,
         unit_cost: Decimal | None,
     ) -> StockMovement:
-        after = await self._add_quantity(item_id, delta)
+        # El costo de una entrada es el costo vigente del ítem.
+        new_cost = unit_cost if type_ == StockMovementType.IN else None
+        after = await self._add_quantity(item_id, delta, new_cost)
         movement = StockMovement(
             club_id=self.ctx.club_id,
             item_id=item_id,
@@ -278,8 +280,16 @@ class StockService:
         await self.db.refresh(movement, ["created_at"])
         return movement
 
-    async def _add_quantity(self, item_id: UUID, delta: Decimal) -> Decimal:
-        """Suma `delta` en la base sin dejar la cantidad negativa. Devuelve la cantidad nueva."""
+    async def _add_quantity(
+        self, item_id: UUID, delta: Decimal, unit_cost: Decimal | None = None
+    ) -> Decimal:
+        """
+        Suma `delta` en la base sin dejar la cantidad negativa y, si viene, fija el costo
+        unitario en el mismo UPDATE. Devuelve la cantidad nueva.
+        """
+        values: dict[str, object] = {"quantity": StockItem.quantity + delta}
+        if unit_cost is not None:
+            values["unit_cost"] = unit_cost
         after = (
             await self.db.execute(
                 update(StockItem)
@@ -289,7 +299,7 @@ class StockService:
                     StockItem.deleted_at.is_(None),
                     StockItem.quantity + delta >= 0,
                 )
-                .values(quantity=StockItem.quantity + delta)
+                .values(values)
                 .returning(StockItem.quantity)
                 .execution_options(synchronize_session=False)
             )

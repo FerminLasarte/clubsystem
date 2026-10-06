@@ -1,7 +1,7 @@
 "use client";
 
 import type { MovementCreate, StockItemOut, StockMovementType } from "@clubsystem/api";
-import { formatQuantity, STOCK_MOVEMENT_TYPE_LABELS } from "@clubsystem/shared";
+import { formatMoney, formatQuantity, STOCK_MOVEMENT_TYPE_LABELS } from "@clubsystem/shared";
 import { useState, type FormEvent } from "react";
 
 import { FormError } from "@/components/shared/form-error";
@@ -31,7 +31,8 @@ const QUANTITY_LABELS: Record<StockMovementType, string> = {
 
 function buildMovement(type: StockMovementType, form: FormData): MovementCreate {
   const amount = String(form.get("amount"));
-  const reason = String(form.get("reason")).trim();
+  // Opcional en entradas; en salidas y ajustes lo exige el backend (y el `required` del campo).
+  const reason = optionalText(form, "reason");
   if (type === "ADJUSTMENT") return { type, target_quantity: amount, reason };
   return { type, quantity: amount, reason, unit_cost: type === "IN" ? optionalText(form, "unit_cost") : null };
 }
@@ -98,14 +99,21 @@ export function MovementDialog({ open, item, onOpenChange }: MovementDialogProps
             hint={type === "ADJUSTMENT" ? "El stock queda exactamente en este valor." : undefined}
           />
           {type === "IN" ? (
-            <FormField id="unit_cost" label="Costo unitario de esta compra ($, opcional)" type="number" min={0} step="0.01" />
+            <FormField
+              id="unit_cost"
+              label="Costo unitario de esta compra ($, opcional)"
+              type="number"
+              min={0}
+              step="0.01"
+              hint={`Si lo completás, pasa a ser el costo del ítem${item?.unit_cost ? ` (hoy ${formatMoney(item.unit_cost)})` : ""}.`}
+            />
           ) : null}
           <div className="grid gap-1.5">
-            <Label htmlFor="reason">Motivo</Label>
+            <Label htmlFor="reason">{type === "IN" ? "Motivo (opcional)" : "Motivo"}</Label>
             <Textarea
               id="reason"
               name="reason"
-              required
+              required={type !== "IN"}
               maxLength={500}
               rows={2}
               placeholder="Ej.: compra a proveedor, rotura, inventario físico…"

@@ -81,12 +81,16 @@ class StockStatsOut(BaseModel):
 
 
 class MovementCreate(BaseModel):
-    """IN/OUT llevan `quantity` (> 0); ADJUSTMENT lleva `target_quantity` (lo contado)."""
+    """
+    IN/OUT llevan `quantity` (> 0); ADJUSTMENT lleva `target_quantity` (lo contado).
+    El motivo es opcional en las entradas y obligatorio en salidas y ajustes. El `unit_cost`
+    de una entrada pasa a ser el costo del ítem.
+    """
 
     type: StockMovementType
     quantity: PositiveQuantity | None = None
     target_quantity: Quantity | None = None
-    reason: Reason
+    reason: Reason | None = None
     unit_cost: Money | None = None
 
     @model_validator(mode="after")
@@ -96,6 +100,8 @@ class MovementCreate(BaseModel):
                 raise ValueError("Un ajuste lleva target_quantity (y no quantity).")
         elif self.quantity is None or self.target_quantity is not None:
             raise ValueError("Una entrada o salida lleva quantity (y no target_quantity).")
+        if self.reason is None and self.type != StockMovementType.IN:
+            raise ValueError("El motivo es obligatorio en salidas y ajustes.")
         return self
 
 
