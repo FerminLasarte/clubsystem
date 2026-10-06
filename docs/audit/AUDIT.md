@@ -1208,6 +1208,7 @@ El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile
 - Tests de frontend: hay e2e de humo (ver `docs/e2e.md`). Playwright prueba el panel en cada PR (job `e2e-web`) y Maestro prueba la app en un simulador de iOS, a mano o cada noche (`e2e-mobile.yml`). Faltan tests de componentes.
 - Endpoint de cotización de precio antes de reservar en el panel.
 - `pnpm audit`: sacar la excepción de las dos CVE de Expo cuando haya versiones parcheadas.
+- Unificar Xcode e iOS: los e2e de la app corren con Xcode 26 en la CI y en un simulador de iOS 26.5 en local (Xcode 27), porque con el SDK de iOS 27 la app no abre sin UIScene. Cuando eso se resuelva, pasar todo a Xcode 27 e iOS 27 y borrar el runtime de iOS 26.5 (pasos en `docs/e2e.md`, "Versiones de Xcode e iOS").
 
 ---
 

@@ -107,6 +107,32 @@ rm -rf apps/mobile/ios
 xcrun simctl delete "ClubSystem E2E (iOS 26)"
 ```
 
+### Versiones de Xcode e iOS (pendiente: unificar)
+
+Hoy conviven tres versiones distintas solo por el problema de UIScene:
+
+| Dónde | Xcode | Simulador de los e2e |
+|---|---|---|
+| Mac de desarrollo | 27 (el único instalado) | iOS 26.5, con un runtime bajado solo para esto (~8.5 GB), en "ClubSystem E2E (iOS 26)" |
+| CI (`e2e-mobile.yml`) | 26, fijado con `xcode-version: "26"` | El iOS 26.x que trae ese Xcode |
+
+Cuando la app abra en iOS 27 (por el plugin de UIScene o actualizando a Expo SDK 58), se unifica
+todo en Xcode 27 e iOS 27:
+1. Correr `E2E_REBUILD=1 apps/mobile/e2e/run-ios.sh` sin `E2E_IOS_RUNTIME`. Crea "ClubSystem
+   E2E" con iOS 27 y tiene que pasar.
+2. En `e2e-mobile.yml`, volver a `xcode-version: latest-stable` cuando el runner tenga Xcode 27.
+3. Sacar de este documento la nota de iOS 27 y la opción `E2E_IOS_RUNTIME=26`.
+4. Borrar lo que quedó de iOS 26 en la Mac:
+
+```bash
+xcrun simctl delete "ClubSystem E2E (iOS 26)"
+```
+```bash
+xcrun simctl runtime delete 22655E21-91F6-4B57-9E27-4A6CC6AF0423
+```
+
+El id del segundo comando es el runtime de iOS 26.5 (sale de `xcrun simctl runtime list`).
+
 ### En GitHub Actions
 
 `.github/workflows/e2e-mobile.yml` corre el mismo script en un runner `macos-26` con Xcode 26.
