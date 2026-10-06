@@ -1198,12 +1198,12 @@ El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile
 | 8 | Exports CSV de caja (día o rango) y de cuotas (mes) | ✅ | `GET /admin/cash/export.csv` y `/admin/fees/export.csv` con `core/csv.py`. Diálogo de rango en Caja y `ExportButton` en Cuotas |
 | 9 | Sin ingresos nuevos sobre una reserva cancelada; devoluciones sí | ✅ | 422 `reservation_cancelled` en `CashService.create` |
 | 10 | Email con Resend | ✅ (falta el dominio) | Ver SEC-09 |
-| 11 | Hosting: Vercel (web), Render (API) y Neon (Postgres) | ⏳ | No hay nada contratado |
+| 11 | Hosting: Vercel (web), Render (API) y Supabase (Postgres) | ⏳ | No hay nada contratado. Supabase reemplaza a Neon (2026-10-06): para esta app el costo es similar, porque los jobs cada 60 s impiden que Neon escale a cero, y el equipo ya conoce Supabase. Se usa **solo como Postgres**: ni Supabase Auth ni `supabase-js` desde los clientes. Storage queda como opción para imágenes. Antes de contratar hay que verificar que el rol `postgres` pueda crear el dueño con `BYPASSRLS` y el rol de app, y conectar desde Render por el pooler en modo sesión (puerto 5432), no en modo transacción (6543), por las prepared statements de asyncpg |
 | 12 | Integración por PR contra `main` con CI en verde | ✅ | PR #2 en verde, sin mergear |
 
 **Pendientes técnicos:**
 - Verificar el dominio de envío en Resend y cargar `RESEND_API_KEY` y `EMAIL_FROM` reales (pasos en el README). El envío real todavía no se probó contra la API de Resend: los tests la simulan.
-- Contratar y configurar el hosting (decisión 11), con las migraciones como paso aparte del deploy y los roles de base del README.
+- Contratar y configurar el hosting (decisión 11: Vercel, Render y Supabase), con las migraciones como paso aparte del deploy y los roles de base del README. Primero, una prueba con un proyecto gratis de Supabase: roles, RLS y conexión desde Render.
 - Rate limit por identificador con storage compartido (SEC-06).
 - Tests de frontend: no hay. Se recomienda un e2e de humo con Playwright para la web y Maestro para mobile. Los cambios de mobile de esta etapa (login y cancelación) se verificaron con `tsc`, `eslint`, el bundle de iOS y la API, no en un simulador.
 - Endpoint de cotización de precio antes de reservar en el panel.
