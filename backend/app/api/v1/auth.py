@@ -111,6 +111,7 @@ def _staff_club_out(staff: ClubStaff, club: Club) -> StaffClubOut:
         logo_url=club.logo_url,
         primary_color=club.primary_color,
         accent_color=club.accent_color,
+        timezone=club.timezone,
         roles=list(staff.roles),  # type: ignore[arg-type]
     )
 

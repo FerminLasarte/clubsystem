@@ -1882,6 +1882,8 @@ export interface components {
             roles: components["schemas"]["StaffRole"][];
             /** Slug */
             slug: string;
+            /** Timezone */
+            timezone: string;
         };
         /** StaffMemberOut */
         StaffMemberOut: {

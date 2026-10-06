@@ -77,6 +77,7 @@ class StaffClubOut(BaseModel):
     logo_url: str | None
     primary_color: str
     accent_color: str
+    timezone: str
     roles: list[StaffRole]
 
 

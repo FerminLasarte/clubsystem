@@ -2880,6 +2880,10 @@
           "slug": {
             "title": "Slug",
             "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
           }
         },
         "required": [
@@ -2889,6 +2893,7 @@
           "logo_url",
           "primary_color",
           "accent_color",
+          "timezone",
           "roles"
         ],
         "title": "StaffClubOut",
