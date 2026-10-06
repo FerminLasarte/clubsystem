@@ -51,14 +51,14 @@ _AUTH_COOKIE_PATH = "/api/v1/auth"
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
 
-def _client_info(request: Request) -> ClientInfo:
+def client_info(request: Request) -> ClientInfo:
     return ClientInfo(
         user_agent=request.headers.get("user-agent"),
         ip=request.client.host if request.client else None,
     )
 
 
-def _set_cookies(response: Response, *, access: str, refresh: str | None = None) -> None:
+def set_session_cookies(response: Response, *, access: str, refresh: str | None = None) -> None:
     settings = get_settings()
     response.set_cookie(
         ACCESS_COOKIE,
@@ -101,7 +101,9 @@ def _staff_club_out(staff: ClubStaff, club: Club) -> StaffClubOut:
     )
 
 
-async def _web_session(service: AuthService, user: User, active_club_id: UUID) -> WebSessionOut:
+async def build_web_session(
+    service: AuthService, user: User, active_club_id: UUID
+) -> WebSessionOut:
     clubs = await service.staff_clubs(user)
     active = next(((s, c) for s, c in clubs if c.id == active_club_id), None)
     if active is None:
@@ -153,10 +155,10 @@ async def web_login(
         raise Forbidden("Tu cuenta no tiene acceso a ningún panel de club.", code="no_staff")
     _, club = service.default_club(clubs)
     tokens = await service.start_session(
-        user, client="web", club_id=club.id, info=_client_info(request)
+        user, client="web", club_id=club.id, info=client_info(request)
     )
-    _set_cookies(response, access=tokens.access_token, refresh=tokens.refresh_token)
-    return await _web_session(service, user, club.id)
+    set_session_cookies(response, access=tokens.access_token, refresh=tokens.refresh_token)
+    return await build_web_session(service, user, club.id)
 
 
 @router.post("/web/refresh", response_model=WebSessionOut)
@@ -166,7 +168,7 @@ async def web_refresh(request: Request, response: Response, session: SessionDep)
     if not raw:
         raise Unauthorized("Necesitás iniciar sesión.")
     service = AuthService(session)
-    user, tokens = await service.refresh(raw, client="web", info=_client_info(request))
+    user, tokens = await service.refresh(raw, client="web", info=client_info(request))
     club_id = tokens.session.active_club_id
     if club_id is None:
         clubs = await service.staff_clubs(user)
@@ -180,15 +182,15 @@ async def web_refresh(request: Request, response: Response, session: SessionDep)
             refresh_token=tokens.refresh_token,
             session=tokens.session,
         )
-    _set_cookies(response, access=tokens.access_token, refresh=tokens.refresh_token)
-    return await _web_session(service, user, club_id)
+    set_session_cookies(response, access=tokens.access_token, refresh=tokens.refresh_token)
+    return await build_web_session(service, user, club_id)
 
 
 @router.get("/web/session", response_model=WebSessionOut)
-async def web_session(
+async def get_web_session(
     ctx: Annotated[StaffContext, Depends(get_staff_context)], session: SessionDep
 ) -> WebSessionOut:
-    return await _web_session(AuthService(session), ctx.user, ctx.club.id)
+    return await build_web_session(AuthService(session), ctx.user, ctx.club.id)
 
 
 @router.post("/web/switch-club", response_model=WebSessionOut)
@@ -199,8 +201,8 @@ async def web_switch_club(
         raise Forbidden("Solo disponible en el panel.")
     service = AuthService(session)
     access = await service.switch_club(auth.user, auth.claims.session_id, body.club_id)
-    _set_cookies(response, access=access)
-    return await _web_session(service, auth.user, body.club_id)
+    set_session_cookies(response, access=access)
+    return await build_web_session(service, auth.user, body.club_id)
 
 
 # ── App mobile ──────────────────────────────────────────────────────────────
@@ -213,7 +215,7 @@ async def mobile_login(
 ) -> MobileSessionOut:
     service = AuthService(session)
     user = await service.authenticate(body.identifier, body.password)
-    tokens = await service.start_session(user, client="mobile", info=_client_info(request))
+    tokens = await service.start_session(user, client="mobile", info=client_info(request))
     return await _mobile_session(service, user, tokens)
 
 
@@ -223,7 +225,7 @@ async def mobile_refresh(
     request: Request, body: RefreshRequest, session: SessionDep
 ) -> MobileTokensOut:
     _, tokens = await AuthService(session).refresh(
-        body.refresh_token, client="mobile", info=_client_info(request)
+        body.refresh_token, client="mobile", info=client_info(request)
     )
     return MobileTokensOut(access_token=tokens.access_token, refresh_token=tokens.refresh_token)
 
@@ -249,7 +251,7 @@ async def register(
 ) -> MobileSessionOut:
     service = AuthService(session)
     user = await service.register(body)
-    tokens = await service.start_session(user, client="mobile", info=_client_info(request))
+    tokens = await service.start_session(user, client="mobile", info=client_info(request))
     return await _mobile_session(service, user, tokens)
 
 

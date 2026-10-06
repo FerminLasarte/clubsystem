@@ -98,6 +98,9 @@ class ClubStaff(UUIDPk, Timestamps, Base):
     invited_by_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
     )
+    # Invitación pendiente: el link del email lleva el token; acá solo su hash.
+    invite_token_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
+    invite_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     club: Mapped[Club] = relationship(lazy="raise")
     user: Mapped[User | None] = relationship(foreign_keys=[user_id], lazy="raise")

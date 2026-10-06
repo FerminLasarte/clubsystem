@@ -112,6 +112,8 @@ def upgrade() -> None:
     sa.Column('roles', sa.ARRAY(sa.String(length=30)), nullable=False),
     sa.Column('status', sa.Enum('INVITED', 'ACTIVE', 'REVOKED', name='staff_status', native_enum=False, create_constraint=True), nullable=False),
     sa.Column('invited_by_id', sa.UUID(), nullable=True),
+    sa.Column('invite_token_hash', sa.String(length=64), nullable=True),
+    sa.Column('invite_expires_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -121,6 +123,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['club_id'], ['clubs.id'], name=op.f('fk_club_staff_club_id_clubs'), ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['invited_by_id'], ['users.id'], name=op.f('fk_club_staff_invited_by_id_users'), ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], name=op.f('fk_club_staff_user_id_users'), ondelete='CASCADE'),
+    sa.UniqueConstraint('invite_token_hash', name=op.f('uq_club_staff_invite_token_hash')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_club_staff')),
     sa.UniqueConstraint('club_id', 'email', name=op.f('uq_club_staff_club_id_email'))
     )
@@ -392,7 +395,17 @@ def _create_rls() -> None:
            WHERE user_id = app_current_user_id() AND status = 'APPROVED' $$
     """)
     op.execute("REVOKE ALL ON FUNCTION app_member_club_ids() FROM PUBLIC")
+    # Resuelve el club de una invitación pendiente a partir del hash del token del email
+    # (endpoint público: todavía no hay contexto de tenant para leer club_staff).
+    op.execute("""
+        CREATE FUNCTION app_invitation_club(token_hash text) RETURNS uuid
+        LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
+        $$ SELECT club_id FROM club_staff
+           WHERE invite_token_hash = token_hash AND status = 'INVITED' $$
+    """)
+    op.execute("REVOKE ALL ON FUNCTION app_invitation_club(text) FROM PUBLIC")
     op.execute(f"GRANT EXECUTE ON FUNCTION app_member_club_ids() TO {app_role}")
+    op.execute(f"GRANT EXECUTE ON FUNCTION app_invitation_club(text) TO {app_role}")
 
     tenant_read = "club_id = app_current_club_id()"
     write_check = "club_id = app_current_club_id()"
@@ -483,6 +496,7 @@ def downgrade() -> None:
     op.drop_table('clubs')
     # ### end Alembic commands ###
     op.execute(
-        "DROP FUNCTION IF EXISTS app_member_club_ids(), app_current_user_id(),"
+        "DROP FUNCTION IF EXISTS app_member_club_ids(), app_invitation_club(text),"
+        " app_current_user_id(),"
         " app_current_club_id(), app_current_user_email()"
     )

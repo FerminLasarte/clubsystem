@@ -25,6 +25,7 @@ from app.core.security import AccessClaims, decode_access_token
 from app.domain.enums import MembershipStatus, StaffStatus
 from app.domain.permissions import Permission, permissions_for
 from app.models import AuthSession, Club, ClubMembership, ClubStaff, User
+from app.services.context import MemberContext, StaffContext
 
 ACCESS_COOKIE = "cs_access"
 REFRESH_COOKIE = "cs_refresh"
@@ -41,29 +42,6 @@ SessionDep = Annotated[AsyncSession, Depends(get_session, scope="function")]
 class AuthContext:
     user: User
     claims: AccessClaims
-
-
-@dataclass(frozen=True)
-class StaffContext:
-    user: User
-    club: Club
-    roles: list[str]
-    permissions: frozenset[Permission]
-
-    @property
-    def club_id(self) -> UUID:
-        return self.club.id
-
-    @property
-    def user_id(self) -> UUID:
-        return self.user.id
-
-
-@dataclass(frozen=True)
-class MemberContext:
-    user: User
-    club: Club
-    membership: ClubMembership
 
 
 def _extract_token(request: Request) -> str:
