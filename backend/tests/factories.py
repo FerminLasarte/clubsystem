@@ -11,11 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.enums import (
     CustomerType,
     MembershipStatus,
+    PaymentMethod,
     ReservationSource,
     ReservationStatus,
     Sport,
     StaffRole,
     StaffStatus,
+    TransactionType,
 )
 from app.models import (
     Club,
@@ -23,6 +25,7 @@ from app.models import (
     ClubStaff,
     Court,
     MembershipPlan,
+    Payment,
     Reservation,
     StockItem,
     User,
@@ -133,6 +136,18 @@ class Factory:
         n = next(_seq)
         defaults: dict[str, object] = {"club_id": club.id, "name": f"Item {n}"}
         return await self._save(StockItem(**{**defaults, **kw}))
+
+    async def payment(self, reservation: Reservation, amount: str, **kw: object) -> Payment:
+        defaults: dict[str, object] = {
+            "club_id": reservation.club_id,
+            "reservation_id": reservation.id,
+            "type": TransactionType.INCOME,
+            "amount": Decimal(amount),
+            "method": PaymentMethod.CASH,
+            "description": "Cobro de reserva",
+            "occurred_at": datetime.now(UTC),
+        }
+        return await self._save(Payment(**{**defaults, **kw}))
 
 
 async def login_web(client: httpx.AsyncClient, user: User) -> httpx.Response:
