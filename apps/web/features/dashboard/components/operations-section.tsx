@@ -35,14 +35,16 @@ export function OperationsSection() {
         <StatCard label="Canchas activas" value={data?.active_courts} icon={Volleyball} />
         <StatCard
           label="Solicitudes de socios"
-          value={data?.pending_membership_requests}
+          value={data ? (data.pending_membership_requests ?? "—") : undefined}
           icon={UserPlus}
-          tone={data && data.pending_membership_requests > 0 ? "warning" : "neutral"}
+          tone={(data?.pending_membership_requests ?? 0) > 0 ? "warning" : "neutral"}
         />
       </div>
       {data ? (
         <div className="grid gap-4 lg:grid-cols-3">
-          <UpcomingReservations reservations={data.upcoming_reservations} className="lg:col-span-2" />
+          {data.upcoming_reservations ? (
+            <UpcomingReservations reservations={data.upcoming_reservations} className="lg:col-span-2" />
+          ) : null}
           <AttentionCard pendingRequests={data.pending_membership_requests} lowStock={data.low_stock} />
         </div>
       ) : (

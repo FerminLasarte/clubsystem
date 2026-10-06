@@ -38,7 +38,6 @@ export function MemberCreateDialog() {
         first_name: String(form.get("first_name")),
         last_name: String(form.get("last_name")),
         phone: optionalText(form.get("phone")),
-        dni: optionalText(form.get("dni")),
         plan_id: planIdFrom(form.get("plan_id")),
         member_number: optionalText(form.get("member_number")),
       },
@@ -50,15 +49,16 @@ export function MemberCreateDialog() {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button>
-          <UserPlus className="size-4" aria-hidden /> Agregar socio
+          <UserPlus className="size-4" aria-hidden /> Invitar socio
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Agregar socio</DialogTitle>
+          <DialogTitle>Invitar socio</DialogTitle>
           <DialogDescription>
-            Si el email ya tiene una cuenta, la vinculamos al club sin modificar sus datos personales. Si no, creamos la
-            cuenta y le enviamos un email para que elija su contraseña.
+            Le enviamos una invitación por email y queda como socio cuando la acepta desde la app. Si todavía no tiene
+            cuenta, la creamos con el nombre y teléfono que cargues y le pedimos que elija su contraseña. Sus datos
+            personales (DNI, etc.) los completa la persona en su perfil.
           </DialogDescription>
         </DialogHeader>
         <form id="member-create-form" onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
@@ -69,14 +69,6 @@ export function MemberCreateDialog() {
             <FormField id="first_name" label="Nombre" required maxLength={100} />
             <FormField id="last_name" label="Apellido" required maxLength={100} />
             <FormField id="phone" label="Teléfono" type="tel" maxLength={50} />
-            <FormField
-              id="dni"
-              label="DNI"
-              inputMode="numeric"
-              pattern="\d{6,10}"
-              title="Entre 6 y 10 dígitos, sin puntos"
-              hint="Solo números, sin puntos."
-            />
             <PlanSelect id="plan_id" />
             <FormField id="member_number" label="N° de socio" maxLength={50} />
           </fieldset>
@@ -84,7 +76,7 @@ export function MemberCreateDialog() {
         <FormError error={create.error} />
         <DialogFooter>
           <Button type="submit" form="member-create-form" disabled={create.isPending}>
-            {create.isPending ? "Agregando…" : "Agregar socio"}
+            {create.isPending ? "Enviando…" : "Enviar invitación"}
           </Button>
         </DialogFooter>
       </DialogContent>

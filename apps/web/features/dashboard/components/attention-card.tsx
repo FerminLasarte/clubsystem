@@ -11,7 +11,8 @@ import { useActiveSession } from "@/features/auth/api";
 const quantity = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 });
 
 interface AttentionCardProps {
-  pendingRequests: number;
+  /** null si el rol no puede ver socios. */
+  pendingRequests: number | null;
   /** null cuando el rol no puede ver stock. */
   lowStock: LowStockOut | null;
 }
@@ -55,18 +56,20 @@ export function AttentionCard({ pendingRequests, lowStock }: AttentionCardProps)
         <CardTitle>Para atender</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-6">
-        <div className="flex items-center justify-between gap-2">
-          <p className="font-medium">
-            {pendingRequests === 0
-              ? "Sin solicitudes de socios pendientes"
-              : `${pendingRequests} ${pendingRequests === 1 ? "solicitud pendiente" : "solicitudes pendientes"}`}
-          </p>
-          {pendingRequests > 0 && canSeeMembers ? (
-            <Button variant="link" size="sm" asChild>
-              <Link href="/members?status=PENDING">Revisar</Link>
-            </Button>
-          ) : null}
-        </div>
+        {pendingRequests !== null ? (
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-medium">
+              {pendingRequests === 0
+                ? "Sin solicitudes de socios pendientes"
+                : `${pendingRequests} ${pendingRequests === 1 ? "solicitud pendiente" : "solicitudes pendientes"}`}
+            </p>
+            {pendingRequests > 0 && canSeeMembers ? (
+              <Button variant="link" size="sm" asChild>
+                <Link href="/members?tab=requests">Revisar</Link>
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         {lowStock ? <LowStock lowStock={lowStock} /> : null}
       </CardContent>
     </Card>

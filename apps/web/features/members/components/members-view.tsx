@@ -11,6 +11,7 @@ import { useActiveSession } from "@/features/auth/api";
 import { membersExportUrl, useMemberStats } from "@/features/members/api";
 import { MEMBER_TABS, useMembersUrlState, type MemberFiltersPatch, type MemberTab } from "@/features/members/hooks";
 
+import { InvitationsTab } from "./invitations-tab";
 import { MemberCreateDialog } from "./member-create-dialog";
 import { MemberStats } from "./member-stats";
 import { MembersTab } from "./members-tab";
@@ -23,8 +24,10 @@ function isMemberTab(value: string): value is MemberTab {
 
 export function MembersView() {
   const { permissions } = useActiveSession();
-  const { tab, filters, page, requestsPage, update } = useMembersUrlState();
-  const pendingCount = useMemberStats().data?.pending ?? 0;
+  const { tab, filters, page, requestsPage, invitationsPage, update } = useMembersUrlState();
+  const stats = useMemberStats().data;
+  const pendingCount = stats?.pending ?? 0;
+  const invitedCount = stats?.invited ?? 0;
   const canWrite = permissions.includes("members:write");
 
   const onFiltersChange = useCallback((patch: MemberFiltersPatch) => update({ ...patch, page: null }), [update]);
@@ -57,6 +60,14 @@ export function MembersView() {
               </Badge>
             ) : null}
           </TabsTrigger>
+          <TabsTrigger value="invitations">
+            Invitaciones
+            {invitedCount > 0 ? (
+              <Badge variant="secondary" className="tabular" aria-label={`${invitedCount} sin responder`}>
+                {invitedCount}
+              </Badge>
+            ) : null}
+          </TabsTrigger>
           <TabsTrigger value="plans">Planes</TabsTrigger>
         </TabsList>
         <TabsContent value="members" className="grid gap-6 pt-4">
@@ -74,6 +85,13 @@ export function MembersView() {
             page={requestsPage}
             canWrite={canWrite}
             onPageChange={(next) => update({ rpage: String(next) })}
+          />
+        </TabsContent>
+        <TabsContent value="invitations" className="pt-4">
+          <InvitationsTab
+            page={invitationsPage}
+            canWrite={canWrite}
+            onPageChange={(next) => update({ ipage: String(next) })}
           />
         </TabsContent>
         <TabsContent value="plans" className="pt-4">

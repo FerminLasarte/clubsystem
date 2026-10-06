@@ -26,6 +26,7 @@ const keys = {
   list: (filters: MemberListFilters, page: number) => ["members", "list", filters, page] as const,
   stats: ["members", "stats"] as const,
   requests: (page: number) => ["members", "requests", page] as const,
+  invitations: (page: number) => ["members", "invitations", page] as const,
   plans: ["members", "plans"] as const,
 };
 
@@ -63,9 +64,10 @@ export function useCreateMember() {
   const invalidate = useInvalidateMembers();
   return useMutation({
     mutationFn: (body: MemberCreate) => unwrap(api.POST("/api/v1/admin/members", { body })),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void invalidate();
-      toast.success("Socio agregado");
+      // Si la persona ya había pedido ser socia, la invitación la aprueba directamente.
+      toast.success(result.status === "APPROVED" ? "Solicitud aprobada" : "Invitación enviada");
     },
     meta: { silent: true },
   });
@@ -79,6 +81,31 @@ export function useUpdateMember({ silent = false }: { silent?: boolean } = {}) {
       unwrap(api.PATCH("/api/v1/admin/members/{membership_id}", { params: { path: { membership_id: id } }, body })),
     onSuccess: () => void invalidate(),
     meta: { silent },
+  });
+}
+
+// ── Invitaciones ────────────────────────────────────────────────────────────
+
+export function useMemberInvitations(page: number) {
+  return useQuery({
+    queryKey: keys.invitations(page),
+    queryFn: () =>
+      unwrap(api.GET("/api/v1/admin/members/invitations", { params: { query: { page, page_size: PAGE_SIZE } } })),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useCancelInvitation() {
+  const invalidate = useInvalidateMembers();
+  return useMutation({
+    mutationFn: (id: string) =>
+      unwrap(
+        api.DELETE("/api/v1/admin/members/invitations/{membership_id}", { params: { path: { membership_id: id } } }),
+      ),
+    onSuccess: () => {
+      void invalidate();
+      toast.success("Invitación cancelada");
+    },
   });
 }
 

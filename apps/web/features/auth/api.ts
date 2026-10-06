@@ -80,7 +80,8 @@ export function useVerifyEmail() {
 export function useInvitation(token: string) {
   return useQuery({
     queryKey: ["invitation", token],
-    queryFn: () => unwrap(api.GET("/api/v1/invitations/{token}", { params: { path: { token } } })),
+    // POST: el token no viaja en la URL (logs de acceso).
+    queryFn: () => unwrap(api.POST("/api/v1/invitations/preview", { body: { token } })),
     retry: false,
   });
 }

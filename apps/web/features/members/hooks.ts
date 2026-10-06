@@ -4,15 +4,15 @@ import { useCallback } from "react";
 
 import type { MemberListFilters } from "./api";
 
-export const MEMBER_TABS = ["members", "requests", "plans"] as const;
+export const MEMBER_TABS = ["members", "requests", "invitations", "plans"] as const;
 export type MemberTab = (typeof MEMBER_TABS)[number];
 
 /** Estados que se filtran en la tabla de socios (las solicitudes tienen su pestaña). */
 export const MEMBER_FILTER_STATUSES = ["APPROVED", "INACTIVE"] as const satisfies readonly MembershipStatus[];
 type MemberFilterStatus = (typeof MEMBER_FILTER_STATUSES)[number];
 
-/** Parámetros de la URL: `tab`, `q`, `status`, `plan`, `page`, `rpage` (página de solicitudes). */
-type UrlPatch = Partial<Record<"tab" | "q" | "status" | "plan" | "page" | "rpage", string | null>>;
+/** Parámetros de la URL: `tab`, `q`, `status`, `plan`, `page`, `rpage` (solicitudes), `ipage` (invitaciones). */
+type UrlPatch = Partial<Record<"tab" | "q" | "status" | "plan" | "page" | "rpage" | "ipage", string | null>>;
 export type MemberFiltersPatch = Pick<UrlPatch, "q" | "status" | "plan">;
 
 function isOneOf<T extends string>(value: string | null, options: readonly T[]): value is T {
@@ -58,6 +58,7 @@ export function useMembersUrlState() {
     filters,
     page: pageParam(params.get("page")),
     requestsPage: pageParam(params.get("rpage")),
+    invitationsPage: pageParam(params.get("ipage")),
     update,
   };
 }

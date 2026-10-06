@@ -361,8 +361,11 @@ export interface paths {
         /** List Members */
         get: operations["list_members_api_v1_admin_members_get"];
         put?: never;
-        /** Create Member */
-        post: operations["create_member_api_v1_admin_members_post"];
+        /**
+         * Invite Member
+         * @description Invita a ser socio. La persona acepta desde la app (o ya lo había pedido).
+         */
+        post: operations["invite_member_api_v1_admin_members_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -381,6 +384,40 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/members/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Invitations */
+        get: operations["list_invitations_api_v1_admin_members_invitations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/members/invitations/{membership_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Cancel Invitation */
+        delete: operations["cancel_invitation_api_v1_admin_members_invitations__membership_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1084,17 +1121,17 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/invitations/{token}": {
+    "/api/v1/invitations/preview": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Preview */
-        get: operations["preview_api_v1_invitations__token__get"];
+        get?: never;
         put?: never;
-        post?: never;
+        /** Preview */
+        post: operations["preview_api_v1_invitations_preview_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1258,6 +1295,40 @@ export interface paths {
         get: operations["my_memberships_api_v1_mobile_memberships_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mobile/memberships/{membership_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept Invitation */
+        post: operations["accept_invitation_api_v1_mobile_memberships__membership_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mobile/memberships/{membership_id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decline Invitation */
+        post: operations["decline_invitation_api_v1_mobile_memberships__membership_id__decline_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1697,11 +1768,11 @@ export interface components {
             /** Occupancy Pct */
             occupancy_pct: string;
             /** Pending Membership Requests */
-            pending_membership_requests: number;
+            pending_membership_requests: number | null;
             /** Reservations Today */
             reservations_today: number;
             /** Upcoming Reservations */
-            upcoming_reservations: components["schemas"]["UpcomingReservation"][];
+            upcoming_reservations: components["schemas"]["UpcomingReservation"][] | null;
         };
         /**
          * ExpenseCategory
@@ -2028,10 +2099,12 @@ export interface components {
             sport: components["schemas"]["Sport"];
             surface: components["schemas"]["CourtSurface"] | null;
         };
-        /** MemberCreate */
+        /**
+         * MemberCreate
+         * @description Invitación a ser socio. Nombre y teléfono solo se usan si la persona no tiene cuenta.
+         *     El DNI lo carga la persona en su perfil: es dato de identidad, no del club.
+         */
         MemberCreate: {
-            /** Dni */
-            dni?: string | null;
             /**
              * Email
              * Format: email
@@ -2049,6 +2122,26 @@ export interface components {
             phone?: string | null;
             /** Plan Id */
             plan_id?: string | null;
+        };
+        /**
+         * MemberInvitationOut
+         * @description Resultado de invitar. Es igual exista o no una cuenta con ese email: el club no
+         *     ve datos de identidad de nadie hasta que la persona acepta.
+         */
+        MemberInvitationOut: {
+            /** Email */
+            email: string;
+            /** Invited At */
+            invited_at: string | null;
+            /** Member Number */
+            member_number: string | null;
+            /**
+             * Membership Id
+             * Format: uuid
+             */
+            membership_id: string;
+            plan: components["schemas"]["PlanSummaryOut"] | null;
+            status: components["schemas"]["MembershipStatus"];
         };
         /**
          * MemberNewsOut
@@ -2160,6 +2253,8 @@ export interface components {
             approved: number;
             /** Inactive */
             inactive: number;
+            /** Invited */
+            invited: number;
             /** Joined This Month */
             joined_this_month: number;
             /** Pending */
@@ -2187,7 +2282,7 @@ export interface components {
          * MembershipStatus
          * @enum {string}
          */
-        MembershipStatus: "PENDING" | "APPROVED" | "REJECTED" | "INACTIVE";
+        MembershipStatus: "INVITED" | "PENDING" | "APPROVED" | "REJECTED" | "INACTIVE";
         /** MembershipSummaryOut */
         MembershipSummaryOut: {
             /**
@@ -2420,6 +2515,17 @@ export interface components {
         Page_FeeOut_: {
             /** Items */
             items: components["schemas"]["FeeOut"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[MemberInvitationOut] */
+        Page_MemberInvitationOut_: {
+            /** Items */
+            items: components["schemas"]["MemberInvitationOut"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -3179,6 +3285,7 @@ export type LowStockItem = components['schemas']['LowStockItem'];
 export type LowStockOut = components['schemas']['LowStockOut'];
 export type MemberCourtOut = components['schemas']['MemberCourtOut'];
 export type MemberCreate = components['schemas']['MemberCreate'];
+export type MemberInvitationOut = components['schemas']['MemberInvitationOut'];
 export type MemberNewsOut = components['schemas']['MemberNewsOut'];
 export type MemberOut = components['schemas']['MemberOut'];
 export type MemberPersonOut = components['schemas']['MemberPersonOut'];
@@ -3203,6 +3310,7 @@ export type NewsCreate = components['schemas']['NewsCreate'];
 export type NewsOut = components['schemas']['NewsOut'];
 export type PageExpenseOut = components['schemas']['Page_ExpenseOut_'];
 export type PageFeeOut = components['schemas']['Page_FeeOut_'];
+export type PageMemberInvitationOut = components['schemas']['Page_MemberInvitationOut_'];
 export type PageMemberNewsOut = components['schemas']['Page_MemberNewsOut_'];
 export type PageMemberOut = components['schemas']['Page_MemberOut_'];
 export type PageMovementOut = components['schemas']['Page_MovementOut_'];
@@ -4069,7 +4177,7 @@ export interface operations {
             };
         };
     };
-    create_member_api_v1_admin_members_post: {
+    invite_member_api_v1_admin_members_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4088,7 +4196,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MemberOut"];
+                    "application/json": components["schemas"]["MemberInvitationOut"];
                 };
             };
             /** @description Validation Error */
@@ -4123,6 +4231,67 @@ export interface operations {
                 content: {
                     "text/csv": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_invitations_api_v1_admin_members_invitations_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MemberInvitationOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_invitation_api_v1_admin_members_invitations__membership_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                membership_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -5592,16 +5761,18 @@ export interface operations {
             };
         };
     };
-    preview_api_v1_invitations__token__get: {
+    preview_api_v1_invitations_preview_post: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                token: string;
-            };
+            path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -5931,6 +6102,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyMembershipOut"][];
+                };
+            };
+        };
+    };
+    accept_invitation_api_v1_mobile_memberships__membership_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                membership_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyMembershipOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decline_invitation_api_v1_mobile_memberships__membership_id__decline_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                membership_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
