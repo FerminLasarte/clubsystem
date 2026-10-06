@@ -75,3 +75,18 @@ La CI (`.github/workflows/ci.yml`) corre en cada PR:
 - **Auth**: access token de 15 minutos y refresh rotativo con detección de reuso. Los roles se leen de la base en cada request.
 - **Backend**: routers delgados → services (una transacción por request) → `get_scoped`/queries con `club_id`. Las reglas puras viven en `domain/`.
 - **Frontends**: `app/` contiene solo rutas. Cada dominio vive en `features/<dominio>/`. Los datos se obtienen con TanStack Query a través del cliente generado.
+
+## Antes de producción
+
+Estas tareas no se pueden resolver con código del repo y quedan pendientes:
+
+- **Proveedor de email.** `EMAIL_BACKEND=console` solo sirve en desarrollo, y en producción la app no arranca con ese valor. Hay que implementar el envío real en `backend/app/services/email.py`: verificación de email, reset de contraseña e invitaciones dependen de eso.
+- **Proxy y rate limiting.** El límite de intentos es por IP y en memoria del proceso.
+  - Detrás de un proxy, Next o un balanceador, levantá uvicorn con `--proxy-headers --forwarded-allow-ips=<IP del proxy>`. Si no, todas las requests comparten una sola IP.
+  - Con varias réplicas, configurá un storage compartido (Redis) en `app/api/rate_limit.py`.
+- **Roles de base de datos.** Creá dos roles:
+  - uno dueño del esquema, con `BYPASSRLS`, que ejecuta las migraciones y los scripts;
+  - uno para la app, sin ownership y sin `BYPASSRLS`, al que las migraciones le dan permisos (`DB_APP_ROLE`).
+
+  Las migraciones se corren como paso aparte del deploy, nunca al arrancar la app.
+- **Secretos.** Configurá `JWT_SECRET_KEY` (32 caracteres o más, aleatorio) y `ANTHROPIC_API_KEY`, esta última si se usan las explicaciones de anomalías. Verificá `CORS_ORIGINS` y `COOKIE_SECURE=true`.
