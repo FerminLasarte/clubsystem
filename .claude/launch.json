@@ -6,7 +6,7 @@
       "runtimeExecutable": "bash",
       "runtimeArgs": [
         "-c",
-        "cd backend && ENV=${CS_ENV:-development} .venv/bin/uvicorn app.main:app --port 8000"
+        "cd backend && .venv/bin/uvicorn app.main:app --reload --port 8000"
       ],
       "port": 8000
     },
@@ -18,15 +18,6 @@
         "cd apps/web && npx next dev -p 3000"
       ],
       "port": 3000
-    },
-    {
-      "name": "backend-sin-jobs",
-      "runtimeExecutable": "bash",
-      "runtimeArgs": [
-        "-c",
-        "cd backend && ENV=test .venv/bin/uvicorn app.main:app --port 8000"
-      ],
-      "port": 8000
     }
   ]
 }
