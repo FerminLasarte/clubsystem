@@ -25,6 +25,8 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 3s --health-retries 20
     env:
+      # Sin ENV, Settings asume producción y exige proveedor de email real.
+      ENV: test
       PGPASSWORD: postgres
       DATABASE_URL: postgresql+asyncpg://clubsystem_app:app@localhost:5432/clubsystem
       MIGRATIONS_DATABASE_URL: postgresql+asyncpg://clubsystem_owner:owner@localhost:5432/clubsystem
