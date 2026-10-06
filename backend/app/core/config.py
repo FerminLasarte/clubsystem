@@ -42,6 +42,15 @@ class Settings(BaseSettings):
 
     # Rate limiting de endpoints de autenticación
     AUTH_RATE_LIMIT: str = "10/minute"
+    # Contadores del rate limit. memory:// alcanza con una sola instancia; con varias,
+    # un Redis compartido de la plataforma, p. ej. redis://redis.railway.internal:6379.
+    RATE_LIMIT_STORAGE_URI: str = "memory://"
+    # Header con la IP del cliente que fija el proxy de la plataforma, pisando lo que mande el
+    # cliente (Railway: x-real-ip). Sin él se usa la IP de la conexión.
+    TRUSTED_IP_HEADER: str | None = None
+    # Secreto compartido con el proxy de Next (Vercel), que manda la IP real del usuario
+    # del panel (ver api/rate_limit.py). Obligatorio en producción.
+    PROXY_SHARED_SECRET: SecretStr | None = None
 
     # Emails transaccionales (verificación, reset de contraseña, invitaciones).
     # console: solo desarrollo (loguea el cuerpo); disabled: no envía; resend: API de Resend.
@@ -74,8 +83,32 @@ class Settings(BaseSettings):
             raise ValueError("JWT_SECRET_KEY debe tener al menos 32 caracteres aleatorios")
         return value
 
+    @field_validator("RATE_LIMIT_STORAGE_URI")
+    @classmethod
+    def _known_storage(cls, value: str) -> str:
+        if value.split("://", 1)[0] not in {"memory", "redis", "rediss"}:
+            raise ValueError("RATE_LIMIT_STORAGE_URI tiene que ser memory://, redis:// o rediss://")
+        return value
+
+    @field_validator("TRUSTED_IP_HEADER")
+    @classmethod
+    def _header_name(cls, value: str | None) -> str | None:
+        return value.strip().lower() or None if value else None
+
+    @field_validator("PROXY_SHARED_SECRET")
+    @classmethod
+    def _strong_proxy_secret(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None or not value.get_secret_value():
+            return None  # vacío en el .env equivale a no configurado
+        if len(value.get_secret_value()) < 32:
+            raise ValueError("PROXY_SHARED_SECRET debe tener al menos 32 caracteres aleatorios")
+        return value
+
     @model_validator(mode="after")
     def _safe_for_production(self) -> "Settings":
+        if self.ENV == "production" and self.PROXY_SHARED_SECRET is None:
+            # Sin él, todo el panel comparte la IP de Vercel en el rate limit.
+            raise ValueError("En producción PROXY_SHARED_SECRET es obligatorio")
         if "*" in self.CORS_ORIGINS:
             raise ValueError("CORS_ORIGINS no puede ser '*' (las cookies de sesión van con CORS)")
         if self.ENV == "production" and self.EMAIL_BACKEND != "resend":

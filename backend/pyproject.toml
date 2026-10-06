@@ -17,6 +17,8 @@ pyjwt = "^2.15.1"
 bcrypt = "^5.0.0"
 anthropic = "^1.11.0"
 slowapi = "^0.1.10"
+# Extra redis: storage compartido del rate limit (RATE_LIMIT_STORAGE_URI=redis://…).
+limits = { extras = ["redis"], version = "^5.8.0" }
 httpx = "^0.28.1"
 
 [tool.poetry.group.dev.dependencies]

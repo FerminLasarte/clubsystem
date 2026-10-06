@@ -109,15 +109,17 @@ Resend solo envía desde dominios verificados. Sin verificar, cada envío falla 
 
 ## Antes de producción
 
-Estas tareas no se pueden resolver con código del repo y quedan pendientes:
+La guía de deploy (Vercel para la web, Railway para la API y Supabase como Postgres) está en [`docs/deploy.md`](docs/deploy.md). El repo trae `backend/railway.json`, `backend/Dockerfile`, `apps/web/vercel.json` y los scripts. Lo que queda del lado de cada plataforma:
 
 - **Email.** En producción la app solo arranca con `EMAIL_BACKEND=resend`, `RESEND_API_KEY` y `EMAIL_FROM`, y el dominio del remitente tiene que estar verificado en Resend (ver [Emails con Resend](#emails-con-resend)). Verificación de email, reset de contraseña e invitaciones dependen de eso.
-- **Proxy y rate limiting.** El límite de intentos es por IP y en memoria del proceso.
-  - Detrás de un proxy, Next o un balanceador, levantá uvicorn con `--proxy-headers --forwarded-allow-ips=<IP del proxy>`. Si no, todas las requests comparten una sola IP.
-  - Con varias réplicas, configurá un storage compartido (Redis) en `app/api/rate_limit.py`.
-- **Roles de base de datos.** Creá dos roles:
+- **Roles de base de datos.** `backend/scripts/provision_db.py` crea los dos roles con el rol administrador del proveedor:
   - uno dueño del esquema, con `BYPASSRLS`, que ejecuta las migraciones y los scripts;
   - uno para la app, sin ownership y sin `BYPASSRLS`, al que las migraciones le dan permisos (`DB_APP_ROLE`).
 
-  Las migraciones se corren como paso aparte del deploy, nunca al arrancar la app.
-- **Secretos.** Configurá `JWT_SECRET_KEY` (32 caracteres o más, aleatorio) y `ANTHROPIC_API_KEY`, esta última si se usan las explicaciones de anomalías. Verificá `CORS_ORIGINS` y `COOKIE_SECURE=true`.
+  Las migraciones corren como paso previo del deploy (`backend/scripts/predeploy.sh`), nunca al arrancar la app. Después, `scripts/check_db.py` verifica roles, RLS y permisos; también corre en la CI.
+- **Proxy y rate limiting.** El límite de intentos es por IP.
+  - La IP del cliente sale del header que fija la plataforma (`TRUSTED_IP_HEADER`; en Railway, `X-Real-IP`), nunca de `X-Forwarded-For`, que el cliente puede completar. Después del primer deploy hay que verificar que no se pueda falsificar (paso 3 de la guía).
+  - El panel llega a la API a través de Vercel. El proxy de Next manda la IP real del usuario firmada con `PROXY_SHARED_SECRET`, que es obligatorio en producción.
+  - Con varias instancias, configurá un storage compartido: `RATE_LIMIT_STORAGE_URI=redis://…` (Redis de Railway).
+- **Primer club.** El panel no crea clubes: `backend/scripts/create_club.py` da de alta el club e invita por email a su dueño (paso 6 de la guía).
+- **Secretos.** Configurá `JWT_SECRET_KEY`, `PROXY_SHARED_SECRET` y `ANTHROPIC_API_KEY`, esta última si se usan las explicaciones de anomalías. `COOKIE_SECURE=true`. En producción, `COOKIE_DOMAIN` y `CORS_ORIGINS` van vacíos: el navegador solo habla con el origen de la web.

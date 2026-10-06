@@ -48,6 +48,8 @@ jobs:
         run: poetry run pyright
       - name: Migraciones aplican y coinciden con los modelos
         run: poetry run alembic upgrade head && poetry run alembic check
+      - name: Roles, RLS y permisos de la base
+        run: poetry run python scripts/check_db.py
       - name: Tests
         run: poetry run pytest
       - name: El contrato OpenAPI commiteado está al día
@@ -56,6 +58,8 @@ jobs:
           diff -u ../packages/api/openapi.json /tmp/openapi.json || (echo "Regenerá los tipos: pnpm --filter @clubsystem/api generate" && exit 1)
       - name: Auditoría de dependencias
         run: poetry run pip install -q pip-audit && poetry run pip-audit --strict
+      - name: La imagen de producción construye
+        run: docker build -t clubsystem-api .
 
   frontends:
     runs-on: ubuntu-latest

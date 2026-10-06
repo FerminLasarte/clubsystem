@@ -22,7 +22,7 @@ from app.api.deps import (
     StaffContext,
     get_staff_context,
 )
-from app.api.rate_limit import auth_limit, limiter
+from app.api.rate_limit import auth_limit, client_ip, limiter
 from app.core.config import get_settings
 from app.core.errors import Forbidden, Unauthorized
 from app.domain.permissions import permissions_for
@@ -57,7 +57,7 @@ SESSION_HINT_COOKIE = "cs_has_session"
 def client_info(request: Request) -> ClientInfo:
     return ClientInfo(
         user_agent=request.headers.get("user-agent"),
-        ip=request.client.host if request.client else None,
+        ip=client_ip(request),
     )
 
 

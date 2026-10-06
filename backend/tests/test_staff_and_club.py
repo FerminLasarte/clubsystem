@@ -2,9 +2,14 @@ import re
 
 import httpx
 import pytest
+from pydantic import ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.domain.enums import StaffRole
+from app.core.errors import Conflict
+from app.domain.enums import Sport, StaffRole
+from app.schemas.clubs import ClubCreate
 from app.services import staff as staff_service
+from app.services.clubs import create_club_with_owner
 from tests.factories import PASSWORD, Factory, login_mobile, login_web
 
 STAFF = "/api/v1/admin/staff"
@@ -230,3 +235,53 @@ async def test_profile_is_edited_only_by_its_owner_and_dni_is_unique(
     assert taken.status_code == 409
     ok = await client.patch("/api/v1/me", json={"first_name": "Lucía"}, headers=headers)
     assert ok.json()["first_name"] == "Lucía"
+
+
+async def test_operator_creates_a_club_and_its_owner_takes_over_with_the_invitation(
+    client: httpx.AsyncClient,
+    owner_sessionmaker: async_sessionmaker[AsyncSession],
+    outbox: list[str],
+) -> None:
+    data = ClubCreate(
+        slug="los-cardos",
+        name="Los Cardos",
+        owner_email="Duena@Example.com",
+        sport_types=[Sport.PADEL, Sport.PADEL, Sport.TENNIS],
+        timezone="America/Montevideo",
+    )
+    async with owner_sessionmaker() as session, session.begin():
+        club, created = await create_club_with_owner(session, data)
+    assert created
+    assert (club.sport_types, club.timezone) == (["padel", "tennis"], "America/Montevideo")
+
+    # Volver a correrlo antes de que acepte renueva la invitación: el link viejo deja de valer.
+    async with owner_sessionmaker() as session, session.begin():
+        _, created = await create_club_with_owner(session, data)
+    assert not created
+    old_token, token = _invite_token(outbox[0]), _invite_token(outbox[1])
+    assert "El equipo de ClubSystem te invitó a Los Cardos" in outbox[1]
+    stale = await client.post("/api/v1/invitations/preview", json={"token": old_token})
+    assert stale.status_code == 404
+
+    accepted = await client.post(
+        "/api/v1/invitations/accept",
+        json={"token": token, "password": "clave-nueva-123", "first_name": "D", "last_name": "C"},
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["active_club"]["roles"] == ["OWNER"]
+    assert (await client.get(STAFF)).status_code == 200  # gestionar el equipo es del dueño
+
+    # Con el dueño ya activo, no se lo puede volver a invitar.
+    with pytest.raises(Conflict):
+        async with owner_sessionmaker() as session, session.begin():
+            await create_club_with_owner(session, data)
+
+
+def test_club_creation_validates_slug_and_timezone() -> None:
+    base = {"name": "Los Cardos", "owner_email": "duena@example.com"}
+    for slug in ("Los Cardos", "los_cardos", "-los", "los--cardos", ""):
+        with pytest.raises(ValidationError):
+            ClubCreate(slug=slug, **base)  # type: ignore[arg-type]
+    with pytest.raises(ValidationError, match="Zona horaria"):
+        ClubCreate(slug="los-cardos", timezone="America/Rosario-Inventada", **base)  # type: ignore[arg-type]
+    assert ClubCreate(slug="club-2", **base).timezone is None  # type: ignore[arg-type]

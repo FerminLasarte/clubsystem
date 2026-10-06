@@ -62,37 +62,9 @@ class StaffService:
 
     async def invite(self, email: str, roles: list[StaffRole]) -> ClubStaff:
         assignable = _check_assignable(roles)
-        email = email.lower()
-        staff = (
-            await self.db.execute(
-                select(ClubStaff).where(
-                    ClubStaff.club_id == self.ctx.club_id, ClubStaff.email == email
-                )
-            )
-        ).scalar_one_or_none()
-        if staff is not None and staff.status == StaffStatus.ACTIVE:
-            raise Conflict("Esa persona ya forma parte del equipo del club.")
-
-        raw, digest = new_opaque_token()
-        if staff is None:
-            staff = ClubStaff(club_id=self.ctx.club_id, email=email)
-            self.db.add(staff)
-        staff.roles = assignable
-        staff.status = StaffStatus.INVITED
-        staff.user_id = None
-        staff.invited_by_id = self.ctx.user_id
-        staff.invite_token_hash = digest
-        staff.invite_expires_at = utcnow() + _INVITE_TTL
-        await self.db.flush()
-
-        await send_email(
-            email,
-            f"Te invitaron al equipo de {self.ctx.club.name}",
-            f"{self.ctx.user.full_name} te invitó a {self.ctx.club.name} en ClubSystem.\n"
-            f"Aceptá la invitación: {web_link(f'/invitations/accept?token={raw}')}\n"
-            "El enlace vence en 7 días.",
+        return await issue_invitation(
+            self.db, self.ctx.club, email, assignable, invited_by=self.ctx.user
         )
-        return staff
 
     async def update_roles(self, staff_id: UUID, roles: list[StaffRole]) -> ClubStaff:
         staff = await self._editable(staff_id)
@@ -122,6 +94,46 @@ class StaffService:
         if StaffRole.OWNER.value in staff.roles:
             raise Forbidden("Los propietarios del club no se modifican desde el panel.")
         return staff
+
+
+async def issue_invitation(
+    session: AsyncSession, club: Club, email: str, roles: list[str], *, invited_by: User | None
+) -> ClubStaff:
+    """
+    Crea o renueva la invitación de `email` al equipo de `club` y le manda el link.
+    No valida qué roles se pueden asignar: lo decide quien llama (el panel excluye OWNER;
+    el alta de un club por un operador invita justamente al OWNER).
+    """
+    email = email.lower()
+    staff = (
+        await session.execute(
+            select(ClubStaff).where(ClubStaff.club_id == club.id, ClubStaff.email == email)
+        )
+    ).scalar_one_or_none()
+    if staff is not None and staff.status == StaffStatus.ACTIVE:
+        raise Conflict("Esa persona ya forma parte del equipo del club.")
+
+    raw, digest = new_opaque_token()
+    if staff is None:
+        staff = ClubStaff(club_id=club.id, email=email)
+        session.add(staff)
+    staff.roles = roles
+    staff.status = StaffStatus.INVITED
+    staff.user_id = None
+    staff.invited_by_id = invited_by.id if invited_by else None
+    staff.invite_token_hash = digest
+    staff.invite_expires_at = utcnow() + _INVITE_TTL
+    await session.flush()
+
+    inviter = invited_by.full_name if invited_by else "El equipo de ClubSystem"
+    await send_email(
+        email,
+        f"Te invitaron al equipo de {club.name}",
+        f"{inviter} te invitó a {club.name} en ClubSystem.\n"
+        f"Aceptá la invitación: {web_link(f'/invitations/accept?token={raw}')}\n"
+        "El enlace vence en 7 días.",
+    )
+    return staff
 
 
 @dataclass(frozen=True)
