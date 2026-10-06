@@ -1138,6 +1138,65 @@ Instalé Python 3.12 vía `uv`, el venv del backend con poetry, pyright, pip-aud
 
 ---
 
+## Anexo D: estado de la remediación (rama `refactor/fundaciones`)
+
+El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile se reescribió en paralelo (ver el estado al final de este anexo). Las verificaciones fueron:
+- **Backend:** 139 tests de API contra Postgres real con RLS (`FORCE` y rol de app sin privilegios), ruff, pyright 0 y `alembic check`.
+- **Web:** `tsc`, `eslint --max-warnings 0` y `next build` sin errores, y pruebas manuales en el navegador de login, ajustes, socios, stock, novedades, gastos, cuotas, caja, inicio y reservas.
+- **Seguridad:** una revisión independiente posterior a la reescritura encontró 11 puntos. Están corregidos en `af7dfd0`, con tests en `tests/test_hardening.py`.
+
+| Hallazgo | Estado | Cómo / dónde |
+|---|---|---|
+| SEC-01 IDOR membresías | ✅ | El club sale del contexto. Hay tests de aislación en cada dominio (`get_scoped` + RLS) |
+| SEC-02 Secreto JWT | ✅ | Sin default. Se valida largo y valores conocidos (`core/config.py`) |
+| SEC-03 Roles solo en el JWT | ✅ | Los roles se leen de `club_staff` en cada request. Access de 15 min, refresh rotativo con detección de reuso, logout real y baja de staff |
+| SEC-04 Áreas sin RBAC / token de MP | ✅ | Matriz `domain/permissions.py`. Se quitó el token de MercadoPago (configuración sin efecto) |
+| SEC-05 El club edita al `User` global | ✅ | La identidad la edita solo su dueño (`/me`). El alta de socios es una invitación que la persona acepta |
+| SEC-06 Rate limit / enumeración | ✅ parcial | Rate limit por IP en auth, `/me` e invitaciones; hash dummy; mensajes uniformes. Pendiente: límite por identificador y storage compartido (README) |
+| SEC-07 RLS inactiva | ✅ | RLS con `FORCE` en todas las tablas de tenant, rol de app sin ownership y políticas con `WITH CHECK`. Los tests corren con ese rol |
+| SEC-08 DNI autodeclarado | ⚠️ parcial | DNI único, rate limit y mensaje genérico. **Decisión pendiente:** mantener el login por DNI o pedir verificación del DNI |
+| SEC-09 Verificación de email | ✅ (requiere proveedor) | Verificación, reset e invitaciones por token. Aceptar una membresía exige email verificado. **Falta el proveedor de email** |
+| SEC-10 CSV | ✅ | `core/csv.py` neutraliza fórmulas |
+| SEC-11 LLM | ✅ | JSON delimitado, la severidad la decide la estadística, el LLM corre fuera del request con tope diario en tabla propia, y la UI lo marca como "Generado por IA · no verificado" |
+| SEC-12 Token en localStorage | ✅ | Cookies HttpOnly del mismo origen (rewrite de Next), CSP y anti-CSRF |
+| SEC-13 Validación de input | ✅ | `Field` con límites, enums con `Literal`/`StrEnum`, montos `Decimal`, contraseñas ≤ 72 bytes |
+| SEC-14 Dependencias | ✅ backend/web | FastAPI 0.142, Next 16.3.8. Expo: ver el estado de mobile. Hay `pip-audit` y `pnpm audit` en la CI |
+| SEC-15 Seeds | ✅ | `scripts/seed_dev.py` con datos ficticios y contraseña aleatoria; se niega a correr en producción |
+| SEC-16 Detalles internos / config | ✅ | Errores uniformes con `request_id`, docs apagados en producción, ENV por defecto `production`, CORS sin `*` |
+| BE-01 Invitaciones rotas | ✅ | Reescritas con token por email y tests (incluye la toma de una cuenta sin verificar) |
+| BE-02 Solapamiento | ✅ | `EXCLUDE` GiST en el modelo y en la migración. Test concurrente: 201 + 409 |
+| BE-03 Stock | ✅ | UPDATE atómico condicional y CHECK ≥ 0. Toda variación es un movimiento |
+| BE-04 Cuotas | ✅ | Cobro por UPDATE condicional, índice único por período; anular el pago devuelve la cuota a pendiente |
+| BE-05 Transacciones | ✅ | Una transacción por request (`get_session`, `scope="function"`) y handlers globales |
+| BE-06 Bloqueos del event loop | ✅ | bcrypt en threadpool y cliente async de Anthropic |
+| BE-07 IA en el request | ✅ | Job en background, Batch API para volumen y timeouts |
+| BE-08 Zonas horarias | ✅ | `Club.timezone` y `core/time.py` con rangos semiabiertos |
+| BE-09 Datos por club en `User` | ✅ | `ClubMembership` + `MembershipPlan` |
+| BE-10 Dos fuentes de caja | ✅ | `payments` como libro único. El dashboard y la caja usan el mismo helper |
+| BE-11 Logging | ✅ | Configuración única con `request_id`/`club_id` |
+| BE-12 Queries / índices | ✅ | Agregados en SQL, `Page[T]` y los índices de la migración |
+| BE-13 Dinero en float | ✅ | `Decimal` de punta a punta |
+| BE-14 Schemas | ✅ | `schemas/` por dominio y `response_model` en todo. El contrato se genera a TS y la CI lo verifica |
+| BE-15 Logins / GET con efectos | ✅ | `AuthService` único. Las transiciones de reservas pasaron a un job |
+| PLAT-01..05, 07..09 | ✅ | Alembic, seeds, CI, Turbo 2, solo pnpm, tipos generados, README/env y código muerto eliminado |
+| PLAT-06 Funcionalidad sin UI | ✅ | Aprobación de solicitudes e invitaciones de socios, precios socio/invitado en canchas. Las notificaciones se quitaron (decisión) |
+| WEB-01..10 | ✅ | Panel reescrito por feature: TanStack Query, paginación en servidor, Dialog/ConfirmDialog accesibles, tokens semánticos con lint, App Router con `metadata`/`error`/`loading` |
+| MOB-01..08 | ver abajo | Reescritura de la app (Expo, `Stack.Protected`, cliente compartido con refresh y SecureStore, tokens únicos) |
+
+**Decisiones de producto pendientes** (surgieron durante la implementación; el código tomó la opción indicada entre paréntesis):
+1. Login con DNI en la app: el DNI lo declara el usuario (se mantiene, con DNI único y rate limit).
+2. Neto del dashboard: ingresos − egresos de caja − gastos. Si un gasto también se registra como egreso de caja, se cuenta dos veces (sin cambios; hay que definir la relación entre egreso de caja y gasto).
+3. Cancelar reservas desde la app (no existe; solo cancela el staff).
+4. Límites de reserva desde la app (14 días de anticipación y 3 pendientes por socio).
+5. Desactivar una cancha con reservas futuras (409; alternativa: cancelarlas automáticamente).
+6. Stock: motivo obligatorio en todo movimiento; el costo unitario de una entrada no actualiza el costo del ítem (se dejó así).
+7. Novedades: no se pueden editar después de publicadas (no hay PATCH).
+8. Faltan exports CSV de caja y de cuotas.
+
+**Pendientes técnicos:** proveedor de email; rate limit por identificador con storage compartido; tests de frontend (no hay; se recomienda un e2e de humo con Playwright para la web y Maestro para mobile); endpoint de cotización de precio antes de reservar en el panel.
+
+---
+
 ## Anexo A: tabla de endpoints y aislación por tenant
 
 Leyenda:
