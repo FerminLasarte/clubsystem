@@ -1,92 +1,32 @@
-# Welcome to your Expo app 👋
+# ClubSystem — app del socio
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo (SDK 57) + Expo Router + TanStack Query. Consume `/api/v1/auth/*`, `/api/v1/me` y `/api/v1/mobile/*`
+a través del cliente compartido `@clubsystem/api`.
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-## Correr en el celular con Expo Go
-
-La forma más rápida de probar la app en tu dispositivo físico es usando **Expo Go**.
-
-### Requisitos
-
-- Tener [Expo Go](https://expo.dev/go) instalado en tu celular (disponible en App Store y Google Play).
-- El celular y la computadora deben estar en la **misma red Wi-Fi**.
-
-### Pasos
-
-1. Desde la raíz del monorepo, instalar dependencias si no lo hiciste:
-
-   ```bash
-   pnpm install
-   ```
-
-2. Navegar a la app mobile e iniciar el servidor:
-
-   ```bash
-   cd apps/mobile
-   npx expo start
-   ```
-
-   O desde la raíz usando turbo:
-
-   ```bash
-   pnpm dev
-   ```
-
-3. En la terminal aparecerá un **código QR**.
-
-   - **Android**: abrí la app Expo Go y escaneá el QR desde la pantalla de inicio.
-   - **iOS**: escaneá el QR con la cámara del iPhone (iOS 11+) y tocá la notificación que aparece.
-
-4. La app se cargará directamente en tu celular. Cualquier cambio en el código se reflejará automáticamente gracias al hot reload.
-
-### Troubleshooting
-
-- Si el QR no conecta, probá presionar `w` en la terminal para obtener la URL y abrirla manualmente desde Expo Go.
-- Si estás en una red con restricciones (oficina, universidad), usá el modo túnel: `npx expo start --tunnel` (requiere tener `@expo/ngrok` instalado).
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Desarrollo
 
 ```bash
-npm run reset-project
+pnpm install                 # desde la raíz del monorepo
+cd apps/mobile
+npx expo start --ios         # simulador de iOS con Expo Go
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+La URL del backend sale de `EXPO_PUBLIC_API_URL` (ver `.env.example`). Sin definirla se usa
+`http://localhost:8000`, que sirve en el simulador. En un celular físico creá `apps/mobile/.env.local` con
+la IP de tu máquina en la red (`EXPO_PUBLIC_API_URL=http://<tu-ip>:8000`). En builds de release tiene que ser HTTPS.
 
-## Learn more
+## Calidad
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+pnpm --filter mobile type-check
+pnpm --filter mobile lint
+npx expo-doctor
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Estructura
 
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- `app/`: solo rutas finas. `(auth)` y `(app)` se protegen con `Stack.Protected` en `app/_layout.tsx`.
+- `features/<dominio>/{api.ts,hooks,components,lib}`: auth, clubs, booking, reservations, news, profile.
+- `shared/api`: instancia del cliente HTTP (SecureStore, refresh rotativo, logout ante sesión vencida).
+- `shared/ui`: componentes base (`Screen`, `Card`, `Button`, `Text`, `Input`, `StateView`).
+- `shared/theme/tokens.ts`: única fuente de colores, espaciados, radios y tipografía.

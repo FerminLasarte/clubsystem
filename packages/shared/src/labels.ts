@@ -17,11 +17,27 @@ export const SPORT_LABELS = {
   other: "Otro",
 } as const;
 
+export const COURT_SURFACE_LABELS = {
+  clay: "Polvo de ladrillo",
+  hard: "Cemento",
+  grass: "Césped",
+  synthetic: "Sintético",
+  wood: "Madera",
+  concrete: "Hormigón",
+  other: "Otra",
+} as const;
+
 export const RESERVATION_STATUS_LABELS = {
   pending: "Pendiente",
   confirmed: "Confirmada",
   cancelled: "Cancelada",
   completed: "Completada",
+} as const;
+
+export const CANCEL_REASON_LABELS = {
+  BY_STAFF: "Cancelada por el club",
+  BY_MEMBER: "Cancelada por el socio",
+  EXPIRED_UNCONFIRMED: "Cancelada automáticamente: el club no la confirmó a tiempo",
 } as const;
 
 export const MEMBERSHIP_STATUS_LABELS = {
@@ -78,16 +94,6 @@ export const STOCK_MOVEMENT_TYPE_LABELS = {
   ADJUSTMENT: "Ajuste",
 } as const;
 
-export const COURT_SURFACE_LABELS = {
-  clay: "Polvo de ladrillo",
-  hard: "Cemento / dura",
-  grass: "Césped",
-  synthetic: "Sintético",
-  wood: "Madera",
-  concrete: "Hormigón",
-  other: "Otra",
-} as const;
-
 export const ANOMALY_SEVERITY_LABELS = {
   low: "Baja",
   medium: "Media",
@@ -103,10 +109,4 @@ export const TRANSACTION_TYPE_LABELS = {
 export const RESERVATION_SOURCE_LABELS = {
   APP: "App del socio",
   PANEL: "Panel",
-} as const;
-
-export const CANCEL_REASON_LABELS = {
-  BY_STAFF: "Cancelada por el club",
-  BY_MEMBER: "Cancelada por el socio",
-  EXPIRED_UNCONFIRMED: "Venció sin confirmar",
 } as const;
