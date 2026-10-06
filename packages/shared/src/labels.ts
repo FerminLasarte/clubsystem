@@ -17,11 +17,27 @@ export const SPORT_LABELS = {
   other: "Otro",
 } as const;
 
+export const COURT_SURFACE_LABELS = {
+  clay: "Polvo de ladrillo",
+  hard: "Cemento",
+  grass: "Césped",
+  synthetic: "Sintético",
+  wood: "Parquet",
+  concrete: "Hormigón",
+  other: "Otra",
+} as const;
+
 export const RESERVATION_STATUS_LABELS = {
   pending: "Pendiente",
   confirmed: "Confirmada",
   cancelled: "Cancelada",
   completed: "Completada",
+} as const;
+
+export const CANCEL_REASON_LABELS = {
+  BY_STAFF: "Cancelada por el club",
+  BY_MEMBER: "Cancelada por el socio",
+  EXPIRED_UNCONFIRMED: "Cancelada automáticamente: el club no la confirmó antes del inicio",
 } as const;
 
 export const MEMBERSHIP_STATUS_LABELS = {

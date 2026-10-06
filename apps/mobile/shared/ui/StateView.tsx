@@ -53,6 +53,18 @@ export function StateView(props: StateViewProps) {
   );
 }
 
+interface QueryLike {
+  isPending: boolean;
+  error: unknown;
+  refetch: () => unknown;
+}
+
+/** Carga o error de una query de TanStack (usar cuando `isPending || isError`). */
+export function QueryState({ query }: { query: QueryLike }) {
+  if (query.isPending) return <StateView kind="loading" />;
+  return <StateView kind="error" error={query.error} onRetry={() => void query.refetch()} />;
+}
+
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
