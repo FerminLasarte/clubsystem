@@ -18,6 +18,7 @@ from app.core.csv import csv_response
 from app.core.db import set_tenant_context
 from app.core.errors import BusinessRuleViolation, Conflict, NotFound
 from app.core.security import hash_password, new_opaque_token
+from app.core.sql import contains_pattern
 from app.core.time import month_bounds, today_in, tz, utcnow
 from app.domain.enums import MembershipStatus, ReservationStatus
 from app.models import Club, ClubMembership, MembershipPlan, Reservation, User
@@ -29,6 +30,7 @@ from app.schemas.members import (
     ClubDirectoryItemOut,
     MemberCreate,
     MemberFilters,
+    MemberInvitationOut,
     MemberListParams,
     MemberOut,
     MemberPersonOut,
@@ -42,6 +44,7 @@ from app.schemas.members import (
 from app.services.auth import AuthService
 from app.services.clubs import active_clubs_directory
 from app.services.context import StaffContext
+from app.services.email import send_email
 
 _MemberRows = Select[ClubMembership, User, MembershipPlan, datetime]
 _MyMembershipRows = Select[ClubMembership, Club, MembershipPlan]
@@ -65,12 +68,6 @@ _CSV_HEADER = [
     "Estado",
     "Última reserva",
 ]
-
-
-def _contains(term: str) -> str:
-    """Patrón ILIKE que trata `%`, `_` y `\\` del usuario como texto literal."""
-    escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return f"%{escaped}%"
 
 
 def _plan_join() -> Any:
@@ -167,6 +164,7 @@ class MemberService:
         row = (
             await self.db.execute(
                 select(
+                    func.count().filter(status == MembershipStatus.INVITED),
                     func.count().filter(status == MembershipStatus.PENDING),
                     func.count().filter(status == MembershipStatus.APPROVED),
                     func.count().filter(status == MembershipStatus.INACTIVE),
@@ -180,23 +178,25 @@ class MemberService:
             )
         ).one()
         return MemberStatsOut(
-            pending=row[0],
-            approved=row[1],
-            inactive=row[2],
-            rejected=row[3],
-            joined_this_month=row[4],
+            invited=row[0],
+            pending=row[1],
+            approved=row[2],
+            inactive=row[3],
+            rejected=row[4],
+            joined_this_month=row[5],
         )
 
-    async def create(self, data: MemberCreate) -> MemberOut:
+    async def invite(self, data: MemberCreate) -> MemberInvitationOut:
         """
-        Alta por el staff. Si la persona ya tiene cuenta, solo se crea o reactiva su
-        membresía (sus datos personales no se tocan). Si no, se crea la cuenta sin una
-        contraseña utilizable y se le envía un link para que la elija.
+        Invita a una persona a ser socia. Si no tiene cuenta, se crea con los datos que cargó
+        el staff y se le manda un link para elegir contraseña. En ambos casos la membresía
+        queda INVITED hasta que la persona acepta desde la app (consentimiento), y la
+        respuesta no revela si la cuenta existía ni sus datos.
+        Si ya había pedido ser socia (PENDING), los dos consintieron: se aprueba.
         """
         plan_id = await self._assignable_plan(data.plan_id)
         email = data.email.lower()
         user = (await self.db.execute(select(User).where(User.email == email))).scalar_one_or_none()
-        membership: ClubMembership | None = None
         new_account = user is None
         if user is None:
             user = User(
@@ -205,10 +205,10 @@ class MemberService:
                 first_name=data.first_name,
                 last_name=data.last_name,
                 phone=data.phone,
-                dni=data.dni,
             )
             self.db.add(user)
-            await self.db.flush()  # email o DNI repetidos → 409
+            await self.db.flush()
+            membership = None
         else:
             membership = (
                 await self.db.execute(
@@ -226,14 +226,60 @@ class MemberService:
         if membership is None:
             membership = ClubMembership(club_id=self.ctx.club_id, user_id=user.id)
             self.db.add(membership)
-        self._approve(membership, plan_id, data.member_number)
+        if membership.status == MembershipStatus.PENDING:
+            self._approve(membership, plan_id, data.member_number)
+        else:
+            membership.status = MembershipStatus.INVITED
+            membership.invited_at = utcnow()
+            membership.plan_id = plan_id
+            membership.member_number = data.member_number
+            membership.decided_at = None
+            membership.decided_by_id = self.ctx.user_id
         if data.notes is not None:
             membership.notes = data.notes
         await self.db.flush()  # número de socio repetido → 409, antes de mandar el email
 
-        if new_account:
-            await AuthService(self.db).send_account_setup(user, self.ctx.club.name)
-        return await self.get(membership.id)
+        if membership.status == MembershipStatus.INVITED:
+            if new_account:
+                await AuthService(self.db).send_account_setup(user, self.ctx.club.name)
+            else:
+                await send_email(
+                    user.email,
+                    f"{self.ctx.club.name} te invitó a ser socio",
+                    f"Hola {user.first_name}, {self.ctx.club.name} te invitó a sumarte como "
+                    "socio en ClubSystem. Abrí la app para aceptar o rechazar la invitación.",
+                )
+        return await self._invitation_out(membership, email)
+
+    async def invitations(self, params: PageParams) -> Page[MemberInvitationOut]:
+        stmt = (
+            select(ClubMembership, User.email, MembershipPlan)
+            .join(User, User.id == ClubMembership.user_id)
+            .outerjoin(MembershipPlan, _plan_join())
+            .where(
+                ClubMembership.club_id == self.ctx.club_id,
+                ClubMembership.status == MembershipStatus.INVITED,
+            )
+            .order_by(ClubMembership.invited_at.desc())
+        )
+        rows, total = await paginate(self.db, stmt, params)
+        return Page(
+            items=[_invitation_out(m, email, plan) for m, email, plan in rows],
+            total=total,
+            page=params.page,
+            page_size=params.page_size,
+        )
+
+    async def cancel_invitation(self, membership_id: UUID) -> None:
+        membership = await self._locked(membership_id, "Invitación no encontrada.")
+        if membership.status != MembershipStatus.INVITED:
+            raise Conflict("La invitación ya fue respondida.", code="invitation_already_answered")
+        await self.db.delete(membership)
+        await self.db.flush()
+
+    async def _invitation_out(self, membership: ClubMembership, email: str) -> MemberInvitationOut:
+        plan = await self.db.get(MembershipPlan, membership.plan_id) if membership.plan_id else None
+        return _invitation_out(membership, email, plan)
 
     async def update(self, membership_id: UUID, data: MemberUpdate) -> MemberOut:
         membership = await self._locked(membership_id, "Socio no encontrado.")
@@ -347,7 +393,7 @@ class MemberService:
         if filters.plan_id is not None:
             stmt = stmt.where(ClubMembership.plan_id == filters.plan_id)
         if filters.search:
-            pattern = _contains(filters.search)
+            pattern = contains_pattern(filters.search)
             stmt = stmt.where(
                 or_(
                     func.concat(User.first_name, " ", User.last_name).ilike(pattern, escape="\\"),
@@ -394,6 +440,19 @@ class MemberService:
         if membership.status != MembershipStatus.PENDING:
             raise Conflict("La solicitud ya fue resuelta.", code="request_already_decided")
         return membership
+
+
+def _invitation_out(
+    membership: ClubMembership, email: str, plan: MembershipPlan | None
+) -> MemberInvitationOut:
+    return MemberInvitationOut(
+        membership_id=membership.id,
+        email=email,
+        status=membership.status,
+        invited_at=membership.invited_at,
+        plan=PlanSummaryOut.model_validate(plan) if plan else None,
+        member_number=membership.member_number,
+    )
 
 
 def _member_out(row: Any) -> MemberOut:
@@ -475,7 +534,11 @@ async def request_membership(
             .with_for_update()
         )
     ).scalar_one()
-    if membership.status in (MembershipStatus.REJECTED, MembershipStatus.INACTIVE):
+    if membership.status == MembershipStatus.INVITED:
+        # El club ya la había invitado: con el pedido de la persona, los dos consintieron.
+        _accept(membership, club)
+        await session.flush()
+    elif membership.status in (MembershipStatus.REJECTED, MembershipStatus.INACTIVE):
         membership.status = MembershipStatus.PENDING
         membership.requested_at = utcnow()
         membership.decided_at = None
@@ -486,6 +549,62 @@ async def request_membership(
         await session.execute(_my_memberships_query(user).where(ClubMembership.id == membership.id))
     ).one()
     return _my_membership_out(row), inserted is not None
+
+
+def _accept(membership: ClubMembership, club: Club) -> None:
+    membership.status = MembershipStatus.APPROVED
+    membership.joined_on = today_in(tz(club.timezone))
+    membership.decided_at = utcnow()
+
+
+async def accept_invitation(
+    session: AsyncSession, user: User, membership_id: UUID
+) -> MyMembershipOut:
+    if not user.email_verified:
+        raise BusinessRuleViolation(
+            "Confirmá tu email antes de aceptar la invitación.", code="email_not_verified"
+        )
+    membership, club = await _own_invitation(session, user, membership_id)
+    _accept(membership, club)
+    await session.flush()
+    row = (
+        await session.execute(_my_memberships_query(user).where(ClubMembership.id == membership.id))
+    ).one()
+    return _my_membership_out(row)
+
+
+async def decline_invitation(session: AsyncSession, user: User, membership_id: UUID) -> None:
+    membership, _ = await _own_invitation(session, user, membership_id)
+    await session.delete(membership)
+    await session.flush()
+
+
+async def _own_invitation(
+    session: AsyncSession, user: User, membership_id: UUID
+) -> tuple[ClubMembership, Club]:
+    club_id = await session.scalar(
+        select(ClubMembership.club_id).where(
+            ClubMembership.id == membership_id,
+            ClubMembership.user_id == user.id,
+            ClubMembership.status == MembershipStatus.INVITED,
+        )
+    )
+    club = await session.get(Club, club_id) if club_id else None
+    if club is None or not club.is_active:
+        raise NotFound("Invitación no encontrada.")
+    # Bloquear y modificar requiere el contexto RLS del club (FOR UPDATE usa la política
+    # de UPDATE, que exige el club activo).
+    await set_tenant_context(session, club_id=club.id)
+    membership = (
+        await session.execute(
+            select(ClubMembership)
+            .where(ClubMembership.id == membership_id, ClubMembership.user_id == user.id)
+            .with_for_update()
+        )
+    ).scalar_one()
+    if membership.status != MembershipStatus.INVITED:
+        raise NotFound("Invitación no encontrada.")
+    return membership, club
 
 
 def _my_memberships_query(user: User) -> _MyMembershipRows:

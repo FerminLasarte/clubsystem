@@ -38,8 +38,9 @@ class DashboardOperationsOut(BaseModel):
     # Horas reservadas sobre horas operables (horario del club × canchas activas).
     occupancy_pct: Decimal
     # Reservas activas del día que todavía no terminaron (en curso o por empezar).
-    upcoming_reservations: list[UpcomingReservation]
-    pending_membership_requests: int
+    # null si el rol no tiene permiso para ver reservas / socios.
+    upcoming_reservations: list[UpcomingReservation] | None
+    pending_membership_requests: int | None
     # null si el rol no tiene permiso de lectura de stock.
     low_stock: LowStockOut | None
 

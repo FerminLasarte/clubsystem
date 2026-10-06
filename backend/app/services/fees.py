@@ -14,6 +14,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import BusinessRuleViolation, Conflict, NotFound
+from app.core.sql import contains_pattern
 from app.core.time import today_in, tz, utcnow
 from app.domain.enums import FeeStatus, MembershipStatus, PaymentMethod, TransactionType
 from app.models import ClubMembership, MembershipFee, MembershipPlan, Payment, User
@@ -29,11 +30,6 @@ from app.schemas.fees import (
 )
 from app.services.cash import money_sum
 from app.services.context import StaffContext
-
-
-def _like(term: str) -> str:
-    escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return f"%{escaped}%"
 
 
 class FeeService:
@@ -124,7 +120,7 @@ class FeeService:
         if filters.status is not None:
             stmt = stmt.where(MembershipFee.status == filters.status)
         if filters.search:
-            pattern = _like(filters.search)
+            pattern = contains_pattern(filters.search)
             stmt = stmt.where(
                 or_(
                     (User.first_name + " " + User.last_name).ilike(pattern, escape="\\"),

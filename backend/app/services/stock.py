@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.csv import csv_response
 from app.core.errors import BusinessRuleViolation, NotFound
+from app.core.sql import contains_pattern
 from app.core.time import utcnow
 from app.domain.enums import StockMovementType
 from app.models import StockItem, StockMovement, User
@@ -69,12 +70,12 @@ class StockService:
             StockItem.club_id == self.ctx.club_id, StockItem.deleted_at.is_(None)
         )
         if filters.search:
-            pattern = f"%{filters.search}%"
+            pattern = contains_pattern(filters.search)
             stmt = stmt.where(
                 or_(
-                    StockItem.name.ilike(pattern),
-                    StockItem.sku.ilike(pattern),
-                    StockItem.category.ilike(pattern),
+                    StockItem.name.ilike(pattern, escape="\\"),
+                    StockItem.sku.ilike(pattern, escape="\\"),
+                    StockItem.category.ilike(pattern, escape="\\"),
                 )
             )
         if filters.category:

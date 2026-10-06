@@ -3,7 +3,7 @@
 from app.models.base import Base
 from app.models.club import Club, ClubMembership, ClubStaff, MembershipPlan
 from app.models.courts import ACTIVE_RESERVATION_STATUSES, Court, Reservation
-from app.models.finance import Expense, MembershipFee, Payment
+from app.models.finance import AnomalyLlmUsage, Expense, MembershipFee, Payment
 from app.models.identity import AuthSession, OneTimeToken, User
 from app.models.news import ClubNews
 from app.models.stock import StockItem, StockMovement
@@ -21,11 +21,13 @@ TENANT_TABLES = (
     "stock_items",
     "stock_movements",
     "club_news",
+    "anomaly_llm_usage",
 )
 
 __all__ = [
     "ACTIVE_RESERVATION_STATUSES",
     "TENANT_TABLES",
+    "AnomalyLlmUsage",
     "AuthSession",
     "Base",
     "Club",

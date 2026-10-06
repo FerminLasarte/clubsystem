@@ -152,6 +152,7 @@ class ClubMembership(UUIDPk, Timestamps, Base):
     member_number: Mapped[str | None] = mapped_column(String(50))
     joined_on: Mapped[date | None] = mapped_column(Date)
     requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    invited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decided_by_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")

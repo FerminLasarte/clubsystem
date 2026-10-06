@@ -208,7 +208,7 @@ async def accept_invitation(
     if not user.is_active:
         raise Forbidden("La cuenta está deshabilitada.")
 
-    await set_tenant_context(session, user_id=user.id, user_email=user.email)
+    await set_tenant_context(session, user_id=user.id)
     inv.staff.user_id = user.id
     inv.staff.status = StaffStatus.ACTIVE
     inv.staff.invite_token_hash = None

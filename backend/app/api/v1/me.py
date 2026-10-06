@@ -2,10 +2,11 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request, status
 from pydantic import AnyHttpUrl, BaseModel, StringConstraints
 
 from app.api.deps import AuthDep, CurrentUser, SessionDep
+from app.api.rate_limit import limiter
 from app.core.errors import BusinessRuleViolation
 from app.core.security import hash_password, verify_password
 from app.domain.enums import Gender
@@ -36,7 +37,10 @@ async def get_profile(user: CurrentUser) -> UserOut:
 
 
 @router.patch("", response_model=UserOut)
-async def update_profile(body: ProfileUpdate, user: CurrentUser, session: SessionDep) -> UserOut:
+@limiter.limit("20/hour")
+async def update_profile(
+    request: Request, body: ProfileUpdate, user: CurrentUser, session: SessionDep
+) -> UserOut:
     changes = body.model_dump(exclude_unset=True, mode="json")
     for required in ("first_name", "last_name"):
         if required in changes and changes[required] is None:

@@ -105,36 +105,49 @@ class DashboardService:
             else Decimal("0.0")
         )
 
-        upcoming = await self.db.execute(
-            select(Reservation, Court.name, User)
-            .join(Court, Court.id == Reservation.court_id)
-            .outerjoin(User, User.id == Reservation.user_id)
-            .where(
-                Reservation.club_id == self.ctx.club_id,
-                Reservation.status.in_(ACTIVE_RESERVATION_STATUSES),
-                Reservation.starts_at >= day_start,
-                Reservation.starts_at < day_end,
-                Reservation.ends_at > utcnow(),
-            )
-            .order_by(Reservation.starts_at, Court.name)
-            .limit(_UPCOMING_LIMIT)
+        can_see_reservations = Permission.RESERVATIONS_READ in self.ctx.permissions
+        upcoming = (
+            (
+                await self.db.execute(
+                    select(Reservation, Court.name, User)
+                    .join(Court, Court.id == Reservation.court_id)
+                    .outerjoin(User, User.id == Reservation.user_id)
+                    .where(
+                        Reservation.club_id == self.ctx.club_id,
+                        Reservation.status.in_(ACTIVE_RESERVATION_STATUSES),
+                        Reservation.starts_at >= day_start,
+                        Reservation.starts_at < day_end,
+                        Reservation.ends_at > utcnow(),
+                    )
+                    .order_by(Reservation.starts_at, Court.name)
+                    .limit(_UPCOMING_LIMIT)
+                )
+            ).all()
+            if can_see_reservations
+            else None
         )
 
         pending_requests = (
-            await self.db.execute(
-                select(func.count()).where(
-                    ClubMembership.club_id == self.ctx.club_id,
-                    ClubMembership.status == MembershipStatus.PENDING,
+            (
+                await self.db.execute(
+                    select(func.count()).where(
+                        ClubMembership.club_id == self.ctx.club_id,
+                        ClubMembership.status == MembershipStatus.PENDING,
+                    )
                 )
-            )
-        ).scalar_one()
+            ).scalar_one()
+            if Permission.MEMBERS_READ in self.ctx.permissions
+            else None
+        )
 
         return DashboardOperationsOut(
             date=today,
             reservations_today=reservations_today,
             active_courts=active_courts,
             occupancy_pct=occupancy,
-            upcoming_reservations=[
+            upcoming_reservations=None
+            if upcoming is None
+            else [
                 UpcomingReservation(
                     id=reservation.id,
                     court_name=court_name,
@@ -144,7 +157,7 @@ class DashboardService:
                     ends_at=reservation.ends_at,
                     status=reservation.status,
                 )
-                for reservation, court_name, user in upcoming.all()
+                for reservation, court_name, user in upcoming
             ],
             pending_membership_requests=pending_requests,
             low_stock=(

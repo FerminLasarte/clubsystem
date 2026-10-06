@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request, Response
 from app.api.deps import SessionDep
 from app.api.rate_limit import auth_limit, limiter
 from app.api.v1.auth import build_web_session, client_info, set_session_cookies
-from app.schemas.auth import WebSessionOut
+from app.schemas.auth import TokenRequest, WebSessionOut
 from app.schemas.staff import AcceptInvitationRequest, InvitationPreviewOut
 from app.services.auth import AuthService
 from app.services.staff import accept_invitation, preview_invitation
@@ -13,10 +13,13 @@ from app.services.staff import accept_invitation, preview_invitation
 router = APIRouter(prefix="/invitations", tags=["Invitaciones"])
 
 
-@router.get("/{token}", response_model=InvitationPreviewOut)
+# POST con el token en el body: en la URL quedaría registrado en logs de acceso y proxies.
+@router.post("/preview", response_model=InvitationPreviewOut)
 @limiter.limit(auth_limit)
-async def preview(request: Request, token: str, session: SessionDep) -> InvitationPreviewOut:
-    return await preview_invitation(session, token)
+async def preview(
+    request: Request, body: TokenRequest, session: SessionDep
+) -> InvitationPreviewOut:
+    return await preview_invitation(session, body.token)
 
 
 @router.post("/accept", response_model=WebSessionOut)

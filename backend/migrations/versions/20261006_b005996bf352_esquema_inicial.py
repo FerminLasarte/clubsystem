@@ -12,7 +12,21 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 from app.core.config import get_settings
-from app.models import TENANT_TABLES
+
+# Copia congelada: una migración no debe depender de constantes que cambian con la app.
+TENANT_TABLES = (
+    "club_staff",
+    "membership_plans",
+    "club_memberships",
+    "courts",
+    "reservations",
+    "payments",
+    "membership_fees",
+    "expenses",
+    "stock_items",
+    "stock_movements",
+    "club_news",
+)
 revision: str = 'b005996bf352'
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None

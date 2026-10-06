@@ -82,6 +82,11 @@ def _price(court: Court, customer: CustomerType, minutes: int) -> Decimal:
     return reservation_price(court.price_member, court.price_guest, customer, minutes)
 
 
+# Reservas desde la app: evita que un socio bloquee la agenda con pendientes.
+APP_BOOKING_HORIZON_DAYS = 14
+APP_MAX_PENDING_PER_MEMBER = 3
+
+
 async def _lock_bookable_court(session: AsyncSession, court_id: UUID, club_id: UUID) -> Court:
     """
     Cancha del club, activa. FOR SHARE: no bloquea otras reservas, pero sí que la cancha
@@ -519,6 +524,24 @@ class MemberBookingService:
         ends_at = starts_at + timedelta(minutes=data.duration_minutes)
         if starts_at <= utcnow():
             raise BusinessRuleViolation("No se puede reservar en el pasado.", code="past_start")
+        if starts_at > utcnow() + timedelta(days=APP_BOOKING_HORIZON_DAYS):
+            raise BusinessRuleViolation(
+                f"Se puede reservar hasta {APP_BOOKING_HORIZON_DAYS} días antes.", code="too_far"
+            )
+        pending = await self.db.scalar(
+            select(func.count()).where(
+                Reservation.club_id == club.id,
+                Reservation.user_id == self.ctx.user.id,
+                Reservation.status == ReservationStatus.PENDING,
+                Reservation.starts_at > utcnow(),
+            )
+        )
+        if (pending or 0) >= APP_MAX_PENDING_PER_MEMBER:
+            raise BusinessRuleViolation(
+                f"Tenés {APP_MAX_PENDING_PER_MEMBER} reservas esperando confirmación del club. "
+                "Esperá a que las confirmen para pedir otra.",
+                code="too_many_pending",
+            )
         window = _check_hours(club, starts_at, ends_at)
         if not on_grid(starts_at, window):
             raise BusinessRuleViolation(

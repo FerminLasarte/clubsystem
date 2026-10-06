@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 _CONSTRAINT_ERRORS: dict[str, tuple[int, str]] = {
     "no_overlap": (409, "La cancha ya está reservada en ese horario."),
     "uq_users_email": (409, "Ya existe una cuenta con ese email."),
-    "uq_users_dni": (409, "Ese DNI ya está asociado a otra cuenta."),
+    "uq_users_dni": (409, "No se pudo guardar el DNI. Si es tuyo, contactá al club."),
     "uq_club_staff_club_id_email": (409, "Esa persona ya forma parte del equipo del club."),
     "uq_club_memberships_club_id_user_id": (409, "Ya existe una membresía en este club."),
     "uq_club_memberships_club_id_member_number": (409, "Ese número de socio ya está en uso."),

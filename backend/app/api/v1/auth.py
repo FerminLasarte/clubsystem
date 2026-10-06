@@ -13,6 +13,8 @@ from pydantic import BaseModel
 
 from app.api.deps import (
     ACCESS_COOKIE,
+    CSRF_HEADER,
+    CSRF_VALUE,
     REFRESH_COOKIE,
     AuthDep,
     CurrentUser,
@@ -179,6 +181,8 @@ async def web_login(
 @router.post("/web/refresh", response_model=WebSessionOut)
 @limiter.limit(auth_limit)
 async def web_refresh(request: Request, response: Response, session: SessionDep) -> WebSessionOut:
+    if request.headers.get(CSRF_HEADER) != CSRF_VALUE:
+        raise Forbidden("Falta el header anti-CSRF.", code="csrf")
     raw = request.cookies.get(REFRESH_COOKIE)
     if not raw:
         raise Unauthorized("Necesitás iniciar sesión.")

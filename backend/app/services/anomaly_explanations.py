@@ -18,16 +18,17 @@ from uuid import UUID
 
 import anthropic
 from anthropic import AsyncAnthropic
-from sqlalchemy import ColumnElement, func, or_, select, update
+from sqlalchemy import ColumnElement, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import session_scope, set_tenant_context
-from app.core.time import day_bounds, today_in, tz, utcnow
+from app.core.time import today_in, tz, utcnow
 from app.domain.anomalies import EXPLAINED_SEVERITIES, HISTORY_MONTHS
 from app.domain.enums import AnomalySeverity, ExpenseCategory
 from app.integrations.llm import anthropic_client as llm
-from app.models import Expense
+from app.models import AnomalyLlmUsage, Expense
 from app.services.expenses import AnalyzedRow, load_signals, signals_stmt
 
 logger = logging.getLogger(__name__)
@@ -91,18 +92,34 @@ class ExplanationStore:
     def _base(self) -> list[ColumnElement[bool]]:
         return [Expense.club_id == self.club_id, Expense.anomaly_explained_at.is_(None)]
 
-    async def used_today(self, timezone: str) -> int:
-        """Explicaciones del día (incluye las que el modelo no pudo dar) + pedidas en batch."""
-        zone = tz(timezone)
-        start, end = day_bounds(today_in(zone), zone)
-        stmt = select(func.count()).where(
-            Expense.club_id == self.club_id,
-            or_(
-                (Expense.anomaly_explained_at >= start) & (Expense.anomaly_explained_at < end),
-                Expense.anomaly_explained_at.is_(None) & Expense.anomaly_batch_id.is_not(None),
-            ),
+    async def reserve_budget(self, timezone: str, wanted: int, limit: int) -> int:
+        """
+        Reserva hasta `wanted` llamadas del tope diario del club y devuelve cuántas obtuvo.
+        El consumo se cuenta en su propia tabla: editar o recalcular gastos no lo libera.
+        """
+        if wanted <= 0:
+            return 0
+        day = today_in(tz(timezone))
+        await self.db.execute(
+            insert(AnomalyLlmUsage)
+            .values(club_id=self.club_id, day=day, requests=0)
+            .on_conflict_do_nothing()
         )
-        return (await self.db.execute(stmt)).scalar_one()
+        used = (
+            await self.db.execute(
+                select(AnomalyLlmUsage.requests)
+                .where(AnomalyLlmUsage.club_id == self.club_id, AnomalyLlmUsage.day == day)
+                .with_for_update()
+            )
+        ).scalar_one()
+        granted = max(0, min(wanted, limit - used))
+        if granted:
+            await self.db.execute(
+                update(AnomalyLlmUsage)
+                .where(AnomalyLlmUsage.club_id == self.club_id, AnomalyLlmUsage.day == day)
+                .values(requests=AnomalyLlmUsage.requests + granted)
+            )
+        return granted
 
     async def pending(self, limit: int) -> list[PendingExpense]:
         stmt, e = signals_stmt(self.club_id)
@@ -290,8 +307,9 @@ async def explain_club(client: AsyncAnthropic, club_id: UUID, timezone: str) -> 
             await set_tenant_context(session, club_id=club_id)
             store = ExplanationStore(session, club_id)
             budget = get_settings().ANOMALY_LLM_DAILY_LIMIT_PER_CLUB
-            remaining = budget - await store.used_today(timezone)
-            pending = await store.pending(remaining) if remaining > 0 else []
+            candidates = await store.pending(budget)
+            granted = await store.reserve_budget(timezone, len(candidates), budget)
+            pending = candidates[:granted]
         if not pending:
             return run
 

@@ -36,3 +36,15 @@ async def request_membership(
 @router.get("/memberships", response_model=list[MyMembershipOut])
 async def my_memberships(user: CurrentUser, session: SessionDep) -> list[MyMembershipOut]:
     return await service.my_memberships(session, user)
+
+
+@router.post("/memberships/{membership_id}/accept", response_model=MyMembershipOut)
+async def accept_invitation(
+    membership_id: UUID, user: CurrentUser, session: SessionDep
+) -> MyMembershipOut:
+    return await service.accept_invitation(session, user, membership_id)
+
+
+@router.post("/memberships/{membership_id}/decline", status_code=status.HTTP_204_NO_CONTENT)
+async def decline_invitation(membership_id: UUID, user: CurrentUser, session: SessionDep) -> None:
+    await service.decline_invitation(session, user, membership_id)

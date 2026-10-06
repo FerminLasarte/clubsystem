@@ -16,6 +16,8 @@ class StaffStatus(StrEnum):
 
 
 class MembershipStatus(StrEnum):
+    # INVITED: el club invitó a la persona y falta que acepte desde la app.
+    INVITED = "INVITED"
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
