@@ -69,6 +69,12 @@ La CI (`.github/workflows/ci.yml`) corre en cada PR:
 - backend: ruff, pyright, migraciones + `alembic check`, tests contra Postgres real con RLS, verificación de que el contrato OpenAPI commiteado esté al día y `pip-audit`;
 - frontends: lint, type-check, build y `pnpm audit`.
 
+`pnpm audit` ignora dos advisories altos sin parche publicado (`pnpm.auditConfig.ignoreCves` en el `package.json` raíz). Los dos llegan solo por el tooling de Expo (`@expo/cli`) y no forman parte del bundle de la app ni de la web:
+- `CVE-2026-93687` (braces ≤3.0.3, [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)): DoS por patrones anidados, vía metro → micromatch.
+- `CVE-2026-85393` (node-forge ≤1.4.0, [GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv)): verificación de firmas PKCS#1 v1.5, vía el code signing del CLI.
+
+Cuando Expo publique versiones que los resuelvan, actualizá y sacá esas entradas.
+
 ## Arquitectura en una línea por capa
 
 - **Tenant**: el club activo sale de la sesión (panel) o de la URL validada contra la membresía (app). Toda consulta filtra por club, y Postgres lo refuerza con Row-Level Security (`FORCE`, rol de app sin privilegios).

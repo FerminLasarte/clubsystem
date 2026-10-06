@@ -15,5 +15,13 @@
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@9.1.0"
+  "packageManager": "pnpm@9.1.0",
+  "pnpm": {
+    "auditConfig": {
+      "ignoreCves": [
+        "CVE-2026-93687",
+        "CVE-2026-85393"
+      ]
+    }
+  }
 }
