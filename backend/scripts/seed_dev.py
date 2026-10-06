@@ -86,9 +86,9 @@ async def main() -> None:
                 email_verified_at=now,
             )
 
-        owner = user("owner@demo.test", "Olivia", "Dueña")
-        clerk = user("recepcion@demo.test", "Ramiro", "Recepción")
-        storekeeper = user("deposito@demo.test", "Diego", "Depósito")
+        owner = user("owner@demo.example.com", "Olivia", "Dueña")
+        clerk = user("recepcion@demo.example.com", "Ramiro", "Recepción")
+        storekeeper = user("deposito@demo.example.com", "Diego", "Depósito")
         session.add_all([owner, clerk, storekeeper])
         await session.flush()
         session.add_all(
@@ -131,7 +131,7 @@ async def main() -> None:
 
         members: list[User] = []
         for i, (first, last) in enumerate(zip(FIRST_NAMES, LAST_NAMES, strict=True)):
-            members.append(user(f"socio{i + 1}@demo.test", first, last, dni=f"3{i}111222"))
+            members.append(user(f"socio{i + 1}@demo.example.com", first, last, dni=f"3{i}111222"))
         session.add_all(members)
         await session.flush()
         for i, member in enumerate(members):
@@ -248,8 +248,8 @@ async def main() -> None:
 
     await engine.dispose()
     print("Datos de demo creados. Contraseña de todas las cuentas:", password)
-    print("  Panel: owner@demo.test (OWNER de 2 clubes), recepcion@demo.test, deposito@demo.test")
-    print("  App:   socio1@demo.test … socio8@demo.test (DNI 30111222 …)")
+    print("  Panel: owner@demo.example.com (OWNER de 2 clubes), recepcion@demo.example.com, deposito@demo.example.com")
+    print("  App:   socio1@demo.example.com … socio8@demo.example.com (DNI 30111222 …)")
 
 
 if __name__ == "__main__":
