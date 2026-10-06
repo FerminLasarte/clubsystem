@@ -8,14 +8,11 @@ importers:
 
   .:
     devDependencies:
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
       turbo:
-        specifier: ^2.0.0
+        specifier: ^2.8.17
         version: 2.8.17
       typescript:
-        specifier: ^5.4.0
+        specifier: ^5.9.2
         version: 5.9.3
 
   apps/mobile:
@@ -169,6 +166,8 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
+
+  backend: {}
 
   packages/types: {}
 

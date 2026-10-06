@@ -45,3 +45,4 @@ config-files.txt
 package-lock.json
 .env.*
 !.env.example
+.claude/worktrees/
