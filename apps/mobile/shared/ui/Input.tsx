@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type Ref } from "react";
 import { StyleSheet, TextInput, View, type TextInputProps } from "react-native";
 
 import { colors, radius, sizes, spacing, typography } from "@/shared/theme/tokens";
@@ -9,15 +9,20 @@ interface InputProps extends Omit<TextInputProps, "style"> {
   label: string;
   error?: string;
   hint?: string;
+  ref?: Ref<TextInput>;
 }
 
-export function Input({ label, error, hint, onFocus, onBlur, ...props }: InputProps) {
+export function Input({ label, error, hint, onFocus, onBlur, ref, ...props }: InputProps) {
   const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
       <Text variant="label">{label}</Text>
       <TextInput
+        ref={ref}
         accessibilityLabel={label}
+        // Las contraseñas nunca se corrigen ni se capitalizan.
+        autoCapitalize={props.secureTextEntry ? "none" : undefined}
+        autoCorrect={props.secureTextEntry ? false : undefined}
         placeholderTextColor={colors.muted}
         style={[styles.input, focused && styles.focused, !!error && styles.invalid]}
         onFocus={(e) => {

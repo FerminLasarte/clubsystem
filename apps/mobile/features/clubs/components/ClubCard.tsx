@@ -3,7 +3,7 @@ import { SPORT_LABELS } from "@clubsystem/shared";
 
 import { Badge, Button, Card, Row, Text } from "@/shared/ui";
 
-import { canRequestMembership, MEMBERSHIP_STATUS_TONE, membershipLabel } from "../lib/status";
+import { canRequestMembership, MEMBERSHIP_STATUS_TONE, membershipLabel, requestLabel } from "../lib/status";
 
 interface ClubCardProps {
   club: ClubDirectoryItemOut;
@@ -29,7 +29,7 @@ export function ClubCard({ club, onRequest, requesting, canRequest }: ClubCardPr
       ) : null}
       {canRequestMembership(status) ? (
         <Button
-          title={status ? "Volver a solicitar membresía" : "Solicitar membresía"}
+          title={requestLabel(status)}
           variant="secondary"
           onPress={onRequest}
           loading={requesting}

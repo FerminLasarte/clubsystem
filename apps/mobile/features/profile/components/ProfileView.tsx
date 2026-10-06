@@ -1,12 +1,13 @@
 import { router } from "expo-router";
-import { Alert, FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import { Alert, FlatList, StyleSheet, View } from "react-native";
 
 import { useLogout } from "@/features/auth/hooks";
+import { InvitationsList } from "@/features/clubs/components/InvitationsList";
 import { MembershipCard } from "@/features/clubs/components/MembershipCard";
 import { useMyMemberships } from "@/features/clubs/hooks";
 import { useRefreshOnFocus } from "@/shared/hooks/useRefreshOnFocus";
-import { Badge, Button, Card, QueryState, Row, screenContent, StateView, Text } from "@/shared/ui";
-import { colors, spacing } from "@/shared/theme/tokens";
+import { Badge, Button, Card, PullToRefresh, QueryState, Row, screenContent, StateView, Text } from "@/shared/ui";
+import { spacing } from "@/shared/theme/tokens";
 
 import { useProfile } from "../hooks";
 
@@ -46,20 +47,16 @@ export function ProfileView() {
 
   return (
     <FlatList
-      data={memberships.data ?? []}
+      // Las invitaciones se muestran arriba, con sus acciones.
+      data={(memberships.data ?? []).filter((m) => m.status !== "INVITED")}
       keyExtractor={(m) => m.id}
       renderItem={({ item }) => <MembershipCard membership={item} />}
       contentContainerStyle={screenContent.padded}
-      refreshControl={
-        <RefreshControl
-          refreshing={memberships.isRefetching}
-          onRefresh={() => void memberships.refetch()}
-          tintColor={colors.primary}
-        />
-      }
+      refreshControl={<PullToRefresh onRefresh={memberships.refetch} />}
       ListHeaderComponent={
         <View style={styles.section}>
           <UserCard />
+          <InvitationsList />
           <Text variant="heading">Mis membresías</Text>
         </View>
       }

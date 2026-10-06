@@ -1,9 +1,9 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, View } from "react-native";
 
 import { useRefreshOnFocus } from "@/shared/hooks/useRefreshOnFocus";
-import { Chip, QueryState, Row, screenContent, StateView } from "@/shared/ui";
+import { Chip, PullToRefresh, QueryState, Row, screenContent, StateView } from "@/shared/ui";
 import { colors, spacing } from "@/shared/theme/tokens";
 
 import type { ReservationScope } from "../api";
@@ -38,13 +38,7 @@ export function ReservationsView() {
         onEndReached={() => {
           if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
         }}
-        refreshControl={
-          <RefreshControl
-            refreshing={query.isRefetching && !query.isFetchingNextPage}
-            onRefresh={() => void query.refetch()}
-            tintColor={colors.primary}
-          />
-        }
+        refreshControl={<PullToRefresh onRefresh={query.refetch} />}
         ListEmptyComponent={
           query.isPending || query.isError ? (
             <QueryState query={query} />

@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { Alert, FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import { Alert, FlatList, StyleSheet, View } from "react-native";
 
 import { EmailVerificationNotice } from "@/features/auth/components/EmailVerificationNotice";
 import { useSession } from "@/features/auth/hooks";
 import { errorMessage } from "@/shared/api/errors";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useRefreshOnFocus } from "@/shared/hooks/useRefreshOnFocus";
-import { Input, QueryState, screenContent, StateView } from "@/shared/ui";
-import { colors, spacing } from "@/shared/theme/tokens";
+import { Input, PullToRefresh, QueryState, screenContent, StateView } from "@/shared/ui";
+import { spacing } from "@/shared/theme/tokens";
 
 import { useClubsDirectory, useRequestMembership } from "../hooks";
 import { ClubCard } from "./ClubCard";
@@ -22,8 +22,10 @@ export function ClubDirectory() {
 
   const requestMembership = (clubId: string, clubName: string) =>
     request.mutate(clubId, {
-      onSuccess: () =>
-        Alert.alert("Solicitud enviada", `${clubName} va a revisar tu solicitud. Vas a ver el estado en esta pantalla.`),
+      onSuccess: (membership) =>
+        membership.status === "APPROVED"
+          ? Alert.alert("¡Listo!", `Ya sos socio de ${clubName}.`)
+          : Alert.alert("Solicitud enviada", `${clubName} va a revisar tu solicitud. Vas a ver el estado en esta pantalla.`),
       onError: (error) => Alert.alert("No se pudo enviar la solicitud", errorMessage(error)),
     });
 
@@ -55,9 +57,7 @@ export function ClubDirectory() {
           onRequest={() => requestMembership(item.id, item.name)}
         />
       )}
-      refreshControl={
-        <RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={colors.primary} />
-      }
+      refreshControl={<PullToRefresh onRefresh={query.refetch} />}
       ListEmptyComponent={
         query.isPending || query.isError ? (
           <QueryState query={query} />

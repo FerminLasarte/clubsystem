@@ -3,7 +3,8 @@ import { StyleSheet, View } from "react-native";
 
 import { EmailVerificationNotice } from "@/features/auth/components/EmailVerificationNotice";
 import { useSession } from "@/features/auth/hooks";
-import { approvedMemberships, useMyMemberships } from "@/features/clubs/hooks";
+import { InvitationsList } from "@/features/clubs/components/InvitationsList";
+import { approvedMemberships, pendingInvitations, useMyMemberships } from "@/features/clubs/hooks";
 import { ReservationCard } from "@/features/reservations/components/ReservationCard";
 import { useUpcomingReservations } from "@/features/reservations/hooks";
 import { Button, Card, QueryState, Row, Text } from "@/shared/ui";
@@ -14,7 +15,10 @@ export const HOME_UPCOMING_LIMIT = 3;
 function MembershipCallout() {
   const memberships = useMyMemberships();
   if (memberships.isPending || memberships.isError) return <QueryState query={memberships} />;
-  if (approvedMemberships(memberships.data).length > 0) return null;
+  // Con una invitación pendiente alcanza con la tarjeta de la invitación.
+  if (approvedMemberships(memberships.data).length > 0 || pendingInvitations(memberships.data).length > 0) {
+    return null;
+  }
 
   const pending = memberships.data.filter((m) => m.status === "PENDING");
   return (
@@ -30,7 +34,8 @@ function MembershipCallout() {
   );
 }
 
-function UpcomingReservations() {
+/** Sin membresía aprobada no se puede reservar: no se ofrece el atajo. */
+function UpcomingReservations({ canBook }: { canBook: boolean }) {
   const upcoming = useUpcomingReservations(HOME_UPCOMING_LIMIT);
   return (
     <View style={styles.section}>
@@ -43,7 +48,9 @@ function UpcomingReservations() {
       ) : upcoming.data.items.length === 0 ? (
         <Card>
           <Text color="muted">No tenés reservas próximas.</Text>
-          <Button title="Reservar una cancha" variant="secondary" onPress={() => router.navigate("/book")} />
+          {canBook ? (
+            <Button title="Reservar una cancha" variant="secondary" onPress={() => router.navigate("/book")} />
+          ) : null}
         </Card>
       ) : (
         upcoming.data.items.map((r) => <ReservationCard key={r.id} reservation={r} />)
@@ -54,12 +61,14 @@ function UpcomingReservations() {
 
 export function HomeHeader() {
   const firstName = useSession().data?.user.first_name;
+  const canBook = approvedMemberships(useMyMemberships().data).length > 0;
   return (
     <View style={styles.section}>
       <Text variant="title">{firstName ? `Hola, ${firstName}` : "Hola"}</Text>
       <EmailVerificationNotice />
+      <InvitationsList />
       <MembershipCallout />
-      <UpcomingReservations />
+      <UpcomingReservations canBook={canBook} />
       <Text variant="heading">Novedades</Text>
     </View>
   );

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from "react-native";
+import { ScrollView, StyleSheet } from "react-native";
 import { SafeAreaView, type Edge } from "react-native-safe-area-context";
 
 import { colors, spacing } from "@/shared/theme/tokens";
@@ -16,15 +16,15 @@ export function Screen({ children, scroll = false, edges = [] }: ScreenProps) {
   return (
     <SafeAreaView style={styles.screen} edges={edges}>
       {scroll ? (
-        <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <ScrollView
-            contentContainerStyle={screenContent.padded}
-            keyboardShouldPersistTaps="handled"
-            contentInsetAdjustmentBehavior="automatic"
-          >
-            {children}
-          </ScrollView>
-        </KeyboardAvoidingView>
+        // En iOS el ScrollView corre su contenido por encima del teclado; en Android lo hace el sistema.
+        <ScrollView
+          contentContainerStyle={screenContent.padded}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+        >
+          {children}
+        </ScrollView>
       ) : (
         children
       )}

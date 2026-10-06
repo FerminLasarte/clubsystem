@@ -23,14 +23,31 @@ export function approvedMemberships(memberships: MyMembershipOut[] | undefined):
   return (memberships ?? []).filter((m) => m.status === "APPROVED");
 }
 
-export function useRequestMembership() {
+export function pendingInvitations(memberships: MyMembershipOut[] | undefined): MyMembershipOut[] {
+  return (memberships ?? []).filter((m) => m.status === "INVITED");
+}
+
+/** Toda mutación de membresías cambia el directorio, mis membresías y la sesión. */
+function useMembershipMutation<TVars, TData>(mutationFn: (vars: TVars) => Promise<TData>) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (clubId: string) => clubsApi.requestMembership(clubId),
+    mutationFn,
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: clubKeys.all }),
         queryClient.invalidateQueries({ queryKey: authKeys.session }),
       ]),
   });
+}
+
+export function useRequestMembership() {
+  return useMembershipMutation((clubId: string) => clubsApi.requestMembership(clubId));
+}
+
+export function useAcceptInvitation() {
+  return useMembershipMutation((membershipId: string) => clubsApi.acceptInvitation(membershipId));
+}
+
+export function useDeclineInvitation() {
+  return useMembershipMutation((membershipId: string) => clubsApi.declineInvitation(membershipId));
 }

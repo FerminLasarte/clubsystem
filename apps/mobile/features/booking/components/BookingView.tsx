@@ -2,14 +2,14 @@ import type { AppDuration, Sport } from "@clubsystem/api";
 import { SPORT_LABELS, todayIn } from "@clubsystem/shared";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Alert, FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import { Alert, FlatList, StyleSheet, View } from "react-native";
 
 import { approvedMemberships, useMyMemberships } from "@/features/clubs/hooks";
 import { errorMessage, isApiError } from "@/shared/api/errors";
 import { useRefreshOnFocus } from "@/shared/hooks/useRefreshOnFocus";
 import { deviceTimeZone } from "@/shared/lib/time";
-import { ChipSelector, QueryState, Screen, screenContent, StateView } from "@/shared/ui";
-import { colors, spacing } from "@/shared/theme/tokens";
+import { ChipSelector, PullToRefresh, QueryState, Screen, screenContent, StateView } from "@/shared/ui";
+import { spacing } from "@/shared/theme/tokens";
 
 import { useAvailability, useClubCourts, useClubTimeZone, useCreateReservation } from "../hooks";
 import { bookingDays } from "../lib/dates";
@@ -163,13 +163,7 @@ export function BookingView() {
             onSelect={(startsAt) => setSelection({ key: paramsKey, courtId: item.court_id, startsAt })}
           />
         )}
-        refreshControl={
-          <RefreshControl
-            refreshing={availability.isRefetching && !availability.isPlaceholderData}
-            onRefresh={() => void availability.refetch()}
-            tintColor={colors.primary}
-          />
-        }
+        refreshControl={<PullToRefresh onRefresh={availability.refetch} />}
         ListEmptyComponent={
           !params ? (
             courts.data && sports.length === 0 ? (

@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
-import { FlatList, RefreshControl } from "react-native";
+import { useCallback } from "react";
+import { FlatList } from "react-native";
 
 import { authKeys } from "@/features/auth/api";
 import { clubKeys } from "@/features/clubs/api";
@@ -9,8 +9,7 @@ import { NewsCard } from "@/features/news/components/NewsCard";
 import { useMyNews } from "@/features/news/hooks";
 import { reservationKeys } from "@/features/reservations/api";
 import { useRefreshOnFocus } from "@/shared/hooks/useRefreshOnFocus";
-import { QueryState, screenContent, StateView } from "@/shared/ui";
-import { colors } from "@/shared/theme/tokens";
+import { PullToRefresh, QueryState, screenContent, StateView } from "@/shared/ui";
 
 import { HOME_UPCOMING_LIMIT, HomeHeader } from "./HomeHeader";
 
@@ -24,7 +23,6 @@ const HOME_QUERIES = [
 export function HomeView() {
   const queryClient = useQueryClient();
   const news = useMyNews();
-  const [refreshing, setRefreshing] = useState(false);
 
   // Inicio junta sesión, membresías, reservas y novedades.
   const refetchHome = useCallback(
@@ -33,15 +31,6 @@ export function HomeView() {
   );
   useRefreshOnFocus(refetchHome);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await refetchHome();
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
   return (
     <FlatList
       data={news.data ?? []}
@@ -49,7 +38,7 @@ export function HomeView() {
       renderItem={({ item }) => <NewsCard news={item} />}
       contentContainerStyle={screenContent.padded}
       ListHeaderComponent={<HomeHeader />}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+      refreshControl={<PullToRefresh onRefresh={refetchHome} />}
       ListEmptyComponent={
         news.isPending || news.isError ? (
           <QueryState query={news} />

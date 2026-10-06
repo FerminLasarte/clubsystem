@@ -1,6 +1,6 @@
 import { router } from "expo-router";
-import { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { useRef, useState } from "react";
+import { StyleSheet, View, type TextInput } from "react-native";
 
 import { errorMessage } from "@/shared/api/errors";
 import { Button, Card, Input, Notice, Text } from "@/shared/ui";
@@ -12,8 +12,8 @@ export function LoginForm() {
   const login = useLogin();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const passwordRef = useRef<TextInput>(null);
   const canSubmit = identifier.trim().length >= 3 && password.length > 0;
-
   const submit = () => {
     if (canSubmit) login.mutate({ identifier: identifier.trim(), password });
   };
@@ -35,9 +35,12 @@ export function LoginForm() {
           autoComplete="username"
           textContentType="username"
           returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
+          submitBehavior="submit"
           placeholder="tu@email.com o 30123456"
         />
         <Input
+          ref={passwordRef}
           label="Contraseña"
           value={password}
           onChangeText={setPassword}
