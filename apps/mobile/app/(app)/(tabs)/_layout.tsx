@@ -9,7 +9,9 @@ import { colors } from "@/shared/theme/tokens";
 type IconName = ComponentProps<typeof Ionicons>["name"];
 
 function tabIcon(name: IconName) {
-  return ({ color, size }: { color: ColorValue; size: number }) => <Ionicons name={name} color={color} size={size} />;
+  return function TabIcon({ color, size }: { color: ColorValue; size: number }) {
+    return <Ionicons name={name} color={color} size={size} />;
+  };
 }
 
 export default function TabsLayout() {
