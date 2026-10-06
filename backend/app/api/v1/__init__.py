@@ -5,6 +5,7 @@ from app.api.v1.admin import cash as admin_cash
 from app.api.v1.admin import club as admin_club
 from app.api.v1.admin import courts as admin_courts
 from app.api.v1.admin import dashboard as admin_dashboard
+from app.api.v1.admin import expenses as admin_expenses
 from app.api.v1.admin import fees as admin_fees
 from app.api.v1.admin import members as admin_members
 from app.api.v1.admin import membership_plans as admin_membership_plans
@@ -34,4 +35,5 @@ routers = [
     admin_courts.router,
     admin_reservations.router,
     mobile_reservations.router,
+    admin_expenses.router,
 ]
