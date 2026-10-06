@@ -1,7 +1,10 @@
 """Routers de la API v1. Cada uno define su prefijo."""
 
 from app.api.v1 import auth, invitations, me
+from app.api.v1.admin import cash as admin_cash
 from app.api.v1.admin import club as admin_club
+from app.api.v1.admin import dashboard as admin_dashboard
+from app.api.v1.admin import fees as admin_fees
 from app.api.v1.admin import members as admin_members
 from app.api.v1.admin import membership_plans as admin_membership_plans
 from app.api.v1.admin import news as admin_news
@@ -22,4 +25,7 @@ routers = [
     admin_membership_plans.router,
     admin_members.router,
     mobile_memberships.router,
+    admin_cash.router,
+    admin_fees.router,
+    admin_dashboard.router,
 ]

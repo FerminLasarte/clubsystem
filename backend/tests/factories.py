@@ -10,12 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.enums import (
     CustomerType,
+    FeeStatus,
     MembershipStatus,
+    PaymentMethod,
     ReservationSource,
     ReservationStatus,
     Sport,
     StaffRole,
     StaffStatus,
+    TransactionType,
 )
 from app.models import (
     Club,
@@ -23,7 +26,9 @@ from app.models import (
     ClubNews,
     ClubStaff,
     Court,
+    MembershipFee,
     MembershipPlan,
+    Payment,
     Reservation,
     StockItem,
     User,
@@ -139,6 +144,32 @@ class Factory:
         n = next(_seq)
         defaults: dict[str, object] = {"club_id": club.id, "title": f"Novedad {n}", "body": "..."}
         return await self._save(ClubNews(**{**defaults, **kw}))
+
+    async def payment(self, club: Club, amount: str = "1000", **kw: object) -> Payment:
+        defaults: dict[str, object] = {
+            "club_id": club.id,
+            "type": TransactionType.INCOME,
+            "amount": Decimal(amount),
+            "method": PaymentMethod.CASH,
+            "description": "Movimiento de prueba",
+            "occurred_at": datetime.now(UTC),
+        }
+        return await self._save(Payment(**{**defaults, **kw}))
+
+    async def fee(
+        self, membership: ClubMembership, year: int, month: int, amount: str = "10000", **kw: object
+    ) -> MembershipFee:
+        defaults: dict[str, object] = {
+            "club_id": membership.club_id,
+            "membership_id": membership.id,
+            "plan_name": "Base",
+            "year": year,
+            "month": month,
+            "amount": Decimal(amount),
+            "status": FeeStatus.PENDING,
+            "due_date": date(year, month, 10),
+        }
+        return await self._save(MembershipFee(**{**defaults, **kw}))
 
 
 async def login_web(client: httpx.AsyncClient, user: User) -> httpx.Response:
