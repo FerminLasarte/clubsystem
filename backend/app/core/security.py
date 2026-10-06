@@ -1,87 +1,99 @@
-"""
-ClubSystem — Security Utilities
-==============================
-Centraliza todas las operaciones criptográficas de la aplicación:
-  - Hashing y verificación de contraseñas con bcrypt (via passlib).
-  - Generación de JWT firmados con HS256.
+"""Contraseñas (bcrypt), access tokens (JWT HS256) y tokens opacos (refresh, un solo uso)."""
 
-Por qué passlib sobre bcrypt directo:
-  - CryptContext abstrae el esquema de hashing → migración futura sin tocar código.
-  - `deprecated="auto"` re-hashea contraseñas antiguas en el próximo login.
-  - API idéntica independientemente del backend (bcrypt, argon2, scrypt).
-"""
-
-from datetime import datetime, timedelta, timezone
+import hashlib
+import secrets
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from typing import Literal
 from uuid import UUID
 
-from jose import jwt
-from passlib.context import CryptContext
+import bcrypt
+import jwt
+from starlette.concurrency import run_in_threadpool
 
-from app.core.config import settings
+from app.core.config import get_settings
 
-# ── Password Hashing ──────────────────────────────────────────
-# bcrypt como único esquema activo.
-# `deprecated="auto"` permite agregar argon2/scrypt en el futuro sin
-# romper contraseñas existentes: las migra silenciosamente en el login.
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+BCRYPT_ROUNDS = 12
+MAX_PASSWORD_BYTES = 72  # límite de bcrypt
+_JWT_ALGORITHM = "HS256"
 
-
-def hash_password(plain: str) -> str:
-    """
-    Hashea una contraseña en texto plano con bcrypt (12 rondas).
-    Devuelve el hash listo para almacenar en la DB.
-    """
-    return _pwd_context.hash(plain)
+# Hash de una contraseña aleatoria: se verifica contra él cuando el usuario no existe,
+# para que el tiempo de respuesta no revele si el email está registrado.
+_DUMMY_HASH = bcrypt.hashpw(secrets.token_bytes(16), bcrypt.gensalt(BCRYPT_ROUNDS)).decode()
 
 
-def verify_password(plain: str, hashed: str) -> bool:
-    """
-    Verifica una contraseña contra su hash bcrypt.
-    Timing-safe: no revela si el hash es válido mediante timing attacks.
-    """
-    return _pwd_context.verify(plain, hashed)
+async def hash_password(plain: str) -> str:
+    # bcrypt es CPU-bound (~250 ms): fuera del event loop.
+    hashed = await run_in_threadpool(bcrypt.hashpw, plain.encode(), bcrypt.gensalt(BCRYPT_ROUNDS))
+    return hashed.decode()
 
 
-# ── JWT ───────────────────────────────────────────────────────
+async def verify_password(plain: str, hashed: str | None) -> bool:
+    target = (hashed or _DUMMY_HASH).encode()
+    encoded = plain.encode()
+    if len(encoded) > MAX_PASSWORD_BYTES:
+        return False
+    ok = await run_in_threadpool(bcrypt.checkpw, encoded, target)
+    return ok and hashed is not None
 
-def create_access_token(
-    *,
-    sub: str,
-    email: str,
-    club_id: UUID | None = None,
-    roles: list[str] | None = None,
-) -> str:
-    """
-    Genera un JWT firmado con HS256.
 
-    Payload:
-      sub     → ID del usuario (string UUID) — estándar RFC 7519
-      email   → email del operador (permite switch-club sin re-login)
-      club_id → UUID del club activo (omitido en JWTs limitados para usuarios sin club)
-      roles   → lista de StaffRoles del operador en el club activo
-                Ej: ["OWNER"] o ["RESERVATIONS_MANAGER", "STOCK_MANAGER"]
-                Lista vacía en JWTs limitados (usuarios mobile sin club).
-      exp     → timestamp UTC de expiración (settings.JWT_EXPIRE_MINUTES)
+ClientKind = Literal["web", "mobile"]
 
-    JWT limitado: cuando club_id es None (usuarios mobile sin club asignado aún).
-    Solo permite acceder a /notifications y /invitations.
 
-    Args:
-      sub:     ID del usuario como string.
-      email:   Email del operador.
-      club_id: UUID del club activo (None para JWT limitado).
-      roles:   Lista de StaffRoles. None → [] en el payload.
+@dataclass(frozen=True)
+class AccessClaims:
+    user_id: UUID
+    token_version: int
+    session_id: UUID
+    client: ClientKind
+    club_id: UUID | None
 
-    Returns:
-      JWT firmado como string.
-    """
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
-    payload: dict = {
-        "sub":   sub,
-        "email": email,
-        "roles": roles or [],
-        "exp":   int(expire.timestamp()),
+
+def create_access_token(claims: AccessClaims) -> str:
+    settings = get_settings()
+    now = datetime.now(UTC)
+    payload: dict[str, object] = {
+        "sub": str(claims.user_id),
+        "ver": claims.token_version,
+        "sid": str(claims.session_id),
+        "cli": claims.client,
+        "typ": "access",
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(minutes=settings.ACCESS_TOKEN_TTL_MINUTES)).timestamp()),
     }
-    if club_id is not None:
-        payload["club_id"] = str(club_id)
-    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    if claims.club_id:
+        payload["club"] = str(claims.club_id)
+    return jwt.encode(payload, settings.JWT_SECRET_KEY.get_secret_value(), _JWT_ALGORITHM)
+
+
+def decode_access_token(token: str) -> AccessClaims | None:
+    """Devuelve None si el token es inválido, expiró o no es un access token."""
+    settings = get_settings()
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY.get_secret_value(),
+            algorithms=[_JWT_ALGORITHM],
+            options={"require": ["sub", "exp", "ver", "sid", "typ"]},
+        )
+        if payload["typ"] != "access" or payload.get("cli") not in ("web", "mobile"):
+            return None
+        return AccessClaims(
+            user_id=UUID(payload["sub"]),
+            token_version=int(payload["ver"]),
+            session_id=UUID(payload["sid"]),
+            client=payload["cli"],
+            club_id=UUID(payload["club"]) if payload.get("club") else None,
+        )
+    except (jwt.PyJWTError, ValueError, KeyError):
+        return None
+
+
+def new_opaque_token() -> tuple[str, str]:
+    """Token aleatorio para el cliente y su hash (lo único que se guarda)."""
+    raw = secrets.token_urlsafe(32)
+    return raw, hash_opaque_token(raw)
+
+
+def hash_opaque_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode()).hexdigest()

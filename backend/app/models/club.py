@@ -1,53 +1,184 @@
-# backend/models/club.py
+"""Club (tenant) y sus vínculos con personas: staff del panel, planes y membresías de socios."""
+
 import uuid
-from datetime import datetime, time
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, Time, ARRAY
+from datetime import date, datetime, time
+from decimal import Decimal
+
+from sqlalchemy import (
+    ARRAY,
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    Time,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
-from .base import Base
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.domain.cancellation import (
+    DEFAULT_MEMBER_CANCEL_NOTICE_HOURS,
+    MAX_MEMBER_CANCEL_NOTICE_HOURS,
+)
+from app.domain.enums import MembershipStatus, Sport, StaffRole, StaffStatus
+from app.models.base import Base, Timestamps, UUIDPk, str_enum
+from app.models.identity import User
 
 
-class Club(Base):
+def _in_list(column: str, values: list[str]) -> str:
+    quoted = ", ".join(f"'{v}'" for v in values)
+    return f"{column} <@ ARRAY[{quoted}]::varchar[]"
+
+
+class Club(UUIDPk, Timestamps, Base):
     __tablename__ = "clubs"
+    __table_args__ = (
+        CheckConstraint(_in_list("sport_types", [s.value for s in Sport]), name="sport_types"),
+        CheckConstraint("primary_color ~ '^#[0-9A-Fa-f]{6}$'", name="primary_color_hex"),
+        CheckConstraint("accent_color ~ '^#[0-9A-Fa-f]{6}$'", name="accent_color_hex"),
+        CheckConstraint(
+            "open_time IS NULL OR close_time IS NULL OR open_time < close_time", name="hours"
+        ),
+        CheckConstraint(
+            f"member_cancel_notice_hours BETWEEN 0 AND {MAX_MEMBER_CANCEL_NOTICE_HOURS}",
+            name="member_cancel_notice_hours",
+        ),
+    )
 
-    id:            Mapped[uuid.UUID]  = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    slug:          Mapped[str]        = mapped_column(String(100), unique=True, nullable=False)
-    name:          Mapped[str]        = mapped_column(String(255), nullable=False)
-    sport_types:   Mapped[list]       = mapped_column(ARRAY(String), nullable=False, default=list)
+    slug: Mapped[str] = mapped_column(String(100), unique=True)
+    name: Mapped[str] = mapped_column(String(255))
+    sport_types: Mapped[list[str]] = mapped_column(
+        ARRAY(String(20)), default=list, server_default="{}"
+    )
+    logo_url: Mapped[str | None] = mapped_column(Text)
+    primary_color: Mapped[str] = mapped_column(
+        String(7), default="#111827", server_default="#111827"
+    )
+    accent_color: Mapped[str] = mapped_column(
+        String(7), default="#3B82F6", server_default="#3B82F6"
+    )
+    address: Mapped[str | None] = mapped_column(Text)
+    city: Mapped[str | None] = mapped_column(String(100))
+    country: Mapped[str] = mapped_column(String(2), default="AR", server_default="AR")
+    timezone: Mapped[str] = mapped_column(
+        String(64),
+        default="America/Argentina/Buenos_Aires",
+        server_default="America/Argentina/Buenos_Aires",
+    )
+    phone: Mapped[str | None] = mapped_column(String(50))
+    email: Mapped[str | None] = mapped_column(String(255))
+    website: Mapped[str | None] = mapped_column(Text)
+    # Horario operativo diario. NULL = sin restricción (se usa 00:00–24:00).
+    open_time: Mapped[time | None] = mapped_column(Time)
+    close_time: Mapped[time | None] = mapped_column(Time)
+    # Horas antes del inicio hasta las que el socio cancela desde la app una reserva confirmada.
+    member_cancel_notice_hours: Mapped[int] = mapped_column(
+        Integer,
+        default=DEFAULT_MEMBER_CANCEL_NOTICE_HOURS,
+        server_default=str(DEFAULT_MEMBER_CANCEL_NOTICE_HOURS),
+    )
+    plan: Mapped[str] = mapped_column(String(50), default="starter", server_default="starter")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
-    # Branding
-    logo_url:      Mapped[str | None] = mapped_column(Text)
-    primary_color: Mapped[str]        = mapped_column(String(7), default="#111827")
-    accent_color:  Mapped[str]        = mapped_column(String(7), default="#3B82F6")
-    font_family:   Mapped[str]        = mapped_column(String(100), default="Inter")
 
-    # Contact
-    address:       Mapped[str | None] = mapped_column(Text)
-    city:          Mapped[str | None] = mapped_column(String(100))
-    country:       Mapped[str]        = mapped_column(String(100), default="AR")
-    phone:         Mapped[str | None] = mapped_column(String(50))
-    email:         Mapped[str | None] = mapped_column(String(255))
-    website:       Mapped[str | None] = mapped_column(Text)
+class ClubStaff(UUIDPk, Timestamps, Base):
+    """Acceso al panel de un club. Se invita por email; al aceptar se vincula el usuario."""
 
-    # Operating hours — used for reservation grid and booking validation
-    open_time:  Mapped[time | None] = mapped_column(Time, nullable=True)
-    close_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    __tablename__ = "club_staff"
+    __table_args__ = (
+        UniqueConstraint("club_id", "email"),
+        CheckConstraint(_in_list("roles", [r.value for r in StaffRole]), name="roles_valid"),
+        CheckConstraint("cardinality(roles) >= 1", name="roles_not_empty"),
+        CheckConstraint("email = lower(email)", name="email_lowercase"),
+    )
 
-    # Cancellation policy: hours before start_time a member may cancel without penalty
-    cancellation_policy_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24, server_default="24")
+    club_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clubs.id", ondelete="CASCADE"), index=True
+    )
+    email: Mapped[str] = mapped_column(String(255))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    roles: Mapped[list[str]] = mapped_column(ARRAY(String(30)))
+    status: Mapped[StaffStatus] = mapped_column(
+        str_enum(StaffStatus, "staff_status"), default=StaffStatus.INVITED
+    )
+    invited_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    # Invitación pendiente: el link del email lleva el token; acá solo su hash.
+    invite_token_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
+    invite_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    # Payments & integrations
-    require_deposit:   Mapped[bool]        = mapped_column(Boolean, nullable=False, default=False, server_default="false")
-    mercadopago_token: Mapped[str | None]  = mapped_column(Text, nullable=True)
+    club: Mapped[Club] = relationship(lazy="raise")
+    user: Mapped[User | None] = relationship(foreign_keys=[user_id], lazy="raise")
 
-    # Notification preferences
-    notif_whatsapp:     Mapped[bool] = mapped_column(Boolean, nullable=False, default=True,  server_default="true")
-    notif_cancellation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True,  server_default="true")
-    notif_cash_report:  Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
-    # Subscription
-    is_active:     Mapped[bool]       = mapped_column(Boolean, default=True)
-    plan:          Mapped[str]        = mapped_column(String(50), default="starter")
+class MembershipPlan(UUIDPk, Timestamps, Base):
+    __tablename__ = "membership_plans"
+    __table_args__ = (
+        UniqueConstraint("club_id", "name"),
+        UniqueConstraint("id", "club_id"),
+        CheckConstraint("monthly_fee >= 0", name="fee_non_negative"),
+    )
 
-    created_at:    Mapped[datetime]   = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at:    Mapped[datetime]   = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    club_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clubs.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(100))
+    monthly_fee: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+
+
+class ClubMembership(UUIDPk, Timestamps, Base):
+    """Socio de un club. Plan, número de socio, alta y estado son propios de cada club."""
+
+    __tablename__ = "club_memberships"
+    __table_args__ = (
+        UniqueConstraint("club_id", "user_id"),
+        UniqueConstraint("club_id", "member_number"),
+        UniqueConstraint("id", "club_id"),
+        # El plan tiene que ser del mismo club.
+        ForeignKeyConstraint(
+            ["plan_id", "club_id"],
+            ["membership_plans.id", "membership_plans.club_id"],
+            name="fk_club_memberships_plan_same_club",
+        ),
+        Index("ix_club_memberships_club_status", "club_id", "status"),
+    )
+
+    club_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clubs.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[MembershipStatus] = mapped_column(
+        str_enum(MembershipStatus, "membership_status"), default=MembershipStatus.PENDING
+    )
+    plan_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    member_number: Mapped[str | None] = mapped_column(String(50))
+    joined_on: Mapped[date | None] = mapped_column(Date)
+    requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    invited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id], lazy="raise")
+    club: Mapped[Club] = relationship(lazy="raise")
+    plan: Mapped[MembershipPlan | None] = relationship(
+        primaryjoin="ClubMembership.plan_id == MembershipPlan.id",
+        foreign_keys=[plan_id],
+        viewonly=True,
+        lazy="raise",
+    )

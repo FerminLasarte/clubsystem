@@ -1,13 +1,47 @@
-# Importar todos los modelos para que SQLAlchemy los registre en Base.metadata
-from app.models.club import Club
-from app.models.user import User
-from app.models.club_staff import ClubStaff       # RBAC multi-tenant
-from app.models.notification import Notification  # Notificaciones in-app
-from app.models.court import Court
-from app.models.reservation import Reservation
-from app.models.expense import Expense
+"""Importa todos los modelos para que queden registrados en `Base.metadata`."""
+
+from app.models.base import Base
+from app.models.club import Club, ClubMembership, ClubStaff, MembershipPlan
+from app.models.courts import ACTIVE_RESERVATION_STATUSES, Court, Reservation
+from app.models.finance import AnomalyLlmUsage, Expense, MembershipFee, Payment
+from app.models.identity import AuthSession, OneTimeToken, User
+from app.models.news import ClubNews
 from app.models.stock import StockItem, StockMovement
-from app.models.payment import Payment
-from app.models.fee import MembershipFee
-from app.models.club_membership import ClubMembership  # Membresía multi-club (socio/visitante)
-from app.models.club_news import ClubNews              # Novedades del club para socios
+
+# Tablas con club_id: tienen RLS por tenant (ver migración inicial).
+TENANT_TABLES = (
+    "club_staff",
+    "membership_plans",
+    "club_memberships",
+    "courts",
+    "reservations",
+    "payments",
+    "membership_fees",
+    "expenses",
+    "stock_items",
+    "stock_movements",
+    "club_news",
+    "anomaly_llm_usage",
+)
+
+__all__ = [
+    "ACTIVE_RESERVATION_STATUSES",
+    "TENANT_TABLES",
+    "AnomalyLlmUsage",
+    "AuthSession",
+    "Base",
+    "Club",
+    "ClubMembership",
+    "ClubNews",
+    "ClubStaff",
+    "Court",
+    "Expense",
+    "MembershipFee",
+    "MembershipPlan",
+    "OneTimeToken",
+    "Payment",
+    "Reservation",
+    "StockItem",
+    "StockMovement",
+    "User",
+]

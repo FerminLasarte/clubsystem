@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      # Sin ENV, Settings asume producción y exige proveedor de email real.
+      ENV: test
+      PGPASSWORD: postgres
+      DATABASE_URL: postgresql+asyncpg://clubsystem_app:app@localhost:5432/clubsystem
+      MIGRATIONS_DATABASE_URL: postgresql+asyncpg://clubsystem_owner:owner@localhost:5432/clubsystem
+      TEST_DATABASE_URL: postgresql+asyncpg://clubsystem_app:app@localhost:5432/clubsystem_test
+      TEST_MIGRATIONS_DATABASE_URL: postgresql+asyncpg://clubsystem_owner:owner@localhost:5432/clubsystem_test
+      JWT_SECRET_KEY: ci-only-secret-0123456789abcdefghijklmnopqrstuvwxyz
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pipx install poetry
+      - run: poetry install --no-interaction
+      - name: Crear roles y bases
+        run: psql -h localhost -U postgres -f docker/init-db.sql
+      - name: Formato y lint
+        run: poetry run ruff format --check . && poetry run ruff check .
+      - name: Tipos
+        run: poetry run pyright
+      - name: Migraciones aplican y coinciden con los modelos
+        run: poetry run alembic upgrade head && poetry run alembic check
+      - name: Tests
+        run: poetry run pytest
+      - name: El contrato OpenAPI commiteado está al día
+        run: |
+          poetry run python scripts/export_openapi.py > /tmp/openapi.json
+          diff -u ../packages/api/openapi.json /tmp/openapi.json || (echo "Regenerá los tipos: pnpm --filter @clubsystem/api generate" && exit 1)
+      - name: Auditoría de dependencias
+        run: poetry run pip install -q pip-audit && poetry run pip-audit --strict
+
+  frontends:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run lint type-check --filter=./apps/*
+      - run: pnpm --filter web build
+      - run: pnpm audit --prod --audit-level high

@@ -39,3 +39,10 @@ coverage/
 
 # ── Misc ──────────────────────────────────
 config-files.txt
+
+# ── Turbo / lockfiles de npm (el monorepo usa pnpm) ─────
+.turbo/
+package-lock.json
+.env.*
+!.env.example
+.claude/worktrees/

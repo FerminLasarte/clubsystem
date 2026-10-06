@@ -1,0 +1,39 @@
+"""Routers de la API v1. Cada uno define su prefijo."""
+
+from app.api.v1 import auth, invitations, me
+from app.api.v1.admin import cash as admin_cash
+from app.api.v1.admin import club as admin_club
+from app.api.v1.admin import courts as admin_courts
+from app.api.v1.admin import dashboard as admin_dashboard
+from app.api.v1.admin import expenses as admin_expenses
+from app.api.v1.admin import fees as admin_fees
+from app.api.v1.admin import members as admin_members
+from app.api.v1.admin import membership_plans as admin_membership_plans
+from app.api.v1.admin import news as admin_news
+from app.api.v1.admin import reservations as admin_reservations
+from app.api.v1.admin import staff as admin_staff
+from app.api.v1.admin import stock as admin_stock
+from app.api.v1.mobile import memberships as mobile_memberships
+from app.api.v1.mobile import news as mobile_news
+from app.api.v1.mobile import reservations as mobile_reservations
+
+routers = [
+    auth.router,
+    me.router,
+    invitations.router,
+    admin_club.router,
+    admin_staff.router,
+    admin_stock.router,
+    admin_news.router,
+    mobile_news.router,
+    admin_membership_plans.router,
+    admin_members.router,
+    mobile_memberships.router,
+    admin_cash.router,
+    admin_fees.router,
+    admin_dashboard.router,
+    admin_courts.router,
+    admin_reservations.router,
+    mobile_reservations.router,
+    admin_expenses.router,
+]
