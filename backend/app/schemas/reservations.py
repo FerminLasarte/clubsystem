@@ -81,19 +81,6 @@ class ReservationFilters(PageParams):
         return first, last
 
 
-class ExportRange(BaseModel):
-    from_: dt.date = Field(alias="from")
-    to: dt.date
-
-    @model_validator(mode="after")
-    def _ordered(self) -> Self:
-        if self.to < self.from_:
-            raise ValueError("`to` no puede ser anterior a `from`.")
-        if (self.to - self.from_).days > 366:
-            raise ValueError("El rango máximo de exportación es un año.")
-        return self
-
-
 class GridCourtOut(BaseModel):
     id: UUID
     name: str

@@ -3,7 +3,7 @@
 import type { ReservationStatus } from "@clubsystem/api";
 import { daysBetween, RESERVATION_STATUS_LABELS } from "@clubsystem/shared";
 
-import { ExportButton } from "@/components/shared/export-button";
+import { ExportButton, MAX_EXPORT_DAYS } from "@/components/shared/export-button";
 import { FormField } from "@/components/shared/form-field";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,7 +12,6 @@ import { exportReservationsCsv, type HistoryFilters as Filters } from "@/feature
 
 const ALL = "all";
 const STATUSES = Object.keys(RESERVATION_STATUS_LABELS) as ReservationStatus[];
-const MAX_EXPORT_DAYS = 366;
 
 interface HistoryFiltersProps {
   filters: Filters;

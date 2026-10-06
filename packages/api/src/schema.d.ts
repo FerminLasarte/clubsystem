@@ -21,6 +21,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/cash/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Cash
+         * @description Movimientos de caja de un día (`from` = `to`) o de un rango, en CSV.
+         */
+        get: operations["export_cash_api_v1_admin_cash_export_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/cash/payments": {
         parameters: {
             query?: never;
@@ -316,6 +336,26 @@ export interface paths {
         };
         /** List Fees */
         get: operations["list_fees_api_v1_admin_fees_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/fees/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Fees
+         * @description Cuotas del mes en CSV.
+         */
+        get: operations["export_fees_api_v1_admin_fees_export_csv_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3518,6 +3558,38 @@ export interface operations {
             };
         };
     };
+    export_cash_api_v1_admin_cash_export_csv_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_payment_api_v1_admin_cash_payments_post: {
         parameters: {
             query?: never;
@@ -4187,6 +4259,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_FeeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_fees_api_v1_admin_fees_export_csv_get: {
+        parameters: {
+            query: {
+                year: number;
+                month: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
                 };
             };
             /** @description Validation Error */

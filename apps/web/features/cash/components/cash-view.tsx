@@ -9,6 +9,7 @@ import { useActiveSession } from "@/features/auth/api";
 import { useCashDay } from "@/features/cash/api";
 import { useUrlParams } from "@/lib/use-url-params";
 
+import { CashExportDialog } from "./cash-export-dialog";
 import { CashSummaryCards } from "./cash-summary";
 import { DayNav } from "@/components/shared/day-nav";
 import { MethodTotalsTable } from "./method-totals";
@@ -29,7 +30,12 @@ export function CashView() {
       <PageHeader
         title="Caja"
         description={formatDay(date, { dateStyle: "full" })}
-        actions={canWrite ? <MovementDialog canPickMember={permissions.includes("members:read")} /> : null}
+        actions={
+          <>
+            <CashExportDialog day={date} today={today} />
+            {canWrite ? <MovementDialog canPickMember={permissions.includes("members:read")} /> : null}
+          </>
+        }
       />
       <div className="grid gap-6">
         <DayNav

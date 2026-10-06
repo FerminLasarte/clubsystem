@@ -11,12 +11,14 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from fastapi.responses import Response
 from sqlalchemy import ColumnElement, Numeric, Select, and_, func, literal, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.core.csv import csv_response
 from app.core.errors import BusinessRuleViolation, Conflict, NotFound
-from app.core.time import day_bounds, today_in, tz, utcnow
+from app.core.time import day_bounds, days_bounds, today_in, tz, utcnow
 from app.domain.enums import FeeStatus, PaymentMethod, TransactionType
 from app.models import ClubMembership, Court, MembershipFee, Payment, Reservation, User
 from app.repositories.base import get_scoped
@@ -29,6 +31,7 @@ from app.schemas.cash import (
     MovementReservation,
     PaymentCreate,
 )
+from app.schemas.common import ExportRange
 from app.services.context import StaffContext
 
 ZERO = Decimal("0.00")
@@ -69,6 +72,29 @@ async def collected_for_reservation(
     return (await session.execute(stmt)).scalar_one()
 
 
+# Etiquetas de los exports CSV (los frontends tienen las suyas en @clubsystem/shared).
+PAYMENT_METHOD_LABELS = {
+    PaymentMethod.CASH: "Efectivo",
+    PaymentMethod.CARD: "Tarjeta",
+    PaymentMethod.TRANSFER: "Transferencia",
+    PaymentMethod.MERCADOPAGO: "Mercado Pago",
+}
+_TYPE_LABELS = {TransactionType.INCOME: "Ingreso", TransactionType.OUTFLOW: "Egreso"}
+_EXPORT_HEADER = (
+    "Fecha y hora",
+    "Tipo",
+    "Medio",
+    "Monto",
+    "Descripción",
+    "Socio",
+    "N° de socio",
+    "Reserva",
+    "Registró",
+    "Anulado el",
+    "Motivo de anulación",
+)
+
+
 def _signed(type_: TransactionType, amount: Decimal) -> Decimal:
     return amount if type_ == TransactionType.INCOME else -amount
 
@@ -83,12 +109,7 @@ class CashService:
         day = day or today_in(zone)
         start, end = day_bounds(day, zone)
 
-        rows = await self.db.execute(
-            _movements_query(self.ctx.club_id)
-            .where(Payment.occurred_at >= start, Payment.occurred_at < end)
-            .order_by(Payment.occurred_at, Payment.created_at)
-        )
-        movements = [_movement(*row) for row in rows.all()]
+        movements = await self._movements_between(start, end)
 
         # ROLLUP: una fila por método y una fila total (method NULL), todo en SQL.
         totals = await self.db.execute(
@@ -125,6 +146,47 @@ class CashService:
                 by_method=list(by_method.values()),
             ),
         )
+
+    async def export(self, period: ExportRange) -> Response:
+        """Todos los movimientos del rango, anulados incluidos (con la fecha y el motivo)."""
+        zone = tz(self.ctx.club.timezone)
+        movements = await self._movements_between(*days_bounds(period.from_, period.to, zone))
+
+        def local(moment: datetime) -> str:
+            return moment.astimezone(zone).strftime("%Y-%m-%d %H:%M")
+
+        first, last = period.from_.isoformat(), period.to.isoformat()
+        return csv_response(
+            f"caja-{first}.csv" if first == last else f"caja-{first}-{last}.csv",
+            _EXPORT_HEADER,
+            (
+                (
+                    local(m.occurred_at),
+                    _TYPE_LABELS[m.type],
+                    PAYMENT_METHOD_LABELS[m.method],
+                    m.amount,
+                    m.description,
+                    m.member.full_name if m.member else None,
+                    m.member.member_number if m.member else None,
+                    f"{m.reservation.court_name} · {local(m.reservation.starts_at)}"
+                    f" · {m.reservation.customer_name}"
+                    if m.reservation
+                    else None,
+                    m.created_by_name,
+                    local(m.voided_at) if m.voided_at else None,
+                    m.void_reason,
+                )
+                for m in movements
+            ),
+        )
+
+    async def _movements_between(self, start: datetime, end: datetime) -> list[MovementOut]:
+        rows = await self.db.execute(
+            _movements_query(self.ctx.club_id)
+            .where(Payment.occurred_at >= start, Payment.occurred_at < end)
+            .order_by(Payment.occurred_at, Payment.created_at)
+        )
+        return [_movement(*row) for row in rows.all()]
 
     async def create(self, data: PaymentCreate) -> MovementOut:
         occurred_at = data.occurred_at or utcnow()

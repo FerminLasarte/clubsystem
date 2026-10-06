@@ -1,4 +1,6 @@
 import asyncio
+import csv
+import io
 
 import httpx
 from sqlalchemy import func, select
@@ -195,6 +197,8 @@ async def test_fees_of_another_club_are_not_found(
     assert (await client.get(FEES)).json()["total"] == 0
     summary = (await client.get(f"{FEES}/summary", params={"year": 2026, "month": 3})).json()
     assert summary["issued"]["count"] == 0
+    export = await client.get(f"{FEES}/export.csv", params={"year": 2026, "month": 3})
+    assert export.text.lstrip("\ufeff").splitlines()[1:] == []
 
 
 async def test_fees_require_fee_permissions(client: httpx.AsyncClient, factory: Factory) -> None:
@@ -213,3 +217,32 @@ async def test_fees_require_fee_permissions(client: httpx.AsyncClient, factory: 
     ).status_code == 403
     assert (await client.post(f"{FEES}/{fee.id}/pay", json={"method": "CASH"})).status_code == 403
     assert (await client.post(f"{FEES}/{fee.id}/cancel")).status_code == 403
+    export = await client.get(f"{FEES}/export.csv", params={"year": 2026, "month": 3})
+    assert export.status_code == 403
+
+
+async def test_export_fees_of_a_month(client: httpx.AsyncClient, factory: Factory) -> None:
+    club = await factory.club()
+    owner, _ = await factory.staff(club)
+    zoe, zoe_membership = await factory.membership(club, await factory.user(last_name="Zapata"))
+    ana, ana_membership = await factory.membership(club, await factory.user(last_name="Alvarez"))
+    await factory.fee(zoe_membership, 2026, 3, amount="8000")
+    ana_fee = await factory.fee(ana_membership, 2026, 3, amount="9000")
+    await factory.fee(ana_membership, 2026, 4)
+    await login_web(client, owner)
+    paid = await client.post(f"{FEES}/{ana_fee.id}/pay", json={"method": "TRANSFER"})
+    assert paid.status_code == 200, paid.text
+
+    response = await client.get(f"{FEES}/export.csv", params={"year": 2026, "month": 3})
+    assert response.status_code == 200
+    assert 'filename="cuotas-2026-03.csv"' in response.headers["content-disposition"]
+    header, *rows = list(csv.reader(io.StringIO(response.text.lstrip("\ufeff"))))
+    assert header[0] == "Socio"
+    assert [(r[0], r[3], r[4], r[5], r[9]) for r in rows] == [
+        (ana.full_name, "03/2026", "9000.00", "Cobrada", "Transferencia"),
+        (zoe.full_name, "03/2026", "8000.00", "Pendiente", ""),
+    ]
+    assert rows[0][8] != ""  # fecha de cobro
+    assert (
+        await client.get(f"{FEES}/export.csv", params={"year": 2026, "month": 13})
+    ).status_code == 422

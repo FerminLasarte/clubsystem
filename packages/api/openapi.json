@@ -5979,6 +5979,56 @@
         ]
       }
     },
+    "/api/v1/admin/cash/export.csv": {
+      "get": {
+        "description": "Movimientos de caja de un día (`from` = `to`) o de un rango, en CSV.",
+        "operationId": "export_cash_api_v1_admin_cash_export_csv_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Cash",
+        "tags": [
+          "Admin: caja"
+        ]
+      }
+    },
     "/api/v1/admin/cash/payments": {
       "post": {
         "operationId": "create_payment_api_v1_admin_cash_payments_post",
@@ -7279,6 +7329,58 @@
           }
         },
         "summary": "List Fees",
+        "tags": [
+          "Admin: cuotas"
+        ]
+      }
+    },
+    "/api/v1/admin/fees/export.csv": {
+      "get": {
+        "description": "Cuotas del mes en CSV.",
+        "operationId": "export_fees_api_v1_admin_fees_export_csv_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "year",
+            "required": true,
+            "schema": {
+              "maximum": 2100,
+              "minimum": 2000,
+              "title": "Year",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "maximum": 12,
+              "minimum": 1,
+              "title": "Month",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Fees",
         "tags": [
           "Admin: cuotas"
         ]

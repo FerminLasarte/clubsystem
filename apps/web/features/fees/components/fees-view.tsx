@@ -4,8 +4,10 @@ import type { FeeStatus } from "@clubsystem/api";
 import { FEE_STATUS_LABELS, monthLabel, todayIn, yearMonthOf } from "@clubsystem/shared";
 import { useState } from "react";
 
+import { ExportButton } from "@/components/shared/export-button";
 import { PageHeader } from "@/components/shared/page-header";
 import { useActiveSession } from "@/features/auth/api";
+import { exportFeesCsv } from "@/features/fees/api";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { pageParam, useUrlParams } from "@/lib/use-url-params";
 
@@ -41,7 +43,15 @@ export function FeesView() {
       <PageHeader
         title="Cuotas"
         description={`Cuotas de ${monthLabel(year, month)}`}
-        actions={canWrite ? <GenerateDialog year={year} month={month} /> : null}
+        actions={
+          <>
+            <ExportButton
+              request={() => exportFeesCsv(year, month)}
+              filename={`cuotas-${year}-${String(month).padStart(2, "0")}.csv`}
+            />
+            {canWrite ? <GenerateDialog year={year} month={month} /> : null}
+          </>
+        }
       />
       <div className="grid gap-6">
         <PeriodPicker year={year} month={month} onChange={(next) => setParams({ ...next, page: null })} />

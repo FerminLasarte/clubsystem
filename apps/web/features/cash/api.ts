@@ -21,6 +21,11 @@ export function invalidateLedger(queryClient: QueryClient) {
   }
 }
 
+/** CSV de movimientos de caja de un día (`from` = `to`) o de un rango (para `ExportButton`). */
+export function exportCashCsv(from: string, to: string) {
+  return api.GET("/api/v1/admin/cash/export.csv", { params: { query: { from, to } }, parseAs: "blob" });
+}
+
 export function useCashDay(date: string) {
   return useQuery({
     queryKey: cashKeys.day(date),

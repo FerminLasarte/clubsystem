@@ -1,3 +1,5 @@
+import csv
+import io
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -229,3 +231,74 @@ async def test_cash_requires_cash_permissions(client: httpx.AsyncClient, factory
     assert created.status_code == 403
     void = await client.post(f"{CASH}/payments/{payment.id}/void", json={"reason": "x"})
     assert void.status_code == 403
+
+
+def _csv_rows(response: httpx.Response) -> list[list[str]]:
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("text/csv")
+    return list(csv.reader(io.StringIO(response.text.lstrip("\ufeff"))))
+
+
+async def test_export_cash_day_or_range_in_the_club_timezone(
+    client: httpx.AsyncClient, factory: Factory
+) -> None:
+    club = await factory.club(timezone="America/Argentina/Buenos_Aires")
+    owner, _ = await factory.staff(club)
+    member, membership = await factory.membership(club)
+    await login_web(client, owner)
+
+    async def pay(when: str, description: str, **kw: object) -> str:
+        created = await client.post(
+            f"{CASH}/payments",
+            json={
+                "type": "INCOME",
+                "amount": "100",
+                "method": "CASH",
+                "description": description,
+                "occurred_at": when,
+                **kw,
+            },
+        )
+        assert created.status_code == 201, created.text
+        return created.json()["id"]
+
+    await pay("2025-03-10T09:00:00-03:00", "Bebidas", membership_id=str(membership.id))
+    voided = await pay("2025-03-10T12:00:00-03:00", "=HYPERLINK(1)")
+    await client.post(f"{CASH}/payments/{voided}/void", json={"reason": "Error de carga"})
+    # 23:30 en Buenos Aires es el 11 en UTC: pertenece al día 10.
+    await pay("2025-03-10T23:30:00-03:00", "Cierre", type="OUTFLOW", method="TRANSFER")
+    await pay("2025-03-11T10:00:00-03:00", "Clase")
+    other_club = await factory.club()
+    await factory.payment(other_club, "999", occurred_at=datetime(2025, 3, 10, 15, tzinfo=UTC))
+
+    day = await client.get(f"{CASH}/export.csv", params={"from": "2025-03-10", "to": "2025-03-10"})
+    assert 'filename="caja-2025-03-10.csv"' in day.headers["content-disposition"]
+    header, *rows = _csv_rows(day)
+    assert header[:5] == ["Fecha y hora", "Tipo", "Medio", "Monto", "Descripción"]
+    assert [(r[0], r[1], r[2], r[3], r[4]) for r in rows] == [
+        ("2025-03-10 09:00", "Ingreso", "Efectivo", "100.00", "Bebidas"),
+        ("2025-03-10 12:00", "Ingreso", "Efectivo", "100.00", "'=HYPERLINK(1)"),
+        ("2025-03-10 23:30", "Egreso", "Transferencia", "100.00", "Cierre"),
+    ]
+    assert rows[0][5] == member.full_name
+    assert rows[1][-1] == "Error de carga"  # los anulados se exportan con su motivo
+    assert rows[1][-2] != ""
+
+    week = await client.get(f"{CASH}/export.csv", params={"from": "2025-03-10", "to": "2025-03-16"})
+    assert 'filename="caja-2025-03-10-2025-03-16.csv"' in week.headers["content-disposition"]
+    assert [r[4] for r in _csv_rows(week)[1:]] == ["Bebidas", "'=HYPERLINK(1)", "Cierre", "Clase"]
+
+    backwards = await client.get(
+        f"{CASH}/export.csv", params={"from": "2025-03-11", "to": "2025-03-10"}
+    )
+    assert backwards.status_code == 422
+
+
+async def test_export_cash_requires_cash_permission(
+    client: httpx.AsyncClient, factory: Factory
+) -> None:
+    club = await factory.club()
+    manager, _ = await factory.staff(club, roles=[StaffRole.RESERVATIONS_MANAGER])
+    await login_web(client, manager)
+    params = {"from": "2025-03-10", "to": "2025-03-10"}
+    assert (await client.get(f"{CASH}/export.csv", params=params)).status_code == 403

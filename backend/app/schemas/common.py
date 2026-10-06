@@ -1,7 +1,15 @@
+import datetime as dt
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Self
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_validator,
+)
 
 Money = Annotated[Decimal, Field(max_digits=12, decimal_places=2, ge=0)]
 PositiveMoney = Annotated[Decimal, Field(max_digits=12, decimal_places=2, gt=0)]
@@ -42,3 +50,18 @@ class PageParams(BaseModel):
     @property
     def offset(self) -> int:
         return (self.page - 1) * self.page_size
+
+
+class ExportRange(BaseModel):
+    """Días locales del club, ambos inclusive (`from` = `to` exporta un solo día)."""
+
+    from_: dt.date = Field(alias="from")
+    to: dt.date
+
+    @model_validator(mode="after")
+    def _ordered(self) -> Self:
+        if self.to < self.from_:
+            raise ValueError("`to` no puede ser anterior a `from`.")
+        if (self.to - self.from_).days > 366:
+            raise ValueError("El rango máximo de exportación es un año.")
+        return self

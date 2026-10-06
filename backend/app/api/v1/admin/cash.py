@@ -3,10 +3,12 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import Response
 
 from app.api.deps import SessionDep, StaffContext, require
 from app.domain.permissions import Permission
 from app.schemas.cash import CashDayOut, MovementOut, PaymentCreate, PaymentVoid
+from app.schemas.common import ExportRange
 from app.services.cash import CashService
 
 router = APIRouter(prefix="/admin/cash", tags=["Admin: caja"])
@@ -22,6 +24,14 @@ async def cash_day(
     day: Annotated[date | None, Query(alias="date", description="Día local del club.")] = None,
 ) -> CashDayOut:
     return await CashService(session, ctx).day(day)
+
+
+@router.get("/export.csv", response_class=Response, responses={200: {"content": {"text/csv": {}}}})
+async def export_cash(
+    period: Annotated[ExportRange, Query()], ctx: Reader, session: SessionDep
+) -> Response:
+    """Movimientos de caja de un día (`from` = `to`) o de un rango, en CSV."""
+    return await CashService(session, ctx).export(period)
 
 
 @router.post("/payments", status_code=status.HTTP_201_CREATED, response_model=MovementOut)

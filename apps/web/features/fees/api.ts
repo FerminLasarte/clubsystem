@@ -22,6 +22,11 @@ export const feesKeys = {
   summary: (year: number, month: number) => ["fees", "summary", year, month] as const,
 };
 
+/** CSV de las cuotas de un mes (para `ExportButton`). */
+export function exportFeesCsv(year: number, month: number) {
+  return api.GET("/api/v1/admin/fees/export.csv", { params: { query: { year, month } }, parseAs: "blob" });
+}
+
 /** Cambios que no tocan la caja (generar, anular): cuotas y dashboard. */
 function invalidateFees(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: feesKeys.all });

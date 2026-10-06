@@ -9,10 +9,12 @@ from datetime import date
 from typing import Any, cast
 from uuid import UUID
 
+from fastapi.responses import Response
 from sqlalchemy import Select, and_, exists, func, literal, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.csv import csv_response
 from app.core.errors import BusinessRuleViolation, Conflict, NotFound
 from app.core.sql import contains_pattern
 from app.core.time import today_in, tz, utcnow
@@ -28,8 +30,26 @@ from app.schemas.fees import (
     FeeSummaryOut,
     FeeTotals,
 )
-from app.services.cash import money_sum
+from app.services.cash import PAYMENT_METHOD_LABELS, money_sum
 from app.services.context import StaffContext
+
+_STATUS_LABELS = {
+    FeeStatus.PENDING: "Pendiente",
+    FeeStatus.PAID: "Cobrada",
+    FeeStatus.CANCELLED: "Cancelada",
+}
+_EXPORT_HEADER = (
+    "Socio",
+    "N° de socio",
+    "Plan",
+    "Período",
+    "Monto",
+    "Estado",
+    "Vence",
+    "Vencida",
+    "Cobrada el",
+    "Medio de pago",
+)
 
 
 class FeeService:
@@ -143,6 +163,36 @@ class FeeService:
             total=total,
             page=filters.page,
             page_size=filters.page_size,
+        )
+
+    async def export(self, year: int, month: int) -> Response:
+        """Todas las cuotas del mes (canceladas incluidas), ordenadas por socio."""
+        zone = tz(self.ctx.club.timezone)
+        rows = await self.db.execute(
+            _fees_query(self.ctx.club_id)
+            .where(MembershipFee.year == year, MembershipFee.month == month)
+            .order_by(User.last_name, User.first_name, MembershipFee.id)
+        )
+        today = self._today()
+        fees = [_fee_out(*row, today=today) for row in rows.all()]
+        return csv_response(
+            f"cuotas-{year}-{month:02d}.csv",
+            _EXPORT_HEADER,
+            (
+                (
+                    f.member_name,
+                    f.member_number,
+                    f.plan_name,
+                    f"{f.month:02d}/{f.year}",
+                    f.amount,
+                    _STATUS_LABELS[f.status],
+                    f.due_date,
+                    "Sí" if f.is_overdue else "No",
+                    f.paid_at.astimezone(zone).strftime("%Y-%m-%d %H:%M") if f.paid_at else None,
+                    PAYMENT_METHOD_LABELS[f.payment_method] if f.payment_method else None,
+                )
+                for f in fees
+            ),
         )
 
     async def pay(self, fee_id: UUID, method: PaymentMethod) -> FeeOut:

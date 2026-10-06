@@ -2,6 +2,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 
 from app.api.deps import SessionDep, StaffContext, require
 from app.domain.permissions import Permission
@@ -39,6 +40,17 @@ async def fees_summary(
     session: SessionDep,
 ) -> FeeSummaryOut:
     return await FeeService(session, ctx).summary(year, month)
+
+
+@router.get("/export.csv", response_class=Response, responses={200: {"content": {"text/csv": {}}}})
+async def export_fees(
+    year: Annotated[Year, Query()],
+    month: Annotated[Month, Query()],
+    ctx: Reader,
+    session: SessionDep,
+) -> Response:
+    """Cuotas del mes en CSV."""
+    return await FeeService(session, ctx).export(year, month)
 
 
 @router.post("/generate", response_model=FeeGenerateOut)

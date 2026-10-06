@@ -23,7 +23,7 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.csv import csv_response
 from app.core.errors import BusinessRuleViolation, Conflict, NotFound
-from app.core.time import day_bounds, tz, utcnow
+from app.core.time import day_bounds, days_bounds, tz, utcnow
 from app.domain.cancellation import member_can_cancel, member_cancel_deadline
 from app.domain.enums import (
     CancelReason,
@@ -54,13 +54,12 @@ from app.models import (
     User,
 )
 from app.repositories.base import get_scoped, paginate
-from app.schemas.common import Page
+from app.schemas.common import ExportRange, Page
 from app.schemas.reservations import (
     AvailabilityOut,
     ClubBrief,
     CourtAvailabilityOut,
     CourtBrief,
-    ExportRange,
     GridCourtOut,
     MemberReservationCreate,
     MyReservationOut,
@@ -124,11 +123,6 @@ def _check_hours(club: Club, starts_at: datetime, ends_at: datetime) -> Interval
             "El horario está fuera del horario de atención del club.", code="outside_hours"
         )
     return window
-
-
-def _range_bounds(first: date, last: date, club: Club) -> tuple[datetime, datetime]:
-    zone = tz(club.timezone)
-    return day_bounds(first, zone)[0], day_bounds(last, zone)[1]
 
 
 # ── Panel ─────────────────────────────────────────────────────────────────────
@@ -223,7 +217,7 @@ class ReservationService:
         return self.ctx.club
 
     async def list(self, filters: ReservationFilters) -> Page[ReservationOut]:
-        start, end = _range_bounds(*filters.days, self.club)
+        start, end = days_bounds(*filters.days, tz(self.club.timezone))
         stmt = _staff_select(self.ctx.club_id).where(
             Reservation.starts_at >= start, Reservation.starts_at < end
         )
@@ -243,7 +237,7 @@ class ReservationService:
         )
 
     async def export(self, period: ExportRange) -> Response:
-        start, end = _range_bounds(period.from_, period.to, self.club)
+        start, end = days_bounds(period.from_, period.to, tz(self.club.timezone))
         stmt = _staff_select(self.ctx.club_id).where(
             Reservation.starts_at >= start, Reservation.starts_at < end
         )

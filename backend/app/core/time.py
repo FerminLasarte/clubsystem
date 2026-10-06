@@ -30,6 +30,11 @@ def day_bounds(day: date, zone: ZoneInfo) -> tuple[datetime, datetime]:
     return start.astimezone(UTC), end.astimezone(UTC)
 
 
+def days_bounds(first: date, last: date, zone: ZoneInfo) -> tuple[datetime, datetime]:
+    """Inicio del primer día y fin (exclusivo) del último, ambos locales, en UTC."""
+    return day_bounds(first, zone)[0], day_bounds(last, zone)[1]
+
+
 def period_start(period: Period, today: date) -> date:
     if period == "day":
         return today
