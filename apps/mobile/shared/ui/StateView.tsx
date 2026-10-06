@@ -1,6 +1,6 @@
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 
-import { errorMessage } from "@/shared/api/errors";
+import { errorMessage } from "@clubsystem/api";
 import { colors, spacing } from "@/shared/theme/tokens";
 
 import { Button } from "./Button";

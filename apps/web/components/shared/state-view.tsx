@@ -1,7 +1,7 @@
+import { errorMessage } from "@clubsystem/api";
 import { AlertTriangle, Inbox } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { errorMessage } from "@/lib/query-client";
 import { cn } from "@/lib/utils";
 
 interface StateViewProps {

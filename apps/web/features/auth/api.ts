@@ -1,4 +1,4 @@
-import { ApiError, unwrap, type WebSessionOut } from "@clubsystem/api";
+import { unwrap, type WebSessionOut } from "@clubsystem/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
@@ -94,8 +94,4 @@ export function useAcceptInvitation() {
     onSuccess: (session) => queryClient.setQueryData(sessionKey, session),
     meta: { silent: true },
   });
-}
-
-export function isApiError(error: unknown, code?: string): error is ApiError {
-  return error instanceof ApiError && (code === undefined || error.code === code);
 }

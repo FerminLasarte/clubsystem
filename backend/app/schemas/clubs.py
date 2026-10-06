@@ -19,6 +19,7 @@ class ClubOut(Schema):
     sport_types: list[Sport]
     logo_url: str | None
     primary_color: str
+    timezone: str
     accent_color: str
     address: str | None
     city: str | None
@@ -69,3 +70,4 @@ class ClubDirectoryOut(Schema):
     sport_types: list[Sport]
     logo_url: str | None
     primary_color: str
+    timezone: str

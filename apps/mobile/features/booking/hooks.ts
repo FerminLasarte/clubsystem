@@ -22,18 +22,6 @@ export function useAvailability(params: AvailabilityParams | null) {
   });
 }
 
-/**
- * Zona horaria del club. La membresía no la trae, así que sale de la respuesta de disponibilidad
- * (ver huecos de la API). Mientras carga, la pantalla usa la del dispositivo.
- */
-export function useClubTimeZone(clubId: string | undefined) {
-  return useQuery({
-    queryKey: bookingKeys.timeZone(clubId ?? ""),
-    queryFn: clubId ? ({ signal }) => bookingApi.timeZone(clubId, signal) : skipToken,
-    staleTime: Infinity,
-  });
-}
-
 export function useCreateReservation() {
   const queryClient = useQueryClient();
   return useMutation({

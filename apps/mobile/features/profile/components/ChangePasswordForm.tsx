@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Alert } from "react-native";
 
-import { errorMessage, fieldError } from "@/shared/api/errors";
+import { errorMessage, fieldError } from "@clubsystem/api";
 import { MIN_PASSWORD_LENGTH } from "@/shared/lib/forms";
 import { Button, Card, Input, Notice, Screen, Text } from "@/shared/ui";
 

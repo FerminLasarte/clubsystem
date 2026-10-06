@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { useRef, useState } from "react";
 import { StyleSheet, View, type TextInput } from "react-native";
 
-import { errorMessage } from "@/shared/api/errors";
+import { errorMessage } from "@clubsystem/api";
 import { Button, Card, Input, Notice, Text } from "@/shared/ui";
 import { spacing } from "@/shared/theme/tokens";
 

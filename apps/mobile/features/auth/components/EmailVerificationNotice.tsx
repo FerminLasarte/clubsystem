@@ -1,4 +1,4 @@
-import { errorMessage } from "@/shared/api/errors";
+import { errorMessage } from "@clubsystem/api";
 import { Button, Notice } from "@/shared/ui";
 
 import { useResendVerification, useSession } from "../hooks";

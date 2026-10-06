@@ -1,7 +1,7 @@
 import type { MyMembershipOut } from "@clubsystem/api";
 import { Alert, StyleSheet, View } from "react-native";
 
-import { errorMessage } from "@/shared/api/errors";
+import { errorMessage } from "@clubsystem/api";
 import { Button, Card, Row, Text } from "@/shared/ui";
 import { spacing } from "@/shared/theme/tokens";
 

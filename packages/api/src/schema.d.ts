@@ -1527,6 +1527,8 @@ export interface components {
             slug: string;
             /** Sport Types */
             sport_types: components["schemas"]["Sport"][];
+            /** Timezone */
+            timezone: string;
         };
         /**
          * ClubDirectoryOut
@@ -1550,6 +1552,8 @@ export interface components {
             slug: string;
             /** Sport Types */
             sport_types: components["schemas"]["Sport"][];
+            /** Timezone */
+            timezone: string;
         };
         /** ClubOut */
         ClubOut: {
@@ -2159,6 +2163,8 @@ export interface components {
             club_id: string;
             /** Club Name */
             club_name: string;
+            /** Club Timezone */
+            club_timezone: string;
             /**
              * Created At
              * Format: date-time

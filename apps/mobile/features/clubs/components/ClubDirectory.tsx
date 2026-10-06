@@ -3,7 +3,7 @@ import { Alert, FlatList, StyleSheet, View } from "react-native";
 
 import { EmailVerificationNotice } from "@/features/auth/components/EmailVerificationNotice";
 import { useSession } from "@/features/auth/hooks";
-import { errorMessage } from "@/shared/api/errors";
+import { errorMessage } from "@clubsystem/api";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useRefreshOnFocus } from "@/shared/hooks/useRefreshOnFocus";
 import { Input, PullToRefresh, QueryState, screenContent, StateView } from "@/shared/ui";

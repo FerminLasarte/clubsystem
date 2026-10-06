@@ -1,4 +1,4 @@
-import { errorMessage } from "@/lib/query-client";
+import { errorMessage } from "@clubsystem/api";
 
 export function FormError({ error }: { error: unknown }) {
   if (!error) return null;

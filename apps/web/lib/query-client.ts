@@ -1,11 +1,6 @@
-import { ApiError } from "@clubsystem/api";
+import { ApiError, errorMessage } from "@clubsystem/api";
 import { MutationCache, QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-
-export function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  return "Ocurrió un error inesperado.";
-}
 
 export function makeQueryClient(): QueryClient {
   return new QueryClient({

@@ -321,6 +321,10 @@
             },
             "title": "Sport Types",
             "type": "array"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
           }
         },
         "required": [
@@ -330,7 +334,8 @@
           "city",
           "sport_types",
           "logo_url",
-          "primary_color"
+          "primary_color",
+          "timezone"
         ],
         "title": "ClubDirectoryItemOut",
         "type": "object"
@@ -383,6 +388,10 @@
             },
             "title": "Sport Types",
             "type": "array"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
           }
         },
         "required": [
@@ -392,7 +401,8 @@
           "city",
           "sport_types",
           "logo_url",
-          "primary_color"
+          "primary_color",
+          "timezone"
         ],
         "title": "ClubDirectoryOut",
         "type": "object"
@@ -533,11 +543,11 @@
           "sport_types",
           "logo_url",
           "primary_color",
+          "timezone",
           "accent_color",
           "address",
           "city",
           "country",
-          "timezone",
           "phone",
           "email",
           "website",
@@ -2407,6 +2417,10 @@
             "title": "Club Name",
             "type": "string"
           },
+          "club_timezone": {
+            "title": "Club Timezone",
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -2450,6 +2464,7 @@
           "club_id",
           "club_name",
           "club_color",
+          "club_timezone",
           "title",
           "body",
           "tag",

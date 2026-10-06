@@ -1,12 +1,12 @@
 "use client";
 
-import type { MemberOut } from "@clubsystem/api";
+import { errorMessage, type MemberOut } from "@clubsystem/api";
 import { useState } from "react";
 
 import { FormField } from "@/components/shared/form-field";
 import { Button } from "@/components/ui/button";
 import { useMemberSearch } from "@/features/reservations/api";
-import { errorMessage } from "@/lib/query-client";
+
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 
 function fullName(member: MemberOut): string {

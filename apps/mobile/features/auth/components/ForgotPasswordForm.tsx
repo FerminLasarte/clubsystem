@@ -1,7 +1,7 @@
 import { router } from "expo-router";
 import { useState } from "react";
 
-import { errorMessage, fieldError } from "@/shared/api/errors";
+import { errorMessage, fieldError } from "@clubsystem/api";
 import { Button, Card, Input, Notice, Text } from "@/shared/ui";
 
 import { useForgotPassword } from "../hooks";

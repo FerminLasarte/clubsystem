@@ -98,6 +98,7 @@ def _member_news_out(news: ClubNews, club: Club) -> MemberNewsOut:
         club_id=club.id,
         club_name=club.name,
         club_color=club.primary_color,
+        club_timezone=club.timezone,
         title=news.title,
         body=news.body,
         tag=news.tag,

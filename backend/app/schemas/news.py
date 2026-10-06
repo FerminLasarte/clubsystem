@@ -34,6 +34,7 @@ class MemberNewsOut(Schema):
     club_id: UUID
     club_name: str
     club_color: str
+    club_timezone: str
     title: str
     body: str
     tag: str | None

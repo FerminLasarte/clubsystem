@@ -25,7 +25,7 @@ export function NewsCard({ news }: { news: MemberNewsOut }) {
       </Text>
       {/* La novedad no trae la zona del club: la fecha (solo el día) se muestra en la del dispositivo. */}
       <Text variant="caption" color="muted">
-        {formatDate(news.created_at, deviceTimeZone())}
+        {formatDate(news.created_at, news.club_timezone)}
       </Text>
     </Card>
   );

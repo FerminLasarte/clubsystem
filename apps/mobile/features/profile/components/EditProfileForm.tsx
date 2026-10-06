@@ -2,7 +2,7 @@ import type { UserOut } from "@clubsystem/api";
 import { router } from "expo-router";
 import { useState } from "react";
 
-import { errorMessage, fieldError } from "@/shared/api/errors";
+import { errorMessage, fieldError } from "@clubsystem/api";
 import { optional } from "@/shared/lib/forms";
 import { Button, Card, Input, Notice, QueryState, Screen } from "@/shared/ui";
 

@@ -20,7 +20,6 @@ export interface NewReservation {
 
 export const bookingKeys = {
   courts: (clubId: string) => ["booking", "courts", clubId] as const,
-  timeZone: (clubId: string) => ["booking", "timezone", clubId] as const,
   availabilityOfClub: (clubId: string) => ["booking", "availability", clubId] as const,
   availability: (p: AvailabilityParams) => ["booking", "availability", p.clubId, p.date, p.sport, p.duration] as const,
 };
@@ -35,16 +34,6 @@ export const bookingApi = {
         signal,
       }),
     ),
-  /** Hoy según el dispositivo alcanza: solo interesa el campo `timezone` de la respuesta. */
-  timeZone: async (clubId: string, signal?: AbortSignal) => {
-    const availability = await unwrap(
-      api.GET("/api/v1/mobile/clubs/{club_id}/availability", {
-        params: { path: { club_id: clubId }, query: { date: todayIn(deviceTimeZone()) } },
-        signal,
-      }),
-    );
-    return availability.timezone;
-  },
   create: (r: NewReservation) =>
     unwrap(
       api.POST("/api/v1/mobile/clubs/{club_id}/reservations", {

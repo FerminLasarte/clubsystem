@@ -1,6 +1,6 @@
 "use client";
 
-import type { MemberOut } from "@clubsystem/api";
+import { errorMessage, type MemberOut } from "@clubsystem/api";
 import { X } from "lucide-react";
 import { useState } from "react";
 
@@ -8,7 +8,7 @@ import { FormField } from "@/components/shared/form-field";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useMemberSearch } from "@/features/cash/api";
-import { errorMessage } from "@/lib/query-client";
+
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 
 function memberLabel(member: MemberOut): string {

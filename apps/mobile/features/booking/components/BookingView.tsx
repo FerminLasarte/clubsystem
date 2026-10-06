@@ -5,13 +5,13 @@ import { useState } from "react";
 import { Alert, FlatList, StyleSheet, View } from "react-native";
 
 import { approvedMemberships, useMyMemberships } from "@/features/clubs/hooks";
-import { errorMessage, isApiError } from "@/shared/api/errors";
+import { errorMessage, isApiError } from "@clubsystem/api";
 import { useRefreshOnFocus } from "@/shared/hooks/useRefreshOnFocus";
 import { deviceTimeZone } from "@/shared/lib/time";
 import { ChipSelector, PullToRefresh, QueryState, Screen, screenContent, StateView } from "@/shared/ui";
 import { spacing } from "@/shared/theme/tokens";
 
-import { useAvailability, useClubCourts, useClubTimeZone, useCreateReservation } from "../hooks";
+import { useAvailability, useClubCourts, useCreateReservation } from "../hooks";
 import { bookingDays } from "../lib/dates";
 import { DURATIONS, durationLabel, sportsOf } from "../lib/options";
 import { BookingSummary } from "./BookingSummary";
@@ -40,8 +40,7 @@ export function BookingView() {
   const [sport, setSport] = useState<Sport>();
   const activeSport = sport && sports.includes(sport) ? sport : sports[0];
 
-  const timeZone = useClubTimeZone(club?.id);
-  const days = timeZone.data ? bookingDays(todayIn(timeZone.data)) : [];
+  const days = club ? bookingDays(todayIn(club.timezone)) : [];
   const [date, setDate] = useState<string>();
   const activeDate = days.find((d) => d.date === date)?.date ?? days[0]?.date;
 
@@ -58,8 +57,7 @@ export function BookingView() {
     selection?.key === paramsKey ? current?.courts.find((c) => c.court_id === selection.courtId) : undefined;
   const selectedSlot = selectedCourt?.slots.find((s) => s.starts_at === selection?.startsAt);
 
-  // La zona viene en cada respuesta; el fallback solo evita formatear con una zona vacía.
-  const tz = availability.data?.timezone ?? timeZone.data ?? deviceTimeZone();
+  const tz = club?.timezone ?? deviceTimeZone();
 
   const create = useCreateReservation();
   useRefreshOnFocus(availability.refetch);
@@ -129,16 +127,14 @@ export function BookingView() {
           onChange={setSport}
         />
       )}
-      {timeZone.isPending || timeZone.isError ? (
-        <QueryState query={timeZone} />
-      ) : (
+      {club ? (
         <ChipSelector
           title="Día"
           options={days.map((d) => ({ value: d.date, label: d.label, detail: d.detail }))}
           value={activeDate}
           onChange={setDate}
         />
-      )}
+      ) : null}
       <ChipSelector
         title="Duración"
         options={DURATIONS.map((d) => ({ value: d, label: durationLabel(d) }))}

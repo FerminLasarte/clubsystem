@@ -1,5 +1,6 @@
 "use client";
 
+import { isApiError } from "@clubsystem/api";
 import { Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState, type CSSProperties, type ReactNode } from "react";
@@ -8,7 +9,7 @@ import { StateView } from "@/components/shared/state-view";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isApiError, useLogout, useSession } from "@/features/auth/api";
+import { useLogout, useSession } from "@/features/auth/api";
 import { canAccess, navItemFor } from "@/lib/navigation";
 
 import { ClubSwitcher } from "./club-switcher";
