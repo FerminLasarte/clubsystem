@@ -190,6 +190,40 @@ async def test_reservation_payments_cannot_exceed_its_price(
     assert matched.json()["member"]["full_name"] == member.full_name
 
 
+async def test_cancelled_reservation_accepts_refunds_but_not_new_income(
+    client: httpx.AsyncClient, factory: Factory
+) -> None:
+    club = await factory.club()
+    owner, _ = await factory.staff(club)
+    member, _ = await factory.membership(club)
+    court = await factory.court(club)
+    start = datetime(2025, 5, 1, 18, tzinfo=UTC)
+    reservation = await factory.reservation(
+        court, member, start, start + timedelta(hours=1), total_price=Decimal("8000")
+    )
+    await factory.reservation_payment(reservation, "5000")
+    await login_web(client, owner)
+    cancelled = await client.post(f"/api/v1/admin/reservations/{reservation.id}/cancel")
+    assert cancelled.status_code == 200
+
+    def body(type_: str, amount: str) -> dict[str, str]:
+        return {
+            "type": type_,
+            "amount": amount,
+            "method": "CASH",
+            "description": "Turno",
+            "reservation_id": str(reservation.id),
+        }
+
+    income = await client.post(f"{CASH}/payments", json=body("INCOME", "1000"))
+    assert income.status_code == 422
+    assert income.json()["error"]["code"] == "reservation_cancelled"
+    refund = await client.post(f"{CASH}/payments", json=body("OUTFLOW", "5000"))
+    assert refund.status_code == 201, refund.text
+    # La devolución sigue acotada a lo cobrado.
+    assert (await client.post(f"{CASH}/payments", json=body("OUTFLOW", "1"))).status_code == 422
+
+
 async def test_cannot_reference_or_touch_another_clubs_data(
     client: httpx.AsyncClient, factory: Factory
 ) -> None:

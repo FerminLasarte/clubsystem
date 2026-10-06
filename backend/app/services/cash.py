@@ -19,7 +19,7 @@ from sqlalchemy.orm import aliased
 from app.core.csv import csv_response
 from app.core.errors import BusinessRuleViolation, Conflict, NotFound
 from app.core.time import day_bounds, days_bounds, today_in, tz, utcnow
-from app.domain.enums import FeeStatus, PaymentMethod, TransactionType
+from app.domain.enums import FeeStatus, PaymentMethod, ReservationStatus, TransactionType
 from app.models import ClubMembership, Court, MembershipFee, Payment, Reservation, User
 from app.repositories.base import get_scoped
 from app.schemas.cash import (
@@ -214,6 +214,15 @@ class CashService:
             )
             if membership is not None and reservation.user_id != membership.user_id:
                 raise BusinessRuleViolation("La reserva no es de ese socio.")
+            # Sobre una cancelada solo se registran devoluciones de lo ya cobrado.
+            if (
+                reservation.status == ReservationStatus.CANCELLED
+                and data.type == TransactionType.INCOME
+            ):
+                raise BusinessRuleViolation(
+                    "La reserva está cancelada: solo se pueden registrar devoluciones.",
+                    code="reservation_cancelled",
+                )
             await self._check_reservation_balance(reservation, _signed(data.type, data.amount))
 
         payment = Payment(
