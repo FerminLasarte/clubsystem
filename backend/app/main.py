@@ -14,6 +14,7 @@ from app.api.v1 import routers as v1_routers
 from app.core.config import get_settings
 from app.core.db import engine
 from app.core.logging import club_id_var, configure_logging, request_id_var, user_id_var
+from app.services.email import wait_for_pending as wait_for_pending_emails
 from app.workers.scheduler import start_scheduler
 
 
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
         yield
         if stop_scheduler:
             await stop_scheduler()
+        await wait_for_pending_emails(grace_seconds=settings.EMAIL_TIMEOUT_SECONDS)
         await engine.dispose()
 
     expose_docs = not settings.is_production

@@ -43,8 +43,13 @@ class Settings(BaseSettings):
     # Rate limiting de endpoints de autenticación
     AUTH_RATE_LIMIT: str = "10/minute"
 
-    # Emails transaccionales (verificación, reset de contraseña)
-    EMAIL_BACKEND: Literal["console", "disabled"] = "console"
+    # Emails transaccionales (verificación, reset de contraseña, invitaciones).
+    # console: solo desarrollo (loguea el cuerpo); disabled: no envía; resend: API de Resend.
+    EMAIL_BACKEND: Literal["console", "disabled", "resend"] = "console"
+    RESEND_API_KEY: SecretStr | None = None
+    # Remitente con un dominio verificado en Resend, p. ej. "ClubSystem <no-reply@mail.club.com>".
+    EMAIL_FROM: str | None = None
+    EMAIL_TIMEOUT_SECONDS: float = 10.0
     PUBLIC_WEB_URL: str = "http://localhost:3000"
 
     # IA de anomalías (Anthropic)
@@ -73,10 +78,23 @@ class Settings(BaseSettings):
     def _safe_for_production(self) -> "Settings":
         if "*" in self.CORS_ORIGINS:
             raise ValueError("CORS_ORIGINS no puede ser '*' (las cookies de sesión van con CORS)")
-        if self.ENV == "production" and self.EMAIL_BACKEND == "console":
-            raise ValueError(
-                "EMAIL_BACKEND=console loguea tokens de acceso: en producción usá un proveedor real"
-            )
+        if self.ENV == "production" and self.EMAIL_BACKEND != "resend":
+            # console loguea tokens de acceso; disabled deja sin verificación ni reset.
+            raise ValueError('En producción EMAIL_BACKEND tiene que ser "resend"')
+        if self.EMAIL_BACKEND == "resend":
+            missing = [
+                name
+                for name, value in (
+                    (
+                        "RESEND_API_KEY",
+                        self.RESEND_API_KEY and self.RESEND_API_KEY.get_secret_value(),
+                    ),
+                    ("EMAIL_FROM", self.EMAIL_FROM and self.EMAIL_FROM.strip()),
+                )
+                if not value
+            ]
+            if missing:
+                raise ValueError(f"EMAIL_BACKEND=resend requiere {' y '.join(missing)}")
         return self
 
     @property

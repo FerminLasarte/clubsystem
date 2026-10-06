@@ -72,17 +72,28 @@ async def test_operations_dashboard_hides_customers_from_roles_without_permissio
     assert body["pending_membership_requests"] is None
 
 
-def test_production_config_refuses_console_email_and_wildcard_cors() -> None:
+def test_production_config_requires_resend_and_refuses_wildcard_cors() -> None:
     base = {
         "DATABASE_URL": "postgresql+asyncpg://x@h/db",
         "MIGRATIONS_DATABASE_URL": "postgresql+asyncpg://x@h/db",
         "JWT_SECRET_KEY": "s" * 40,
     }
-    with pytest.raises(ValidationError):
-        Settings(**base, ENV="production", EMAIL_BACKEND="console")  # type: ignore[arg-type]
+    resend = {"RESEND_API_KEY": "re_test_key", "EMAIL_FROM": "Club <no-reply@mail.example.com>"}
     with pytest.raises(ValidationError):
         Settings(**base, ENV="development", CORS_ORIGINS="*")  # type: ignore[arg-type]
-    assert Settings(**base, ENV="production", EMAIL_BACKEND="disabled")  # type: ignore[arg-type]
+    # En producción el email tiene que salir por Resend, con clave y remitente.
+    for backend in ("console", "disabled"):
+        with pytest.raises(ValidationError):
+            Settings(**base, **resend, ENV="production", EMAIL_BACKEND=backend)  # type: ignore[arg-type]
+    for missing in ("RESEND_API_KEY", "EMAIL_FROM"):
+        incomplete = {k: v for k, v in resend.items() if k != missing}
+        with pytest.raises(ValidationError, match=missing):
+            Settings(**base, **incomplete, ENV="production", EMAIL_BACKEND="resend")  # type: ignore[arg-type]
+    blank_sender = {**resend, "EMAIL_FROM": "  "}
+    with pytest.raises(ValidationError, match="EMAIL_FROM"):
+        Settings(**base, **blank_sender, ENV="development", EMAIL_BACKEND="resend")  # type: ignore[arg-type]
+    assert Settings(**base, **resend, ENV="production", EMAIL_BACKEND="resend")  # type: ignore[arg-type]
+    assert Settings(**base, ENV="development", EMAIL_BACKEND="disabled")  # type: ignore[arg-type]
 
 
 async def test_profile_updates_are_rate_limited(
