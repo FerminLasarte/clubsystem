@@ -209,6 +209,15 @@ async def test_club_settings_permissions_and_validation(
     bad_tz = await client.patch("/api/v1/admin/club", json={"timezone": "Marte/Base"})
     assert bad_tz.status_code == 422
 
+    assert ok.json()["member_cancel_notice_hours"] == 24
+    notice = await client.patch("/api/v1/admin/club", json={"member_cancel_notice_hours": 48})
+    assert notice.json()["member_cancel_notice_hours"] == 48
+    for invalid in (-1, 337, None):
+        response = await client.patch(
+            "/api/v1/admin/club", json={"member_cancel_notice_hours": invalid}
+        )
+        assert response.status_code == 422, invalid
+
 
 async def test_profile_is_edited_only_by_its_owner_and_dni_is_unique(
     client: httpx.AsyncClient, factory: Factory

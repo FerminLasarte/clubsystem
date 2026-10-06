@@ -33,6 +33,7 @@ function ClubFormFields({ club, canEdit }: { club: ClubOut; canEdit: boolean }) 
       primary_color: String(form.get("primary_color")),
       accent_color: String(form.get("accent_color")),
       sport_types: form.getAll("sport_types").map(String) as Sport[],
+      member_cancel_notice_hours: Number(form.get("member_cancel_notice_hours")),
     });
   }
 
@@ -52,6 +53,18 @@ function ClubFormFields({ club, canEdit }: { club: ClubOut; canEdit: boolean }) 
           hint="Vacío: sin restricción horaria."
         />
         <FormField id="close_time" label="Cierre" type="time" defaultValue={club.close_time?.slice(0, 5) ?? ""} />
+        <FormField
+          id="member_cancel_notice_hours"
+          label="Cancelación desde la app (horas antes)"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          step={1}
+          required
+          defaultValue={club.member_cancel_notice_hours}
+          hint="Hasta cuántas horas antes del inicio un socio puede cancelar una reserva confirmada. Las pendientes se cancelan siempre."
+          className="sm:col-span-2"
+        />
         <FormField id="primary_color" label="Color principal" type="color" defaultValue={club.primary_color} />
         <FormField id="accent_color" label="Color de acento" type="color" defaultValue={club.accent_color} />
         <fieldset className="grid gap-2 sm:col-span-2">

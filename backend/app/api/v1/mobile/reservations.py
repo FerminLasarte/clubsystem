@@ -59,6 +59,17 @@ async def create_reservation(
     return await my_reservation(session, ctx.user, reservation_id)
 
 
+@router.post(
+    "/clubs/{club_id}/reservations/{reservation_id}/cancel", response_model=MyReservationOut
+)
+async def cancel_reservation(
+    reservation_id: UUID, ctx: Member, session: SessionDep
+) -> MyReservationOut:
+    """Pendientes siempre; confirmadas hasta `member_cancel_notice_hours` antes del inicio."""
+    await MemberBookingService(session, ctx).cancel(reservation_id)
+    return await my_reservation(session, ctx.user, reservation_id)
+
+
 @router.get("/reservations", response_model=Page[MyReservationOut])
 async def list_my_reservations(
     query: Annotated[MyReservationsQuery, Query()], user: CurrentUser, session: SessionDep

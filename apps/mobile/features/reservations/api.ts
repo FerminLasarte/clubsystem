@@ -18,4 +18,10 @@ export const reservationsApi = {
     unwrap(api.GET("/api/v1/mobile/reservations", { params: { query: { scope, page, page_size: pageSize } }, signal })),
   detail: (id: string, signal?: AbortSignal) =>
     unwrap(api.GET("/api/v1/mobile/reservations/{reservation_id}", { params: { path: { reservation_id: id } }, signal })),
+  cancel: (clubId: string, id: string) =>
+    unwrap(
+      api.POST("/api/v1/mobile/clubs/{club_id}/reservations/{reservation_id}/cancel", {
+        params: { path: { club_id: clubId, reservation_id: id } },
+      }),
+    ),
 };

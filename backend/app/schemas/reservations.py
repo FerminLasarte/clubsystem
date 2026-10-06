@@ -225,3 +225,7 @@ class MyReservationOut(BaseModel):
     created_at: dt.datetime
     club: ClubBrief
     court: CourtBrief
+    # Calculados en el backend: si el socio puede cancelarla ahora y, para las confirmadas,
+    # hasta cuándo (`null` en las pendientes, que se cancelan siempre).
+    can_cancel: bool
+    cancel_deadline: dt.datetime | None

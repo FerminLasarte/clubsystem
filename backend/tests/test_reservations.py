@@ -680,6 +680,138 @@ async def test_availability_uses_the_club_timezone_near_midnight(
     assert [r["id"] for r in grid["courts"][0]["reservations"]] == [str(late.id)]
 
 
+async def test_member_cancels_pending_always_and_confirmed_until_the_club_notice(
+    client: httpx.AsyncClient, factory: Factory
+) -> None:
+    club = await factory.club(open_time=None, close_time=None)  # plazo por defecto: 24 h
+    court = await factory.court(club)
+    member, _ = await factory.membership(club)
+    now = datetime.now(UTC).replace(microsecond=0)
+    hour = timedelta(hours=1)
+
+    async def booking(starts_in: timedelta, status: ReservationStatus) -> Reservation:
+        starts_at = now + starts_in
+        return await factory.reservation(court, member, starts_at, starts_at + hour, status=status)
+
+    pending_soon = await booking(2 * hour, ReservationStatus.PENDING)
+    confirmed_later = await booking(48 * hour, ReservationStatus.CONFIRMED)
+    confirmed_soon = await booking(3 * hour, ReservationStatus.CONFIRMED)
+    finished = await booking(-3 * hour, ReservationStatus.COMPLETED)
+    headers = await login_mobile(client, member)
+
+    def cancel(reservation: Reservation):
+        return client.post(
+            f"{MOBILE}/clubs/{club.id}/reservations/{reservation.id}/cancel", headers=headers
+        )
+
+    listed = {
+        r["id"]: r
+        for r in (await client.get(f"{MOBILE}/reservations", headers=headers)).json()["items"]
+    }
+    assert listed[str(pending_soon.id)]["can_cancel"] is True
+    assert listed[str(pending_soon.id)]["cancel_deadline"] is None
+    assert listed[str(confirmed_later.id)]["can_cancel"] is True
+    deadline = datetime.fromisoformat(listed[str(confirmed_later.id)]["cancel_deadline"])
+    assert deadline == confirmed_later.starts_at - timedelta(hours=24)
+    assert listed[str(confirmed_soon.id)]["can_cancel"] is False
+
+    for reservation in (pending_soon, confirmed_later):
+        response = await cancel(reservation)
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert (body["status"], body["cancel_reason"]) == ("cancelled", "BY_MEMBER")
+        assert body["can_cancel"] is False
+
+    closed = await cancel(confirmed_soon)
+    assert closed.status_code == 422
+    assert closed.json()["error"]["code"] == "cancel_window_closed"
+    assert (await cancel(pending_soon)).status_code == 409  # ya cancelada
+    assert (await cancel(finished)).status_code == 409
+
+    rows = (
+        await factory.session.execute(
+            select(Reservation.id, Reservation.cancelled_by_id, Reservation.status).where(
+                Reservation.id.in_([pending_soon.id, confirmed_soon.id])
+            )
+        )
+    ).all()
+    assert {(r.id, r.cancelled_by_id, r.status) for r in rows} == {
+        (pending_soon.id, member.id, ReservationStatus.CANCELLED),
+        (confirmed_soon.id, None, ReservationStatus.CONFIRMED),
+    }
+
+    # Con un plazo más corto la misma confirmada ya se puede cancelar.
+    club.member_cancel_notice_hours = 2
+    await factory.session.commit()
+    assert (await cancel(confirmed_soon)).status_code == 200
+
+
+async def test_member_cannot_cancel_reservations_of_others_or_through_another_club(
+    client: httpx.AsyncClient, factory: Factory
+) -> None:
+    club, other_club = await _open_club(factory), await _open_club(factory)
+    court, other_court = await factory.court(club), await factory.court(other_club)
+    alice, _ = await factory.membership(club)
+    await factory.membership(other_club, alice)
+    bob, _ = await factory.membership(club)
+    outsider_club = await _open_club(factory)
+    day = future_day(club)
+    bobs = await factory.reservation(
+        court, bob, at(club, day, 10), at(club, day, 11), status=ReservationStatus.PENDING
+    )
+    alices_elsewhere = await factory.reservation(
+        other_court,
+        alice,
+        at(other_club, day, 10),
+        at(other_club, day, 11),
+        status=ReservationStatus.PENDING,
+    )
+    headers = await login_mobile(client, alice)
+
+    def cancel(club_id: UUID, reservation_id: UUID):
+        return client.post(
+            f"{MOBILE}/clubs/{club_id}/reservations/{reservation_id}/cancel", headers=headers
+        )
+
+    assert (await cancel(club.id, bobs.id)).status_code == 404
+    # La reserva es de Alice, pero de otro club: el club de la URL no la ve.
+    assert (await cancel(club.id, alices_elsewhere.id)).status_code == 404
+    # En un club del que no es socia no hay contexto de socio.
+    assert (await cancel(outsider_club.id, alices_elsewhere.id)).status_code == 403
+    statuses = (
+        await factory.session.execute(
+            select(Reservation.status).where(Reservation.id.in_([bobs.id, alices_elsewhere.id]))
+        )
+    ).scalars()
+    assert set(statuses) == {ReservationStatus.PENDING}
+
+
+async def test_cancelling_a_pending_booking_frees_the_pending_cap(
+    client: httpx.AsyncClient, factory: Factory
+) -> None:
+    club = await factory.club(open_time=None, close_time=None)
+    member, _ = await factory.membership(club)
+    court = await factory.court(club)
+    headers = await login_mobile(client, member)
+    url = f"{MOBILE}/clubs/{club.id}/reservations"
+
+    def book(hour: int):
+        return client.post(
+            url,
+            json={
+                "court_id": str(court.id),
+                "starts_at": at(club, future_day(club, 3), hour).isoformat(),
+                "duration_minutes": 60,
+            },
+            headers=headers,
+        )
+
+    created = [(await book(hour)).json()["id"] for hour in (10, 12, 14)]
+    assert (await book(16)).status_code == 422
+    assert (await client.post(f"{url}/{created[0]}/cancel", headers=headers)).status_code == 200
+    assert (await book(16)).status_code == 201
+
+
 # ── Job ───────────────────────────────────────────────────────────────────────
 
 

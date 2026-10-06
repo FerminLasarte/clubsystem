@@ -24,6 +24,7 @@ from sqlalchemy.sql.elements import ColumnElement
 from app.core.csv import csv_response
 from app.core.errors import BusinessRuleViolation, Conflict, NotFound
 from app.core.time import day_bounds, tz, utcnow
+from app.domain.cancellation import member_can_cancel, member_cancel_deadline
 from app.domain.enums import (
     CancelReason,
     CustomerType,
@@ -563,6 +564,34 @@ class MemberBookingService:
         await self.db.flush()  # solapamiento → 409 (no_overlap)
         return reservation.id
 
+    async def cancel(self, reservation_id: UUID) -> None:
+        """Pendientes siempre; confirmadas hasta el plazo del club (domain/cancellation.py)."""
+        reservation = await get_scoped(
+            self.db,
+            Reservation,
+            reservation_id,
+            self.ctx.club.id,
+            not_found="Reserva no encontrada.",
+            for_update=True,
+        )
+        if reservation.user_id != self.ctx.user.id:
+            raise NotFound("Reserva no encontrada.")
+        notice = self.ctx.club.member_cancel_notice_hours
+        now = utcnow()
+        if not member_can_cancel(reservation.status, reservation.starts_at, notice, now):
+            if reservation.status == ReservationStatus.CONFIRMED and reservation.ends_at > now:
+                raise BusinessRuleViolation(
+                    f"Las reservas confirmadas se cancelan desde la app hasta {notice} horas "
+                    "antes del inicio. Para cancelarla, comunicate con el club.",
+                    code="cancel_window_closed",
+                )
+            raise Conflict("La reserva ya no se puede cancelar.", code="invalid_status")
+        reservation.status = ReservationStatus.CANCELLED
+        reservation.cancelled_at = now
+        reservation.cancelled_by_id = self.ctx.user.id
+        reservation.cancel_reason = CancelReason.BY_MEMBER
+        await self.db.flush()
+
 
 # ── Reservas propias (todas las del usuario, de todos sus clubes) ─────────────
 
@@ -577,6 +606,7 @@ def _my_select(user_id: UUID) -> Select[*tuple[Any, ...]]:
 
 
 def _my_out(r: Reservation, court: Court, club: Club) -> MyReservationOut:
+    notice = club.member_cancel_notice_hours
     return MyReservationOut(
         id=r.id,
         status=r.status,
@@ -588,6 +618,8 @@ def _my_out(r: Reservation, court: Court, club: Club) -> MyReservationOut:
         created_at=r.created_at,
         club=ClubBrief.model_validate(club),
         court=CourtBrief.model_validate(court),
+        can_cancel=member_can_cancel(r.status, r.starts_at, notice, utcnow()),
+        cancel_deadline=member_cancel_deadline(r.status, r.starts_at, notice),
     )
 
 

@@ -1284,6 +1284,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mobile/clubs/{club_id}/reservations/{reservation_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Reservation
+         * @description Pendientes siempre; confirmadas hasta `member_cancel_notice_hours` antes del inicio.
+         */
+        post: operations["cancel_reservation_api_v1_mobile_clubs__club_id__reservations__reservation_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mobile/memberships": {
         parameters: {
             query?: never;
@@ -1576,6 +1596,8 @@ export interface components {
             id: string;
             /** Logo Url */
             logo_url: string | null;
+            /** Member Cancel Notice Hours */
+            member_cancel_notice_hours: number;
             /** Name */
             name: string;
             /** Open Time */
@@ -1610,6 +1632,8 @@ export interface components {
             email?: string | null;
             /** Logo Url */
             logo_url?: string | null;
+            /** Member Cancel Notice Hours */
+            member_cancel_notice_hours?: number | null;
             /** Name */
             name?: string | null;
             /** Open Time */
@@ -2446,6 +2470,10 @@ export interface components {
         };
         /** MyReservationOut */
         MyReservationOut: {
+            /** Can Cancel */
+            can_cancel: boolean;
+            /** Cancel Deadline */
+            cancel_deadline: string | null;
             cancel_reason: components["schemas"]["CancelReason"] | null;
             club: components["schemas"]["ClubBrief"];
             court: components["schemas"]["CourtBrief"];
@@ -6079,6 +6107,38 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReservationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_reservation_api_v1_mobile_clubs__club_id__reservations__reservation_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reservation_id: string;
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

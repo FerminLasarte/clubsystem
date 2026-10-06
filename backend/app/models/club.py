@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
@@ -22,6 +23,10 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.domain.cancellation import (
+    DEFAULT_MEMBER_CANCEL_NOTICE_HOURS,
+    MAX_MEMBER_CANCEL_NOTICE_HOURS,
+)
 from app.domain.enums import MembershipStatus, Sport, StaffRole, StaffStatus
 from app.models.base import Base, Timestamps, UUIDPk, str_enum
 from app.models.identity import User
@@ -40,6 +45,10 @@ class Club(UUIDPk, Timestamps, Base):
         CheckConstraint("accent_color ~ '^#[0-9A-Fa-f]{6}$'", name="accent_color_hex"),
         CheckConstraint(
             "open_time IS NULL OR close_time IS NULL OR open_time < close_time", name="hours"
+        ),
+        CheckConstraint(
+            f"member_cancel_notice_hours BETWEEN 0 AND {MAX_MEMBER_CANCEL_NOTICE_HOURS}",
+            name="member_cancel_notice_hours",
         ),
     )
 
@@ -69,6 +78,12 @@ class Club(UUIDPk, Timestamps, Base):
     # Horario operativo diario. NULL = sin restricción (se usa 00:00–24:00).
     open_time: Mapped[time | None] = mapped_column(Time)
     close_time: Mapped[time | None] = mapped_column(Time)
+    # Horas antes del inicio hasta las que el socio cancela desde la app una reserva confirmada.
+    member_cancel_notice_hours: Mapped[int] = mapped_column(
+        Integer,
+        default=DEFAULT_MEMBER_CANCEL_NOTICE_HOURS,
+        server_default=str(DEFAULT_MEMBER_CANCEL_NOTICE_HOURS),
+    )
     plan: Mapped[str] = mapped_column(String(50), default="starter", server_default="starter")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 

@@ -13,6 +13,8 @@ async def update_club(session: AsyncSession, club: Club, data: ClubUpdate) -> Cl
         raise BusinessRuleViolation("El nombre del club es obligatorio.")
     if "timezone" in changes and changes["timezone"] is None:
         raise BusinessRuleViolation("La zona horaria es obligatoria.")
+    if "member_cancel_notice_hours" in changes and changes["member_cancel_notice_hours"] is None:
+        raise BusinessRuleViolation("El plazo de cancelación es obligatorio.")
     for field in ("open_time", "close_time"):
         if field in changes:
             changes[field] = getattr(data, field)

@@ -3,8 +3,9 @@ from typing import Annotated
 from uuid import UUID
 from zoneinfo import available_timezones
 
-from pydantic import AnyHttpUrl, BaseModel, EmailStr, StringConstraints, field_validator
+from pydantic import AnyHttpUrl, BaseModel, EmailStr, Field, StringConstraints, field_validator
 
+from app.domain.cancellation import MAX_MEMBER_CANCEL_NOTICE_HOURS
 from app.domain.enums import Sport
 from app.schemas.common import HexColor, Schema
 
@@ -30,6 +31,7 @@ class ClubOut(Schema):
     website: str | None
     open_time: time | None
     close_time: time | None
+    member_cancel_notice_hours: int
 
 
 class ClubUpdate(BaseModel):
@@ -51,6 +53,9 @@ class ClubUpdate(BaseModel):
     website: AnyHttpUrl | None = None
     open_time: time | None = None
     close_time: time | None = None
+    member_cancel_notice_hours: (
+        Annotated[int, Field(ge=0, le=MAX_MEMBER_CANCEL_NOTICE_HOURS)] | None
+    ) = None
 
     @field_validator("timezone")
     @classmethod

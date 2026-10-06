@@ -478,6 +478,10 @@
             ],
             "title": "Logo Url"
           },
+          "member_cancel_notice_hours": {
+            "title": "Member Cancel Notice Hours",
+            "type": "integer"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -552,7 +556,8 @@
           "email",
           "website",
           "open_time",
-          "close_time"
+          "close_time",
+          "member_cancel_notice_hours"
         ],
         "title": "ClubOut",
         "type": "object"
@@ -632,6 +637,19 @@
               }
             ],
             "title": "Logo Url"
+          },
+          "member_cancel_notice_hours": {
+            "anyOf": [
+              {
+                "maximum": 336.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Cancel Notice Hours"
           },
           "name": {
             "anyOf": [
@@ -3278,6 +3296,22 @@
       },
       "MyReservationOut": {
         "properties": {
+          "can_cancel": {
+            "title": "Can Cancel",
+            "type": "boolean"
+          },
+          "cancel_deadline": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Deadline"
+          },
           "cancel_reason": {
             "anyOf": [
               {
@@ -3337,7 +3371,9 @@
           "cancel_reason",
           "created_at",
           "club",
-          "court"
+          "court",
+          "can_cancel",
+          "cancel_deadline"
         ],
         "title": "MyReservationOut",
         "type": "object"
@@ -10174,6 +10210,60 @@
           }
         },
         "summary": "Create Reservation",
+        "tags": [
+          "App: reservas"
+        ]
+      }
+    },
+    "/api/v1/mobile/clubs/{club_id}/reservations/{reservation_id}/cancel": {
+      "post": {
+        "description": "Pendientes siempre; confirmadas hasta `member_cancel_notice_hours` antes del inicio.",
+        "operationId": "cancel_reservation_api_v1_mobile_clubs__club_id__reservations__reservation_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reservation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Reservation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Club Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyReservationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Reservation",
         "tags": [
           "App: reservas"
         ]

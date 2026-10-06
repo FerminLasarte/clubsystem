@@ -1,10 +1,41 @@
-import { CANCEL_REASON_LABELS, formatDate, formatMoney } from "@clubsystem/shared";
+import { errorMessage, type MyReservationOut } from "@clubsystem/api";
+import { CANCEL_REASON_LABELS, formatDate, formatDateTime, formatMoney } from "@clubsystem/shared";
+import { Alert } from "react-native";
 
 import { durationLabel } from "@/features/booking/lib/options";
-import { Badge, Card, Notice, QueryState, Row, Screen, Text } from "@/shared/ui";
+import { Badge, Button, Card, Notice, QueryState, Row, Screen, Text } from "@/shared/ui";
 
-import { useReservation } from "../hooks";
+import { useCancelReservation, useReservation } from "../hooks";
 import { courtDescription, PENDING_EXPLANATION, RESERVATION_STATUS_TONE, statusLabel, timeRange } from "../lib/format";
+
+/** Texto bajo el precio: si se puede cancelar desde la app, y hasta cuándo. */
+function cancelHint(r: MyReservationOut): string | null {
+  if (r.status !== "pending" && r.status !== "confirmed") return null;
+  if (!r.can_cancel) {
+    return "Ya no se puede cancelar desde la app: si necesitás cancelarla o cambiarla, comunicate con el club.";
+  }
+  if (r.cancel_deadline) {
+    return `Podés cancelarla desde la app hasta el ${formatDateTime(r.cancel_deadline, r.club.timezone)}.`;
+  }
+  return "Podés cancelarla mientras siga pendiente.";
+}
+
+function CancelButton({ reservation }: { reservation: MyReservationOut }) {
+  const cancel = useCancelReservation();
+  const onPress = () =>
+    Alert.alert("Cancelar reserva", "¿Querés cancelar esta reserva? No se puede deshacer.", [
+      { text: "Volver", style: "cancel" },
+      {
+        text: "Cancelar reserva",
+        style: "destructive",
+        onPress: () =>
+          cancel.mutate(reservation, {
+            onError: (error) => Alert.alert("No se pudo cancelar la reserva", errorMessage(error)),
+          }),
+      },
+    ]);
+  return <Button title="Cancelar reserva" variant="danger" onPress={onPress} loading={cancel.isPending} />;
+}
 
 export function ReservationDetail({ id }: { id: string }) {
   const query = useReservation(id);
@@ -19,6 +50,7 @@ export function ReservationDetail({ id }: { id: string }) {
 
   const r = query.data;
   const tz = r.club.timezone;
+  const hint = cancelHint(r);
   return (
     <Screen scroll edges={["bottom"]}>
       <Card>
@@ -50,10 +82,14 @@ export function ReservationDetail({ id }: { id: string }) {
           <Text variant="label">Precio</Text>
           <Text variant="subheading">{formatMoney(r.total_price)}</Text>
         </Row>
-        <Text variant="caption" color="muted">
-          Desde la app no se pueden cancelar reservas: si necesitás cancelarla o cambiarla, comunicate con el club.
-        </Text>
+        {hint ? (
+          <Text variant="caption" color="muted">
+            {hint}
+          </Text>
+        ) : null}
       </Card>
+
+      {r.can_cancel ? <CancelButton reservation={r} /> : null}
     </Screen>
   );
 }
