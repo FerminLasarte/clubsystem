@@ -68,7 +68,7 @@ class AuthService:
             raise Unauthorized(_INVALID_CREDENTIALS, code="invalid_credentials")
 
         user.last_login_at = utcnow()
-        await set_tenant_context(self.db, user_id=user.id, user_email=user.email)
+        await set_tenant_context(self.db, user_id=user.id)
         return user
 
     # ── Sesiones ────────────────────────────────────────────────────────────
@@ -121,7 +121,7 @@ class AuthService:
             raise Unauthorized("Sesión inválida.", code="refresh_invalid")
 
         current.rotated_at = utcnow()
-        await set_tenant_context(self.db, user_id=user.id, user_email=user.email)
+        await set_tenant_context(self.db, user_id=user.id)
         club_id = current.active_club_id
         if club_id and not await self._has_active_staff(user, club_id):
             club_id = None

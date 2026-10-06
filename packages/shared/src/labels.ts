@@ -41,6 +41,7 @@ export const CANCEL_REASON_LABELS = {
 } as const;
 
 export const MEMBERSHIP_STATUS_LABELS = {
+  INVITED: "Invitado",
   PENDING: "Pendiente",
   APPROVED: "Activo",
   REJECTED: "Rechazado",

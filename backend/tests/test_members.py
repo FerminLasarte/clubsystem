@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.domain.enums import MembershipStatus, ReservationStatus, StaffRole
 from app.models import Club, ClubMembership, User
 from app.services import auth as auth_service
+from app.services import members as members_service
 from tests.factories import Factory, login_mobile, login_web
 
 PLANS = "/api/v1/admin/membership-plans"
@@ -28,6 +29,7 @@ def outbox(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str]]:
         sent.append((to, body))
 
     monkeypatch.setattr(auth_service, "send_email", _capture)
+    monkeypatch.setattr(members_service, "send_email", _capture)
     return sent
 
 
@@ -186,18 +188,20 @@ async def test_member_stats(client: httpx.AsyncClient, factory: Factory) -> None
     club = await factory.club(timezone="America/Argentina/Buenos_Aires")
     owner = await _staff_client(client, factory, club)
     _, old = await factory.membership(club)
+    await factory.membership(club)
     await factory.membership(club, status=MembershipStatus.INACTIVE)
     await factory.membership(club, status=MembershipStatus.PENDING)
     await factory.membership(club, status=MembershipStatus.REJECTED)
     response = await owner.patch(f"{MEMBERS}/{old.id}", json={"joined_on": "2020-01-15"})
     assert response.status_code == 200
-    created = await owner.post(
+    invited = await owner.post(
         MEMBERS, json={"email": "nueva@example.com", "first_name": "N", "last_name": "N"}
     )
-    assert created.status_code == 201
+    assert invited.status_code == 201
 
     stats = (await owner.get(f"{MEMBERS}/stats")).json()
     assert stats == {
+        "invited": 1,
         "pending": 1,
         "approved": 2,
         "inactive": 1,
@@ -206,7 +210,7 @@ async def test_member_stats(client: httpx.AsyncClient, factory: Factory) -> None
     }
 
 
-async def test_staff_creates_a_member_with_a_new_account(
+async def test_inviting_a_new_person_creates_the_account_and_needs_acceptance(
     client: httpx.AsyncClient,
     factory: Factory,
     outbox: list[tuple[str, str]],
@@ -223,23 +227,24 @@ async def test_staff_creates_a_member_with_a_new_account(
             "first_name": "Lucía",
             "last_name": "Pérez",
             "phone": "1155554444",
-            "dni": "28999888",
             "plan_id": str(plan.id),
             "member_number": "100",
         },
     )
     assert response.status_code == 201, response.text
-    member = response.json()
-    assert member["status"] == "APPROVED"
-    assert member["member_number"] == "100"
-    assert member["plan"]["id"] == str(plan.id)
-    assert member["joined_on"] is not None
-    assert member["decided_at"] is not None
-    assert member["user"]["email"] == "socia@example.com"
+    invitation = response.json()
+    assert invitation["status"] == "INVITED"
+    assert invitation["email"] == "socia@example.com"
+    assert invitation["plan"]["id"] == str(plan.id)
+    assert "user" not in invitation
 
-    # Se le manda un link para elegir contraseña; con él puede entrar a la app.
-    assert len(outbox) == 1
-    assert outbox[0][0] == "socia@example.com"
+    pending = (await owner.get(f"{MEMBERS}/invitations")).json()
+    assert [i["email"] for i in pending["items"]] == ["socia@example.com"]
+    listed = (await owner.get(MEMBERS)).json()
+    assert listed["total"] == 0  # no aparece como socia hasta aceptar
+
+    # Link para elegir contraseña; con él entra a la app y acepta la invitación.
+    assert len(outbox) == 1 and outbox[0][0] == "socia@example.com"
     match = re.search(r"token=([\w-]+)", outbox[0][1])
     assert match
     guest = _new_client(client)
@@ -250,13 +255,20 @@ async def test_staff_creates_a_member_with_a_new_account(
     assert reset.status_code == 204
     login = await guest.post(
         "/api/v1/auth/mobile/login",
-        json={"identifier": "28999888", "password": "una-clave-nueva-1"},
+        json={"identifier": "socia@example.com", "password": "una-clave-nueva-1"},
     )
     assert login.status_code == 200
-    assert [m["status"] for m in login.json()["memberships"]] == ["APPROVED"]
+    headers = {"authorization": f"Bearer {login.json()['access_token']}"}
+    [membership] = login.json()["memberships"]
+    assert membership["status"] == "INVITED"
 
-    user = await _user_row(owner_sessionmaker, "socia@example.com")
-    assert user is not None and user.email_verified_at is not None
+    accepted = await guest.post(
+        f"{MOBILE}/memberships/{membership['membership_id']}/accept", headers=headers
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["status"] == "APPROVED"
+    assert accepted.json()["joined_on"] is not None
+    assert (await owner.get(MEMBERS)).json()["total"] == 1
 
     duplicated = await owner.post(
         MEMBERS,
@@ -271,7 +283,7 @@ async def test_staff_creates_a_member_with_a_new_account(
     assert await _user_row(owner_sessionmaker, "otra@example.com") is None
 
 
-async def test_creating_a_member_with_an_existing_account_keeps_its_identity(
+async def test_inviting_an_existing_account_reveals_nothing_and_keeps_its_identity(
     client: httpx.AsyncClient,
     factory: Factory,
     outbox: list[tuple[str, str]],
@@ -282,33 +294,67 @@ async def test_creating_a_member_with_an_existing_account_keeps_its_identity(
     _, membership = await factory.membership(club, person, status=MembershipStatus.INACTIVE)
     owner = await _staff_client(client, factory, club)
 
-    body = {
-        "email": person.email.upper(),
-        "first_name": "Cambiado",
-        "last_name": "Otro",
-        "dni": "99888777",
-        "phone": "123",
-    }
+    body = {"email": person.email.upper(), "first_name": "Cambiado", "last_name": "Otro"}
     response = await owner.post(MEMBERS, json=body)
     assert response.status_code == 201, response.text
-    member = response.json()
-    assert member["id"] == str(membership.id)  # reactiva la misma membresía
-    assert member["status"] == "APPROVED"
-    assert member["user"]["first_name"] == "Original"
-    assert outbox == []
+    invitation = response.json()
+    assert invitation["membership_id"] == str(membership.id)
+    assert invitation["status"] == "INVITED"
+    # Misma forma de respuesta que para una cuenta nueva: no hay datos de la persona.
+    assert set(invitation) == {
+        "membership_id",
+        "email",
+        "status",
+        "invited_at",
+        "plan",
+        "member_number",
+    }
+    assert [to for to, _ in outbox] == [person.email]
 
     user = await _user_row(owner_sessionmaker, person.email)
     assert user is not None
-    assert (user.first_name, user.last_name, user.dni, user.phone) == (
-        "Original",
-        "Nombre",
-        "20111222",
-        None,
-    )
+    assert (user.first_name, user.last_name, user.dni) == ("Original", "Nombre", "20111222")
 
-    again = await owner.post(MEMBERS, json=body)
+    headers = await login_mobile(client, person)
+    declined = await client.post(f"{MOBILE}/memberships/{membership.id}/decline", headers=headers)
+    assert declined.status_code == 204
+    mine = (await client.get(f"{MOBILE}/memberships", headers=headers)).json()
+    assert mine == []
+
+
+async def test_invitation_to_someone_who_already_asked_approves_directly(
+    client: httpx.AsyncClient, factory: Factory
+) -> None:
+    club = await factory.club()
+    person, _ = await factory.membership(club, status=MembershipStatus.PENDING)
+    owner = await _staff_client(client, factory, club)
+    response = await owner.post(
+        MEMBERS, json={"email": person.email, "first_name": "x", "last_name": "y"}
+    )
+    assert response.json()["status"] == "APPROVED"
+    again = await owner.post(
+        MEMBERS, json={"email": person.email, "first_name": "x", "last_name": "y"}
+    )
     assert again.status_code == 409
     assert again.json()["error"]["code"] == "already_member"
+
+
+async def test_accepting_requires_a_verified_email_and_own_invitation(
+    client: httpx.AsyncClient, factory: Factory
+) -> None:
+    club = await factory.club()
+    unverified = await factory.user(email_verified_at=None)
+    _, invited = await factory.membership(club, unverified, status=MembershipStatus.INVITED)
+    stranger = await factory.user()
+
+    headers = await login_mobile(client, unverified)
+    refused = await client.post(f"{MOBILE}/memberships/{invited.id}/accept", headers=headers)
+    assert refused.status_code == 422
+    assert refused.json()["error"]["code"] == "email_not_verified"
+
+    other = await login_mobile(client, stranger)
+    foreign = await client.post(f"{MOBILE}/memberships/{invited.id}/accept", headers=other)
+    assert foreign.status_code == 404
 
 
 async def test_a_member_of_two_clubs_has_independent_plan_and_number(
@@ -330,11 +376,18 @@ async def test_a_member_of_two_clubs_has_independent_plan_and_number(
         MEMBERS, json={**base, "plan_id": str(plan_b.id), "member_number": "2"}
     )
     assert in_a.status_code == in_b.status_code == 201
+    headers = await login_mobile(client, person)
+    for invitation in (in_a.json(), in_b.json()):
+        accepted = await client.post(
+            f"{MOBILE}/memberships/{invitation['membership_id']}/accept", headers=headers
+        )
+        assert accepted.status_code == 200
 
-    deactivated = await owner_a.patch(f"{MEMBERS}/{in_a.json()['id']}", json={"status": "INACTIVE"})
+    deactivated = await owner_a.patch(
+        f"{MEMBERS}/{in_a.json()['membership_id']}", json={"status": "INACTIVE"}
+    )
     assert deactivated.json()["status"] == "INACTIVE"
 
-    headers = await login_mobile(client, person)
     mine = {
         m["club"]["id"]: m
         for m in (await client.get(f"{MOBILE}/memberships", headers=headers)).json()

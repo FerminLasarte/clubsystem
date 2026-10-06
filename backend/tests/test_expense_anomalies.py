@@ -17,6 +17,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import get_settings
+from app.core.time import today_in, tz
 from app.domain.enums import AnomalySeverity
 from app.integrations.llm import anthropic_client
 from app.integrations.llm.anthropic_client import (
@@ -25,7 +26,7 @@ from app.integrations.llm.anthropic_client import (
     AnomalyExplanation,
     build_user_message,
 )
-from app.models import Club, Expense
+from app.models import AnomalyLlmUsage, Club, Expense
 from app.workers.anomalies import explain_anomalies
 from tests.factories import Factory, login_web
 
@@ -226,14 +227,12 @@ async def test_job_respects_the_daily_limit_per_club(
     monkeypatch.setattr(get_settings(), "ANOMALY_LLM_DAILY_LIMIT_PER_CLUB", 3)
     club = await factory.club()
     other = await factory.club()
-    # Ya se usó una explicación hoy (aunque después se haya borrado el gasto).
-    await _flagged(
-        factory,
-        club,
-        anomaly_explanation="hecha",
-        anomaly_explained_at=datetime.now(UTC),
-        deleted_at=datetime.now(UTC),
+    # Ya se usó una llamada hoy. El consumo vive en su propia tabla: editar o borrar el gasto
+    # explicado no lo libera (antes se podía recuperar cupo editando gastos).
+    factory.session.add(
+        AnomalyLlmUsage(club_id=club.id, day=today_in(tz(club.timezone)), requests=1)
     )
+    await factory.session.commit()
     await _flagged(
         factory,
         club,

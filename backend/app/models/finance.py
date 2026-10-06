@@ -180,3 +180,15 @@ class Expense(UUIDPk, Timestamps, Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
     )
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AnomalyLlmUsage(Base):
+    """Llamadas al LLM de anomalías por club y día (local del club): tope de costo diario."""
+
+    __tablename__ = "anomaly_llm_usage"
+
+    club_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clubs.id", ondelete="CASCADE"), primary_key=True
+    )
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    requests: Mapped[int] = mapped_column(Integer, default=0, server_default="0")

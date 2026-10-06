@@ -66,7 +66,7 @@ async def test_invitation_for_a_new_person_creates_the_account_and_logs_in(
         base_url="http://test",
         headers={"x-requested-with": "clubsystem"},
     )
-    preview = await guest.get(f"/api/v1/invitations/{token}")
+    preview = await guest.post("/api/v1/invitations/preview", json={"token": token})
     assert preview.json() == {
         "club_name": "Los Cardos",
         "club_logo_url": None,
@@ -109,7 +109,9 @@ async def test_invitation_takes_over_an_unverified_account_registered_by_someone
         f"{STAFF}/invitations", json={"email": squatter.email, "roles": ["STOCK_MANAGER"]}
     )
     token = _invite_token(outbox[0])
-    assert (await client.get(f"/api/v1/invitations/{token}")).json()["account"] == "unverified"
+    assert (await client.post("/api/v1/invitations/preview", json={"token": token})).json()[
+        "account"
+    ] == "unverified"
 
     accepted = await client.post(
         "/api/v1/invitations/accept", json={"token": token, "password": "nueva-clave-real"}

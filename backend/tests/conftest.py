@@ -53,6 +53,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
     create_async_engine,
 )
 
+from app.api.rate_limit import limiter  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import Base  # noqa: E402
 from tests.factories import Factory  # noqa: E402
@@ -81,6 +82,12 @@ async def _clean_tables(
     tables = ", ".join(t.name for t in Base.metadata.sorted_tables)
     async with owner_sessionmaker() as session, session.begin():
         await session.execute(text(f"TRUNCATE {tables} CASCADE"))
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits() -> None:
+    # El limitador es en memoria y compartido por proceso: cada test arranca de cero.
+    limiter.reset()
 
 
 @pytest.fixture

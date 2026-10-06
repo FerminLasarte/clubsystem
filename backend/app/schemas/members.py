@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr, StringConstraints
 
 from app.domain.enums import Gender, MembershipStatus
-from app.schemas.auth import Dni, Name
+from app.schemas.auth import Name
 from app.schemas.clubs import ClubDirectoryOut
 from app.schemas.common import Money, OptionalText, PageParams, Schema
 
@@ -88,6 +88,7 @@ class MemberListParams(MemberFilters, PageParams):
 
 
 class MemberStatsOut(BaseModel):
+    invited: int
     pending: int
     approved: int
     inactive: int
@@ -97,14 +98,32 @@ class MemberStatsOut(BaseModel):
 
 
 class MemberCreate(BaseModel):
+    """
+    Invitación a ser socio. Nombre y teléfono solo se usan si la persona no tiene cuenta.
+    El DNI lo carga la persona en su perfil: es dato de identidad, no del club.
+    """
+
     email: EmailStr
     first_name: Name
     last_name: Name
     phone: Phone | None = None
-    dni: Dni | None = None
     plan_id: UUID | None = None
     member_number: MemberNumber | None = None
     notes: OptionalText | None = None
+
+
+class MemberInvitationOut(BaseModel):
+    """
+    Resultado de invitar. Es igual exista o no una cuenta con ese email: el club no
+    ve datos de identidad de nadie hasta que la persona acepta.
+    """
+
+    membership_id: UUID
+    email: str
+    status: MembershipStatus
+    invited_at: datetime | None
+    plan: PlanSummaryOut | None
+    member_number: str | None
 
 
 class MemberUpdate(BaseModel):

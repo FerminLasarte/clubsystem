@@ -1,13 +1,24 @@
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
 Money = Annotated[Decimal, Field(max_digits=12, decimal_places=2, ge=0)]
 PositiveMoney = Annotated[Decimal, Field(max_digits=12, decimal_places=2, gt=0)]
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
 OptionalText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]
-Password = Annotated[str, StringConstraints(min_length=10, max_length=72)]
+
+
+def _bcrypt_limit(value: str) -> str:
+    # bcrypt usa como máximo 72 bytes: con caracteres multibyte, 72 caracteres pueden ser más.
+    if len(value.encode()) > 72:
+        raise ValueError("La contraseña es demasiado larga.")
+    return value
+
+
+Password = Annotated[
+    str, StringConstraints(min_length=10, max_length=72), AfterValidator(_bcrypt_limit)
+]
 HexColor = Annotated[str, StringConstraints(pattern=r"^#[0-9A-Fa-f]{6}$")]
 
 

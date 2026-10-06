@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import BusinessRuleViolation
+from app.core.sql import contains_pattern
 from app.models import Club
 from app.schemas.clubs import ClubUpdate
 
@@ -30,6 +31,8 @@ async def update_club(session: AsyncSession, club: Club, data: ClubUpdate) -> Cl
 async def active_clubs_directory(session: AsyncSession, search: str | None) -> list[Club]:
     stmt = select(Club).where(Club.is_active.is_(True)).order_by(Club.name).limit(100)
     if search:
-        pattern = f"%{search.strip()}%"
-        stmt = stmt.where(Club.name.ilike(pattern) | Club.city.ilike(pattern))
+        pattern = contains_pattern(search.strip())
+        stmt = stmt.where(
+            Club.name.ilike(pattern, escape="\\") | Club.city.ilike(pattern, escape="\\")
+        )
     return list((await session.execute(stmt)).scalars())

@@ -1201,19 +1201,33 @@
             "type": "string"
           },
           "pending_membership_requests": {
-            "title": "Pending Membership Requests",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Membership Requests"
           },
           "reservations_today": {
             "title": "Reservations Today",
             "type": "integer"
           },
           "upcoming_reservations": {
-            "items": {
-              "$ref": "#/components/schemas/UpcomingReservation"
-            },
-            "title": "Upcoming Reservations",
-            "type": "array"
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/UpcomingReservation"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upcoming Reservations"
           }
         },
         "required": [
@@ -2236,19 +2250,8 @@
         "type": "object"
       },
       "MemberCreate": {
+        "description": "Invitación a ser socio. Nombre y teléfono solo se usan si la persona no tiene cuenta.\nEl DNI lo carga la persona en su perfil: es dato de identidad, no del club.",
         "properties": {
-          "dni": {
-            "anyOf": [
-              {
-                "pattern": "^\\d{6,10}$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dni"
-          },
           "email": {
             "format": "email",
             "title": "Email",
@@ -2322,6 +2325,66 @@
           "last_name"
         ],
         "title": "MemberCreate",
+        "type": "object"
+      },
+      "MemberInvitationOut": {
+        "description": "Resultado de invitar. Es igual exista o no una cuenta con ese email: el club no\nve datos de identidad de nadie hasta que la persona acepta.",
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "invited_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invited At"
+          },
+          "member_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Number"
+          },
+          "membership_id": {
+            "format": "uuid",
+            "title": "Membership Id",
+            "type": "string"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanSummaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/MembershipStatus"
+          }
+        },
+        "required": [
+          "membership_id",
+          "email",
+          "status",
+          "invited_at",
+          "plan",
+          "member_number"
+        ],
+        "title": "MemberInvitationOut",
         "type": "object"
       },
       "MemberNewsOut": {
@@ -2636,6 +2699,10 @@
             "title": "Inactive",
             "type": "integer"
           },
+          "invited": {
+            "title": "Invited",
+            "type": "integer"
+          },
           "joined_this_month": {
             "title": "Joined This Month",
             "type": "integer"
@@ -2650,6 +2717,7 @@
           }
         },
         "required": [
+          "invited",
           "pending",
           "approved",
           "inactive",
@@ -2732,6 +2800,7 @@
       },
       "MembershipStatus": {
         "enum": [
+          "INVITED",
           "PENDING",
           "APPROVED",
           "REJECTED",
@@ -3432,6 +3501,37 @@
           "page_size"
         ],
         "title": "Page[FeeOut]",
+        "type": "object"
+      },
+      "Page_MemberInvitationOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MemberInvitationOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[MemberInvitationOut]",
         "type": "object"
       },
       "Page_MemberNewsOut_": {
@@ -7219,7 +7319,8 @@
         ]
       },
       "post": {
-        "operationId": "create_member_api_v1_admin_members_post",
+        "description": "Invita a ser socio. La persona acepta desde la app (o ya lo había pedido).",
+        "operationId": "invite_member_api_v1_admin_members_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -7235,7 +7336,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MemberOut"
+                  "$ref": "#/components/schemas/MemberInvitationOut"
                 }
               }
             },
@@ -7252,7 +7353,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Member",
+        "summary": "Invite Member",
         "tags": [
           "Admin: socios"
         ]
@@ -7332,6 +7433,98 @@
           }
         },
         "summary": "Export Members",
+        "tags": [
+          "Admin: socios"
+        ]
+      }
+    },
+    "/api/v1/admin/members/invitations": {
+      "get": {
+        "operationId": "list_invitations_api_v1_admin_members_invitations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_MemberInvitationOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Invitations",
+        "tags": [
+          "Admin: socios"
+        ]
+      }
+    },
+    "/api/v1/admin/members/invitations/{membership_id}": {
+      "delete": {
+        "operationId": "cancel_invitation_api_v1_admin_members_invitations__membership_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "membership_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Membership Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Invitation",
         "tags": [
           "Admin: socios"
         ]
@@ -9461,20 +9654,19 @@
         ]
       }
     },
-    "/api/v1/invitations/{token}": {
-      "get": {
-        "operationId": "preview_api_v1_invitations__token__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "token",
-            "required": true,
-            "schema": {
-              "title": "Token",
-              "type": "string"
+    "/api/v1/invitations/preview": {
+      "post": {
+        "operationId": "preview_api_v1_invitations_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRequest"
+              }
             }
-          }
-        ],
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -9987,6 +10179,85 @@
           }
         },
         "summary": "My Memberships",
+        "tags": [
+          "App: clubes y membresías"
+        ]
+      }
+    },
+    "/api/v1/mobile/memberships/{membership_id}/accept": {
+      "post": {
+        "operationId": "accept_invitation_api_v1_mobile_memberships__membership_id__accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "membership_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Membership Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyMembershipOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Accept Invitation",
+        "tags": [
+          "App: clubes y membresías"
+        ]
+      }
+    },
+    "/api/v1/mobile/memberships/{membership_id}/decline": {
+      "post": {
+        "operationId": "decline_invitation_api_v1_mobile_memberships__membership_id__decline_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "membership_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Membership Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decline Invitation",
         "tags": [
           "App: clubes y membresías"
         ]

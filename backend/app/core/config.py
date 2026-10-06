@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -17,7 +17,8 @@ class Settings(BaseSettings):
         env_file=BACKEND_DIR / ".env", env_file_encoding="utf-8", extra="ignore"
     )
 
-    ENV: Literal["development", "test", "production"] = "development"
+    # Por defecto producción: docs apagados y validaciones estrictas salvo que se diga lo contrario.
+    ENV: Literal["development", "test", "production"] = "production"
     LOG_LEVEL: str = "INFO"
     LOG_JSON: bool = False
 
@@ -67,6 +68,16 @@ class Settings(BaseSettings):
         if len(raw) < 32 or raw.lower() in _KNOWN_WEAK_SECRETS:
             raise ValueError("JWT_SECRET_KEY debe tener al menos 32 caracteres aleatorios")
         return value
+
+    @model_validator(mode="after")
+    def _safe_for_production(self) -> "Settings":
+        if "*" in self.CORS_ORIGINS:
+            raise ValueError("CORS_ORIGINS no puede ser '*' (las cookies de sesión van con CORS)")
+        if self.ENV == "production" and self.EMAIL_BACKEND == "console":
+            raise ValueError(
+                "EMAIL_BACKEND=console loguea tokens de acceso: en producción usá un proveedor real"
+            )
+        return self
 
     @property
     def is_production(self) -> bool:

@@ -68,7 +68,7 @@ async def get_auth(request: Request, session: SessionDep) -> AuthContext:
     if auth_session is None or auth_session.revoked_at is not None:
         raise Unauthorized("La sesión fue cerrada.", code="token_revoked")
 
-    await set_tenant_context(session, user_id=user.id, user_email=user.email)
+    await set_tenant_context(session, user_id=user.id)
     user_id_var.set(str(user.id))
     return AuthContext(user=user, claims=claims)
 

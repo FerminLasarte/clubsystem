@@ -1,16 +1,18 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, Query, status
+from fastapi import APIRouter, Body, Depends, Query, Request, status
 from fastapi.responses import Response
 
 from app.api.deps import SessionDep, StaffContext, require
+from app.api.rate_limit import limiter
 from app.domain.permissions import Permission
 from app.schemas.common import Page, PageParams
 from app.schemas.members import (
     ApproveRequest,
     MemberCreate,
     MemberFilters,
+    MemberInvitationOut,
     MemberListParams,
     MemberOut,
     MemberStatsOut,
@@ -48,9 +50,25 @@ async def export_members(
     return await MemberService(session, ctx).export_csv(filters)
 
 
-@router.post("/members", status_code=status.HTTP_201_CREATED, response_model=MemberOut)
-async def create_member(body: MemberCreate, ctx: Writer, session: SessionDep) -> MemberOut:
-    return await MemberService(session, ctx).create(body)
+@router.post("/members", status_code=status.HTTP_201_CREATED, response_model=MemberInvitationOut)
+@limiter.limit("60/hour")
+async def invite_member(
+    request: Request, body: MemberCreate, ctx: Writer, session: SessionDep
+) -> MemberInvitationOut:
+    """Invita a ser socio. La persona acepta desde la app (o ya lo había pedido)."""
+    return await MemberService(session, ctx).invite(body)
+
+
+@router.get("/members/invitations", response_model=Page[MemberInvitationOut])
+async def list_invitations(
+    params: Annotated[PageParams, Query()], ctx: Reader, session: SessionDep
+) -> Page[MemberInvitationOut]:
+    return await MemberService(session, ctx).invitations(params)
+
+
+@router.delete("/members/invitations/{membership_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_invitation(membership_id: UUID, ctx: Writer, session: SessionDep) -> None:
+    await MemberService(session, ctx).cancel_invitation(membership_id)
 
 
 @router.get("/members/{membership_id}", response_model=MemberOut)
