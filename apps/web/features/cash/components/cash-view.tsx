@@ -10,7 +10,7 @@ import { useCashDay } from "@/features/cash/api";
 import { useUrlParams } from "@/lib/use-url-params";
 
 import { CashSummaryCards } from "./cash-summary";
-import { DayNav } from "./day-nav";
+import { DayNav } from "@/components/shared/day-nav";
 import { MethodTotalsTable } from "./method-totals";
 import { MovementDialog } from "./movement-dialog";
 import { MovementsTable } from "./movements-table";
@@ -32,7 +32,12 @@ export function CashView() {
         actions={canWrite ? <MovementDialog canPickMember={permissions.includes("members:read")} /> : null}
       />
       <div className="grid gap-6">
-        <DayNav date={date} today={today} onChange={(next) => setParams({ date: next === today ? null : next })} />
+        <DayNav
+          day={date}
+          today={today}
+          allowFuture={false}
+          onChange={(next) => setParams({ date: next === today ? null : next })}
+        />
         {day.isError ? (
           <QueryError error={day.error} onRetry={() => day.refetch()} />
         ) : (

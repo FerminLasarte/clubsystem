@@ -8,7 +8,7 @@ import { useReservationGrid } from "@/features/reservations/api";
 import { STATUS_BLOCK_CLASS } from "@/features/reservations/status";
 import { cn } from "@/lib/utils";
 
-import { DayNav } from "./day-nav";
+import { DayNav } from "@/components/shared/day-nav";
 import { PendingNotice } from "./pending-notice";
 import { ReservationGrid } from "./reservation-grid";
 
@@ -27,7 +27,7 @@ export function DayView({ day, today, onDayChange, onSelect, onCreateAt }: DayVi
 
   return (
     <div className="grid gap-4">
-      <DayNav day={day} today={today} onChange={onDayChange} />
+      <DayNav day={day} today={today} onChange={onDayChange} showLabel />
       <PendingNotice day={day} isToday={day === today} />
       <ul className="flex flex-wrap gap-4 text-xs text-muted-foreground" aria-label="Referencias">
         {LEGEND.map((status) => (
