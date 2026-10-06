@@ -928,6 +928,37 @@
         "title": "CourtCreate",
         "type": "object"
       },
+      "CourtDeactivate": {
+        "properties": {
+          "cancel_upcoming_reservations": {
+            "minimum": 0.0,
+            "title": "Cancel Upcoming Reservations",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cancel_upcoming_reservations"
+        ],
+        "title": "CourtDeactivate",
+        "type": "object"
+      },
+      "CourtDeactivationOut": {
+        "properties": {
+          "cancelled_reservations": {
+            "title": "Cancelled Reservations",
+            "type": "integer"
+          },
+          "court": {
+            "$ref": "#/components/schemas/CourtOut"
+          }
+        },
+        "required": [
+          "court",
+          "cancelled_reservations"
+        ],
+        "title": "CourtDeactivationOut",
+        "type": "object"
+      },
       "CourtOut": {
         "properties": {
           "capacity": {
@@ -1037,6 +1068,20 @@
         ],
         "title": "CourtSurface",
         "type": "string"
+      },
+      "CourtUpcomingOut": {
+        "description": "Reservas activas (pendientes o confirmadas) que todavía no terminaron.",
+        "properties": {
+          "upcoming_reservations": {
+            "title": "Upcoming Reservations",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "upcoming_reservations"
+        ],
+        "title": "CourtUpcomingOut",
+        "type": "object"
       },
       "CourtUpdate": {
         "description": "Solo se modifican los campos enviados. `is_active=false` desactiva la cancha.",
@@ -6173,6 +6218,104 @@
           }
         },
         "summary": "Update Court",
+        "tags": [
+          "Admin: canchas"
+        ]
+      }
+    },
+    "/api/v1/admin/courts/{court_id}/deactivate": {
+      "post": {
+        "description": "Cancela las reservas próximas (motivo BY_STAFF) y desactiva la cancha. 409\n`upcoming_reservations_changed` si la cantidad no es la que confirmó el usuario.",
+        "operationId": "deactivate_court_api_v1_admin_courts__court_id__deactivate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "court_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Court Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CourtDeactivate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourtDeactivationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deactivate Court",
+        "tags": [
+          "Admin: canchas"
+        ]
+      }
+    },
+    "/api/v1/admin/courts/{court_id}/upcoming-reservations": {
+      "get": {
+        "description": "Cuántas reservas habría que cancelar para desactivar la cancha.",
+        "operationId": "upcoming_reservations_api_v1_admin_courts__court_id__upcoming_reservations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "court_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Court Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourtUpcomingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upcoming Reservations",
         "tags": [
           "Admin: canchas"
         ]

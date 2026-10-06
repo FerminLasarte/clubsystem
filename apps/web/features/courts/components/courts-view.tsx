@@ -15,6 +15,7 @@ import { useCourts, useDeleteCourt } from "@/features/courts/api";
 
 import { CourtFormDialog } from "./court-form-dialog";
 import { CourtsTable } from "./courts-table";
+import { DeactivateCourtDialog } from "./deactivate-court-dialog";
 
 /** Diálogo de alta (court null) o edición. Al cerrar se conserva la cancha para no cambiar el título en la animación. */
 interface FormState {
@@ -29,6 +30,7 @@ export function CourtsView() {
   const remove = useDeleteCourt();
   const [form, setForm] = useState<FormState>({ open: false, court: null });
   const [toDelete, setToDelete] = useState<CourtOut | null>(null);
+  const [toDeactivate, setToDeactivate] = useState<CourtOut | null>(null);
 
   const openCreate = () => setForm({ open: true, court: null });
 
@@ -64,6 +66,7 @@ export function CourtsView() {
               canEdit={canEdit}
               onEdit={(court) => setForm({ open: true, court })}
               onDelete={setToDelete}
+              onDeactivateWithReservations={setToDeactivate}
             />
           </CardContent>
         </Card>
@@ -73,6 +76,7 @@ export function CourtsView() {
         onOpenChange={(open) => setForm((prev) => ({ ...prev, open }))}
         court={form.court}
       />
+      <DeactivateCourtDialog court={toDeactivate} onClose={() => setToDeactivate(null)} />
       <ConfirmDialog
         open={toDelete !== null}
         onOpenChange={(open) => !open && setToDelete(null)}

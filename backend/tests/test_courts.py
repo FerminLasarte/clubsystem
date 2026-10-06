@@ -2,8 +2,10 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import httpx
+from sqlalchemy import select
 
-from app.domain.enums import MembershipStatus, ReservationStatus, Sport, StaffRole
+from app.domain.enums import CancelReason, MembershipStatus, ReservationStatus, Sport, StaffRole
+from app.models import Reservation
 from tests.factories import Factory, login_mobile, login_web
 
 COURTS = "/api/v1/admin/courts"
@@ -106,6 +108,96 @@ async def test_court_with_reservations_is_deactivated_not_deleted(
     assert deactivated.status_code == 200
     assert deactivated.json()["is_active"] is False
     assert (await client.delete(f"{COURTS}/{court.id}")).status_code == 409
+
+
+async def test_deactivate_cancelling_upcoming_reservations(
+    client: httpx.AsyncClient, factory: Factory
+) -> None:
+    club = await factory.club()
+    owner, _ = await factory.staff(club)
+    player = await factory.user()
+    court, other_court = await factory.court(club), await factory.court(club)
+    now = datetime.now(UTC)
+    day = timedelta(days=1)
+    hour = timedelta(hours=1)
+    confirmed = await factory.reservation(court, player, now + day, now + day + hour)
+    pending = await factory.reservation(
+        court, player, now + 2 * day, now + 2 * day + hour, status=ReservationStatus.PENDING
+    )
+    in_progress = await factory.reservation(court, player, now - hour / 2, now + hour / 2)
+    past = await factory.reservation(
+        court, player, now - day, now - day + hour, status=ReservationStatus.COMPLETED
+    )
+    elsewhere = await factory.reservation(other_court, player, now + day, now + day + hour)
+    await login_web(client, owner)
+    url = f"{COURTS}/{court.id}"
+
+    count = await client.get(f"{url}/upcoming-reservations")
+    assert count.json() == {"upcoming_reservations": 3}
+
+    # Si la cantidad cambió desde que el usuario confirmó, no se toca nada.
+    stale = await client.post(f"{url}/deactivate", json={"cancel_upcoming_reservations": 2})
+    assert stale.status_code == 409
+    assert stale.json()["error"]["code"] == "upcoming_reservations_changed"
+
+    done = await client.post(f"{url}/deactivate", json={"cancel_upcoming_reservations": 3})
+    assert done.status_code == 200, done.text
+    assert done.json()["cancelled_reservations"] == 3
+    assert done.json()["court"]["is_active"] is False
+
+    ids = [confirmed.id, pending.id, in_progress.id, past.id, elsewhere.id]
+    rows = {
+        r.id: (r.status, r.cancel_reason, r.cancelled_by_id)
+        for r in await factory.session.execute(
+            select(
+                Reservation.id,
+                Reservation.status,
+                Reservation.cancel_reason,
+                Reservation.cancelled_by_id,
+            ).where(Reservation.id.in_(ids))
+        )
+    }
+    cancelled = (ReservationStatus.CANCELLED, CancelReason.BY_STAFF, owner.id)
+    assert rows == {
+        confirmed.id: cancelled,
+        pending.id: cancelled,
+        in_progress.id: cancelled,
+        past.id: (ReservationStatus.COMPLETED, None, None),
+        elsewhere.id: (ReservationStatus.CONFIRMED, None, None),
+    }
+
+    again = await client.post(f"{url}/deactivate", json={"cancel_upcoming_reservations": 0})
+    assert again.status_code == 409
+
+
+async def test_deactivate_with_cancellations_permissions_and_isolation(
+    client: httpx.AsyncClient, factory: Factory
+) -> None:
+    club, other_club = await factory.club(), await factory.club()
+    owner, _ = await factory.staff(club)
+    manager, _ = await factory.staff(club, roles=[StaffRole.RESERVATIONS_MANAGER])
+    foreign_owner, _ = await factory.staff(other_club)
+    court = await factory.court(club)
+    now = datetime.now(UTC)
+    await factory.reservation(
+        court, await factory.user(), now + timedelta(days=1), now + timedelta(days=1, hours=1)
+    )
+    url = f"{COURTS}/{court.id}"
+    body = {"cancel_upcoming_reservations": 1}
+
+    await login_web(client, manager)  # gestiona reservas pero no canchas
+    assert (await client.get(f"{url}/upcoming-reservations")).status_code == 403
+    assert (await client.post(f"{url}/deactivate", json=body)).status_code == 403
+
+    await login_web(client, foreign_owner)
+    assert (await client.get(f"{url}/upcoming-reservations")).status_code == 404
+    assert (await client.post(f"{url}/deactivate", json=body)).status_code == 404
+
+    await login_web(client, owner)
+    assert (
+        await client.post(f"{url}/deactivate", json={"cancel_upcoming_reservations": -1})
+    ).status_code == 422
+    assert (await client.get(url.rsplit("/", 1)[0])).json()[0]["is_active"] is True
 
 
 async def test_members_see_active_courts_with_member_price(

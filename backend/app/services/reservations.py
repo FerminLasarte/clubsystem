@@ -88,6 +88,16 @@ APP_BOOKING_HORIZON_DAYS = 14
 APP_MAX_PENDING_PER_MEMBER = 3
 
 
+def staff_cancellation(user_id: UUID) -> dict[str, Any]:
+    """Valores de una reserva cancelada por el staff (individual o al desactivar una cancha)."""
+    return {
+        "status": ReservationStatus.CANCELLED,
+        "cancelled_at": utcnow(),
+        "cancelled_by_id": user_id,
+        "cancel_reason": CancelReason.BY_STAFF,
+    }
+
+
 async def _lock_bookable_court(session: AsyncSession, court_id: UUID, club_id: UUID) -> Court:
     """
     Cancha del club, activa. FOR SHARE: no bloquea otras reservas, pero sí que la cancha
@@ -379,12 +389,7 @@ class ReservationService:
         await self._transition(
             reservation_id,
             ACTIVE_RESERVATION_STATUSES,
-            {
-                "status": ReservationStatus.CANCELLED,
-                "cancelled_at": utcnow(),
-                "cancelled_by_id": self.ctx.user_id,
-                "cancel_reason": CancelReason.BY_STAFF,
-            },
+            staff_cancellation(self.ctx.user_id),
             "La reserva ya no se puede cancelar.",
         )
 

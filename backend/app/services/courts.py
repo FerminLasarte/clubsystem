@@ -3,8 +3,9 @@
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import exists, select
+from sqlalchemy import and_, exists, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.errors import BusinessRuleViolation, Conflict
 from app.core.time import utcnow
@@ -14,6 +15,7 @@ from app.models import ACTIVE_RESERVATION_STATUSES, Court, Reservation
 from app.repositories.base import get_scoped
 from app.schemas.courts import CourtCreate, CourtUpdate, MemberCourtOut
 from app.services.context import MemberContext, StaffContext
+from app.services.reservations import staff_cancellation
 
 _REQUIRED = ("name", "sport", "is_indoor", "is_active", "capacity", "price_member", "price_guest")
 
@@ -58,6 +60,39 @@ class CourtService:
         await self.db.refresh(court)
         return court
 
+    async def upcoming_count(self, court_id: UUID) -> int:
+        court = await self._get(court_id)
+        return (
+            await self.db.execute(select(func.count()).where(self._upcoming(court)))
+        ).scalar_one()
+
+    async def deactivate(self, court_id: UUID, expected: int) -> tuple[Court, int]:
+        """
+        Cancela las reservas próximas y desactiva, en una transacción. El lock de la cancha
+        impide reservas nuevas mientras tanto; `expected` es la cantidad que confirmó el usuario.
+        """
+        court = await self._get(court_id, for_update=True)
+        if not court.is_active:
+            raise Conflict("La cancha ya está desactivada.", code="court_inactive")
+        upcoming = (
+            await self.db.execute(select(func.count()).where(self._upcoming(court)))
+        ).scalar_one()
+        if upcoming != expected:
+            raise Conflict(
+                f"La cancha tiene ahora {upcoming} reservas próximas. Revisalas y volvé a"
+                " confirmar.",
+                code="upcoming_reservations_changed",
+            )
+        await self.db.execute(
+            update(Reservation)
+            .where(self._upcoming(court))
+            .values(**staff_cancellation(self.ctx.user_id))
+        )
+        court.is_active = False
+        await self.db.flush()
+        await self.db.refresh(court)
+        return court, upcoming
+
     async def delete(self, court_id: UUID) -> None:
         """Solo se borra una cancha sin reservas; si tiene historial, se desactiva."""
         court = await self._get(court_id, for_update=True)
@@ -82,22 +117,24 @@ class CourtService:
             for_update=for_update,
         )
 
+    @staticmethod
+    def _upcoming(court: Court) -> ColumnElement[bool]:
+        """Reservas activas de la cancha que todavía no terminaron (incluye las en curso)."""
+        return and_(
+            Reservation.club_id == court.club_id,
+            Reservation.court_id == court.id,
+            Reservation.status.in_(ACTIVE_RESERVATION_STATUSES),
+            Reservation.ends_at > utcnow(),
+        )
+
     async def _ensure_no_upcoming(self, court: Court) -> None:
         upcoming = (
-            await self.db.execute(
-                select(
-                    exists().where(
-                        Reservation.court_id == court.id,
-                        Reservation.status.in_(ACTIVE_RESERVATION_STATUSES),
-                        Reservation.ends_at > utcnow(),
-                    )
-                )
-            )
+            await self.db.execute(select(exists().where(self._upcoming(court))))
         ).scalar_one()
         if upcoming:
             raise Conflict(
-                "La cancha tiene reservas próximas. Cancelalas o reprogramalas antes de"
-                " desactivarla.",
+                "La cancha tiene reservas próximas. Cancelalas, reprogramalas o desactivala"
+                " cancelándolas.",
                 code="court_has_upcoming_reservations",
             )
 

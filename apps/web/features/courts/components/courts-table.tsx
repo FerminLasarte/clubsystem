@@ -1,8 +1,9 @@
 "use client";
 
-import type { CourtOut } from "@clubsystem/api";
+import { errorMessage, isApiError, type CourtOut } from "@clubsystem/api";
 import { COURT_SURFACE_LABELS, formatMoney, SPORT_LABELS } from "@clubsystem/shared";
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,10 +23,22 @@ interface CourtsTableProps {
   canEdit: boolean;
   onEdit: (court: CourtOut) => void;
   onDelete: (court: CourtOut) => void;
+  /** La cancha tiene reservas próximas: ofrecer desactivarla cancelándolas. */
+  onDeactivateWithReservations: (court: CourtOut) => void;
 }
 
-export function CourtsTable({ courts, canEdit, onEdit, onDelete }: CourtsTableProps) {
+export function CourtsTable({ courts, canEdit, onEdit, onDelete, onDeactivateWithReservations }: CourtsTableProps) {
   const setActive = useSetCourtActive();
+  const toggle = (court: CourtOut, isActive: boolean) =>
+    setActive.mutate(
+      { id: court.id, isActive },
+      {
+        onError: (error) =>
+          isApiError(error, "court_has_upcoming_reservations")
+            ? onDeactivateWithReservations(court)
+            : toast.error(errorMessage(error)),
+      },
+    );
 
   return (
     <Table>
@@ -66,7 +79,7 @@ export function CourtsTable({ courts, canEdit, onEdit, onDelete }: CourtsTablePr
                 <Switch
                   checked={court.is_active}
                   disabled={setActive.isPending && setActive.variables.id === court.id}
-                  onCheckedChange={(isActive) => setActive.mutate({ id: court.id, isActive })}
+                  onCheckedChange={(isActive) => toggle(court, isActive)}
                   aria-label={`${court.name} activa`}
                 />
               ) : (

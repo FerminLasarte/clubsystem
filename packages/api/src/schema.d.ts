@@ -118,6 +118,47 @@ export interface paths {
         patch: operations["update_court_api_v1_admin_courts__court_id__patch"];
         trace?: never;
     };
+    "/api/v1/admin/courts/{court_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deactivate Court
+         * @description Cancela las reservas próximas (motivo BY_STAFF) y desactiva la cancha. 409
+         *     `upcoming_reservations_changed` si la cantidad no es la que confirmó el usuario.
+         */
+        post: operations["deactivate_court_api_v1_admin_courts__court_id__deactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/courts/{court_id}/upcoming-reservations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Upcoming Reservations
+         * @description Cuántas reservas habría que cancelar para desactivar la cancha.
+         */
+        get: operations["upcoming_reservations_api_v1_admin_courts__court_id__upcoming_reservations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/dashboard/finance": {
         parameters: {
             query?: never;
@@ -1706,6 +1747,17 @@ export interface components {
             sport: components["schemas"]["Sport"];
             surface?: components["schemas"]["CourtSurface"] | null;
         };
+        /** CourtDeactivate */
+        CourtDeactivate: {
+            /** Cancel Upcoming Reservations */
+            cancel_upcoming_reservations: number;
+        };
+        /** CourtDeactivationOut */
+        CourtDeactivationOut: {
+            /** Cancelled Reservations */
+            cancelled_reservations: number;
+            court: components["schemas"]["CourtOut"];
+        };
         /** CourtOut */
         CourtOut: {
             /** Capacity */
@@ -1747,6 +1799,14 @@ export interface components {
          * @enum {string}
          */
         CourtSurface: "clay" | "hard" | "grass" | "synthetic" | "wood" | "concrete" | "other";
+        /**
+         * CourtUpcomingOut
+         * @description Reservas activas (pendientes o confirmadas) que todavía no terminaron.
+         */
+        CourtUpcomingOut: {
+            /** Upcoming Reservations */
+            upcoming_reservations: number;
+        };
         /**
          * CourtUpdate
          * @description Solo se modifican los campos enviados. `is_active=false` desactiva la cancha.
@@ -3296,8 +3356,11 @@ export type ClubUpdate = components['schemas']['ClubUpdate'];
 export type CourtAvailabilityOut = components['schemas']['CourtAvailabilityOut'];
 export type CourtBrief = components['schemas']['CourtBrief'];
 export type CourtCreate = components['schemas']['CourtCreate'];
+export type CourtDeactivate = components['schemas']['CourtDeactivate'];
+export type CourtDeactivationOut = components['schemas']['CourtDeactivationOut'];
 export type CourtOut = components['schemas']['CourtOut'];
 export type CourtSurface = components['schemas']['CourtSurface'];
+export type CourtUpcomingOut = components['schemas']['CourtUpcomingOut'];
 export type CourtUpdate = components['schemas']['CourtUpdate'];
 export type CustomerType = components['schemas']['CustomerType'];
 export type DashboardFinanceOut = components['schemas']['DashboardFinanceOut'];
@@ -3659,6 +3722,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CourtOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_court_api_v1_admin_courts__court_id__deactivate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                court_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CourtDeactivate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourtDeactivationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upcoming_reservations_api_v1_admin_courts__court_id__upcoming_reservations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                court_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourtUpcomingOut"];
                 };
             };
             /** @description Validation Error */

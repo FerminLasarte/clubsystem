@@ -1,4 +1,5 @@
 import { unwrap, type CourtCreate, type CourtUpdate } from "@clubsystem/api";
+import { pluralize } from "@clubsystem/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -6,6 +7,7 @@ import { api } from "@/lib/api";
 
 export const courtKeys = {
   all: ["courts"] as const,
+  upcoming: (id: string) => ["courts", id, "upcoming-reservations"] as const,
 };
 
 /** Canchas del club, activas primero. */
@@ -47,7 +49,10 @@ export function useUpdateCourt() {
   });
 }
 
-/** Activar o desactivar. El 409 (reservas próximas) lo muestra el toast global con el mensaje del backend. */
+/**
+ * Activar o desactivar. Silenciosa: la tabla maneja el 409 `court_has_upcoming_reservations`
+ * ofreciendo desactivar cancelando las reservas, y muestra el resto de los errores.
+ */
 export function useSetCourtActive() {
   const invalidate = useInvalidateCourts();
   return useMutation({
@@ -62,6 +67,41 @@ export function useSetCourtActive() {
       invalidate();
       toast.success(court.is_active ? `"${court.name}" activada` : `"${court.name}" desactivada`);
     },
+    meta: { silent: true },
+  });
+}
+
+/** Reservas que se cancelarían al desactivar la cancha (solo mientras el diálogo está abierto). */
+export function useCourtUpcomingReservations(id: string | null) {
+  return useQuery({
+    queryKey: courtKeys.upcoming(id ?? ""),
+    queryFn: () =>
+      unwrap(
+        api.GET("/api/v1/admin/courts/{court_id}/upcoming-reservations", { params: { path: { court_id: id ?? "" } } }),
+      ),
+    enabled: id !== null,
+    staleTime: 0,
+  });
+}
+
+/** Cancela las reservas próximas y desactiva. `expected` es la cantidad que confirmó el usuario. */
+export function useDeactivateCourt() {
+  const invalidate = useInvalidateCourts();
+  return useMutation({
+    mutationFn: ({ id, expected }: { id: string; expected: number }) =>
+      unwrap(
+        api.POST("/api/v1/admin/courts/{court_id}/deactivate", {
+          params: { path: { court_id: id } },
+          body: { cancel_upcoming_reservations: expected },
+        }),
+      ),
+    onSuccess: ({ court, cancelled_reservations }) => {
+      toast.success(
+        `"${court.name}" desactivada · ${pluralize(cancelled_reservations, "reserva cancelada", "reservas canceladas")}`,
+      );
+    },
+    // Si la cantidad cambió (409), el diálogo vuelve a pedir el número actualizado.
+    onSettled: invalidate,
   });
 }
 

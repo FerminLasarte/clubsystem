@@ -54,6 +54,22 @@ class CourtUpdate(BaseModel):
     image_url: AnyHttpUrl | None = None
 
 
+class CourtUpcomingOut(BaseModel):
+    """Reservas activas (pendientes o confirmadas) que todavía no terminaron."""
+
+    upcoming_reservations: int
+
+
+class CourtDeactivate(BaseModel):
+    # Cantidad que vio el usuario al confirmar. Si cambió, 409 y se vuelve a confirmar.
+    cancel_upcoming_reservations: Annotated[int, Field(ge=0)]
+
+
+class CourtDeactivationOut(BaseModel):
+    court: CourtOut
+    cancelled_reservations: int
+
+
 class MemberCourtOut(Schema):
     """Cancha vista por un socio: precio por hora de socio, sin datos internos."""
 

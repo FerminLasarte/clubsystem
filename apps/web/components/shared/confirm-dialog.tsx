@@ -19,6 +19,8 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   destructive?: boolean;
   pending?: boolean;
+  /** Deshabilita solo la confirmación (p. ej. mientras falta un dato); cancelar sigue disponible. */
+  confirmDisabled?: boolean;
   onConfirm: () => void;
 }
 
@@ -30,6 +32,7 @@ export function ConfirmDialog({
   confirmLabel = "Confirmar",
   destructive,
   pending,
+  confirmDisabled,
   onConfirm,
 }: ConfirmDialogProps) {
   return (
@@ -43,7 +46,7 @@ export function ConfirmDialog({
           <AlertDialogCancel disabled={pending}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
             variant={destructive ? "destructive" : "default"}
-            disabled={pending}
+            disabled={pending || confirmDisabled}
             onClick={(event) => {
               event.preventDefault();
               onConfirm();
