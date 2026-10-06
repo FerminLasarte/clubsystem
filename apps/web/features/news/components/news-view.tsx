@@ -1,12 +1,14 @@
 "use client";
 
 import type { NewsOut } from "@clubsystem/api";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { PageHeader } from "@/components/shared/page-header";
 import { Pagination } from "@/components/shared/pagination";
 import { QueryError, StateView } from "@/components/shared/state-view";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActiveSession } from "@/features/auth/api";
@@ -23,13 +25,21 @@ export function NewsView() {
   const news = useNews(page);
   const remove = useDeleteNews();
   const [toDelete, setToDelete] = useState<NewsOut | null>(null);
+  // Al cerrar se conserva la novedad para no cambiar el título durante la animación.
+  const [form, setForm] = useState<{ open: boolean; news: NewsOut | null }>({ open: false, news: null });
 
   return (
     <>
       <PageHeader
         title="Novedades"
         description="Avisos que los socios ven en la app del club."
-        actions={canWrite ? <NewsDialog /> : null}
+        actions={
+          canWrite ? (
+            <Button onClick={() => setForm({ open: true, news: null })}>
+              <Plus className="size-4" aria-hidden /> Nueva novedad
+            </Button>
+          ) : null
+        }
       />
       <Card>
         <CardContent>
@@ -41,7 +51,12 @@ export function NewsView() {
             <StateView variant="empty" title="Todavía no se publicaron novedades" />
           ) : (
             <div aria-busy={news.isPlaceholderData}>
-              <NewsTable news={news.data.items} canWrite={canWrite} onDelete={setToDelete} />
+              <NewsTable
+                news={news.data.items}
+                canWrite={canWrite}
+                onEdit={(item) => setForm({ open: true, news: item })}
+                onDelete={setToDelete}
+              />
               <Pagination
                 page={page}
                 pageSize={NEWS_PAGE_SIZE}
@@ -52,6 +67,11 @@ export function NewsView() {
           )}
         </CardContent>
       </Card>
+      <NewsDialog
+        open={form.open}
+        onOpenChange={(open) => setForm((prev) => ({ ...prev, open }))}
+        news={form.news}
+      />
       <ConfirmDialog
         open={toDelete !== null}
         onOpenChange={(open) => !open && setToDelete(null)}

@@ -3548,6 +3548,64 @@
         "title": "NewsOut",
         "type": "object"
       },
+      "NewsUpdate": {
+        "description": "Solo se modifican los campos enviados. `null` en `tag` o `expires_at` los limpia.",
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tag"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "NewsUpdate",
+        "type": "object"
+      },
       "Page_ExpenseOut_": {
         "properties": {
           "items": {
@@ -8287,6 +8345,58 @@
           }
         },
         "summary": "Delete News",
+        "tags": [
+          "Admin: novedades"
+        ]
+      },
+      "patch": {
+        "description": "Edita título, texto, etiqueta o vencimiento de una novedad ya publicada.",
+        "operationId": "update_news_api_v1_admin_news__news_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "news_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "News Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update News",
         "tags": [
           "Admin: novedades"
         ]

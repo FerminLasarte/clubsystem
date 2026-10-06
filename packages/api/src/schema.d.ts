@@ -621,7 +621,11 @@ export interface paths {
         delete: operations["delete_news_api_v1_admin_news__news_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update News
+         * @description Edita título, texto, etiqueta o vencimiento de una novedad ya publicada.
+         */
+        patch: operations["update_news_api_v1_admin_news__news_id__patch"];
         trace?: never;
     };
     "/api/v1/admin/reservations": {
@@ -2601,6 +2605,20 @@ export interface components {
             /** Title */
             title: string;
         };
+        /**
+         * NewsUpdate
+         * @description Solo se modifican los campos enviados. `null` en `tag` o `expires_at` los limpia.
+         */
+        NewsUpdate: {
+            /** Body */
+            body?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
+            /** Tag */
+            tag?: string | null;
+            /** Title */
+            title?: string | null;
+        };
         /** Page[ExpenseOut] */
         Page_ExpenseOut_: {
             /** Items */
@@ -3412,6 +3430,7 @@ export type MyMembershipOut = components['schemas']['MyMembershipOut'];
 export type MyReservationOut = components['schemas']['MyReservationOut'];
 export type NewsCreate = components['schemas']['NewsCreate'];
 export type NewsOut = components['schemas']['NewsOut'];
+export type NewsUpdate = components['schemas']['NewsUpdate'];
 export type PageExpenseOut = components['schemas']['Page_ExpenseOut_'];
 export type PageFeeOut = components['schemas']['Page_FeeOut_'];
 export type PageMemberInvitationOut = components['schemas']['Page_MemberInvitationOut_'];
@@ -4857,6 +4876,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_news_api_v1_admin_news__news_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                news_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsOut"];
+                };
             };
             /** @description Validation Error */
             422: {

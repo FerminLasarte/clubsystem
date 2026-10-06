@@ -1,4 +1,4 @@
-import { unwrap, type NewsCreate } from "@clubsystem/api";
+import { unwrap, type NewsCreate, type NewsUpdate } from "@clubsystem/api";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -26,6 +26,19 @@ export function useCreateNews() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: keys.all });
       toast.success("Novedad publicada");
+    },
+    meta: { silent: true },
+  });
+}
+
+export function useUpdateNews() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: NewsUpdate }) =>
+      unwrap(api.PATCH("/api/v1/admin/news/{news_id}", { params: { path: { news_id: id } }, body })),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.all });
+      toast.success("Novedad actualizada");
     },
     meta: { silent: true },
   });

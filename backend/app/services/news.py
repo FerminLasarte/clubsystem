@@ -11,9 +11,9 @@ from app.core.errors import BusinessRuleViolation, NotFound
 from app.core.time import utcnow
 from app.domain.enums import MembershipStatus
 from app.models import Club, ClubMembership, ClubNews, User
-from app.repositories.base import paginate
+from app.repositories.base import get_scoped, paginate
 from app.schemas.common import Page, PageParams
-from app.schemas.news import MemberNewsOut, NewsCreate, NewsOut
+from app.schemas.news import MemberNewsOut, NewsCreate, NewsOut, NewsUpdate
 from app.services.context import MemberContext, StaffContext
 
 _MEMBER_FEED_LIMIT = 30
@@ -55,8 +55,7 @@ class NewsService:
 
     async def create(self, data: NewsCreate) -> NewsOut:
         now = utcnow()
-        if data.expires_at is not None and data.expires_at <= now:
-            raise BusinessRuleViolation("La fecha de vencimiento tiene que ser futura.")
+        _ensure_future(data.expires_at, now)
         news = ClubNews(
             club_id=self.ctx.club_id,
             title=data.title,
@@ -70,6 +69,25 @@ class NewsService:
         await self.db.refresh(news, ["created_at"])
         return _news_out(news, self.ctx.user, now)
 
+    async def update(self, news_id: UUID, data: NewsUpdate) -> NewsOut:
+        changes = data.model_dump(exclude_unset=True)
+        for field, label in (("title", "El título"), ("body", "El texto")):
+            if field in changes and changes[field] is None:
+                raise BusinessRuleViolation(f"{label} es obligatorio.")
+        now = utcnow()
+        if "expires_at" in changes:
+            _ensure_future(changes["expires_at"], now)
+        news = await get_scoped(
+            self.db, ClubNews, news_id, self.ctx.club_id, not_found="Novedad no encontrada."
+        )
+        for field, value in changes.items():
+            setattr(news, field, value)
+        await self.db.flush()
+        author = (
+            await self.db.execute(select(User).where(User.id == news.created_by_id))
+        ).scalar_one_or_none()
+        return _news_out(news, author, now)
+
     async def delete(self, news_id: UUID) -> None:
         deleted = await self.db.execute(
             delete(ClubNews)
@@ -78,6 +96,11 @@ class NewsService:
         )
         if deleted.scalar_one_or_none() is None:
             raise NotFound("Novedad no encontrada.")
+
+
+def _ensure_future(expires_at: datetime | None, now: datetime) -> None:
+    if expires_at is not None and expires_at <= now:
+        raise BusinessRuleViolation("La fecha de vencimiento tiene que ser futura.")
 
 
 def _current_news(now: datetime) -> Select[ClubNews, Club]:

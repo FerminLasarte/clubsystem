@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, status
 from app.api.deps import SessionDep, StaffContext, require
 from app.domain.permissions import Permission
 from app.schemas.common import Page, PageParams
-from app.schemas.news import NewsCreate, NewsOut
+from app.schemas.news import NewsCreate, NewsOut, NewsUpdate
 from app.services.news import NewsService
 
 router = APIRouter(prefix="/admin/news", tags=["Admin: novedades"])
@@ -25,6 +25,12 @@ async def list_news(
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=NewsOut)
 async def create_news(body: NewsCreate, ctx: Writer, session: SessionDep) -> NewsOut:
     return await NewsService(session, ctx).create(body)
+
+
+@router.patch("/{news_id}", response_model=NewsOut)
+async def update_news(news_id: UUID, body: NewsUpdate, ctx: Writer, session: SessionDep) -> NewsOut:
+    """Edita título, texto, etiqueta o vencimiento de una novedad ya publicada."""
+    return await NewsService(session, ctx).update(news_id, body)
 
 
 @router.delete("/{news_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -2,7 +2,7 @@
 
 import type { NewsOut } from "@clubsystem/api";
 import { formatDateTime } from "@clubsystem/shared";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,11 @@ import { useActiveSession } from "@/features/auth/api";
 interface NewsTableProps {
   news: NewsOut[];
   canWrite: boolean;
+  onEdit: (news: NewsOut) => void;
   onDelete: (news: NewsOut) => void;
 }
 
-export function NewsTable({ news, canWrite, onDelete }: NewsTableProps) {
+export function NewsTable({ news, canWrite, onEdit, onDelete }: NewsTableProps) {
   const timeZone = useActiveSession().active_club.timezone;
   return (
     <Table>
@@ -27,7 +28,7 @@ export function NewsTable({ news, canWrite, onDelete }: NewsTableProps) {
           <TableHead>Vencimiento</TableHead>
           <TableHead>Publicó</TableHead>
           {canWrite ? (
-            <TableHead className="w-12">
+            <TableHead className="w-24">
               <span className="sr-only">Acciones</span>
             </TableHead>
           ) : null}
@@ -54,7 +55,10 @@ export function NewsTable({ news, canWrite, onDelete }: NewsTableProps) {
             </TableCell>
             <TableCell>{item.created_by_name ?? "—"}</TableCell>
             {canWrite ? (
-              <TableCell>
+              <TableCell className="whitespace-nowrap">
+                <Button variant="ghost" size="icon" aria-label={`Editar “${item.title}”`} onClick={() => onEdit(item)}>
+                  <Pencil className="size-4" aria-hidden />
+                </Button>
                 <Button variant="ghost" size="icon" aria-label={`Eliminar “${item.title}”`} onClick={() => onDelete(item)}>
                   <Trash2 className="size-4" aria-hidden />
                 </Button>

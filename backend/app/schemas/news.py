@@ -6,13 +6,24 @@ from pydantic import AwareDatetime, BaseModel, StringConstraints
 
 from app.schemas.common import Schema
 
+Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+Body = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=5000)]
+Tag = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
+
 
 class NewsCreate(BaseModel):
-    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
-    body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=5000)]
-    tag: (
-        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)] | None
-    ) = None
+    title: Title
+    body: Body
+    tag: Tag | None = None
+    expires_at: AwareDatetime | None = None
+
+
+class NewsUpdate(BaseModel):
+    """Solo se modifican los campos enviados. `null` en `tag` o `expires_at` los limpia."""
+
+    title: Title | None = None
+    body: Body | None = None
+    tag: Tag | None = None
     expires_at: AwareDatetime | None = None
 
 
