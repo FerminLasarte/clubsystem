@@ -73,6 +73,51 @@ export interface paths {
         patch: operations["patch_club_api_v1_admin_club_patch"];
         trace?: never;
     };
+    "/api/v1/admin/courts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Courts
+         * @description Todas las canchas del club (activas primero).
+         */
+        get: operations["list_courts_api_v1_admin_courts_get"];
+        put?: never;
+        /** Create Court */
+        post: operations["create_court_api_v1_admin_courts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/courts/{court_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Court
+         * @description Borra una cancha sin reservas. Con historial: 409 (se desactiva con PATCH).
+         */
+        delete: operations["delete_court_api_v1_admin_courts__court_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Court
+         * @description `is_active=false` desactiva la cancha (409 si tiene reservas próximas).
+         */
+        patch: operations["update_court_api_v1_admin_courts__court_id__patch"];
+        trace?: never;
+    };
     "/api/v1/admin/dashboard/finance": {
         parameters: {
             query?: never;
@@ -105,6 +150,120 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/expenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Expenses */
+        get: operations["list_expenses_api_v1_admin_expenses_get"];
+        put?: never;
+        /** Create Expense */
+        post: operations["create_expense_api_v1_admin_expenses_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/expenses/anomalies/recompute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recompute Anomalies
+         * @description Recalcula la estadística del período (por defecto, el mes en curso). No usa IA.
+         */
+        post: operations["recompute_anomalies_api_v1_admin_expenses_anomalies_recompute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/expenses/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Expenses
+         * @description Gastos del período (por defecto, el mes en curso) con una fila de total.
+         */
+        get: operations["export_expenses_api_v1_admin_expenses_export_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/expenses/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Expense Stats
+         * @description Totales del período (por defecto, el mes en curso).
+         */
+        get: operations["expense_stats_api_v1_admin_expenses_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/expenses/{expense_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Expense */
+        get: operations["get_expense_api_v1_admin_expenses__expense_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Expense */
+        delete: operations["delete_expense_api_v1_admin_expenses__expense_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Expense */
+        patch: operations["update_expense_api_v1_admin_expenses__expense_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/expenses/{expense_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Review Expense */
+        patch: operations["review_expense_api_v1_admin_expenses__expense_id__review_patch"];
         trace?: never;
     };
     "/api/v1/admin/fees": {
@@ -382,6 +541,116 @@ export interface paths {
         post?: never;
         /** Delete News */
         delete: operations["delete_news_api_v1_admin_news__news_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reservations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reservations
+         * @description Reservas de un día (`date`) o de un rango (`from`/`to`), en días locales del club.
+         */
+        get: operations["list_reservations_api_v1_admin_reservations_get"];
+        put?: never;
+        /** Create Reservation */
+        post: operations["create_reservation_api_v1_admin_reservations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reservations/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Reservations */
+        get: operations["export_reservations_api_v1_admin_reservations_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reservations/grid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reservation Grid
+         * @description Canchas activas con las reservas no canceladas del día, para la grilla.
+         */
+        get: operations["reservation_grid_api_v1_admin_reservations_grid_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reservations/{reservation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Reservation */
+        get: operations["get_reservation_api_v1_admin_reservations__reservation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Reservation */
+        patch: operations["update_reservation_api_v1_admin_reservations__reservation_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/reservations/{reservation_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Reservation */
+        post: operations["cancel_reservation_api_v1_admin_reservations__reservation_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reservations/{reservation_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Reservation */
+        post: operations["confirm_reservation_api_v1_admin_reservations__reservation_id__confirm_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -887,6 +1156,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mobile/clubs/{club_id}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Availability
+         * @description Por cancha activa: inicios libres del día local del club y el precio final del socio.
+         */
+        get: operations["availability_api_v1_mobile_clubs__club_id__availability_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mobile/clubs/{club_id}/courts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Courts */
+        get: operations["list_courts_api_v1_mobile_clubs__club_id__courts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mobile/clubs/{club_id}/membership-requests": {
         parameters: {
             query?: never;
@@ -915,6 +1221,26 @@ export interface paths {
         get: operations["club_news_api_v1_mobile_clubs__club_id__news_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mobile/clubs/{club_id}/reservations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Reservation
+         * @description Queda pendiente hasta que la confirme el staff.
+         */
+        post: operations["create_reservation_api_v1_mobile_clubs__club_id__reservations_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -955,6 +1281,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mobile/reservations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Reservations
+         * @description Reservas propias, de todos los clubes del usuario.
+         */
+        get: operations["list_my_reservations_api_v1_mobile_reservations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mobile/reservations/{reservation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get My Reservation */
+        get: operations["get_my_reservation_api_v1_mobile_reservations__reservation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -987,6 +1350,17 @@ export interface components {
             /** Token */
             token: string;
         };
+        /**
+         * AnomalySeverity
+         * @enum {string}
+         */
+        AnomalySeverity: "low" | "medium" | "high" | "critical";
+        /**
+         * AppDuration
+         * @description Duraciones (minutos) que ofrece la app: las mismas que ofrecían web y mobile.
+         * @enum {integer}
+         */
+        AppDuration: 60 | 90 | 120;
         /** ApproveRequest */
         ApproveRequest: {
             /** Member Number */
@@ -994,6 +1368,25 @@ export interface components {
             /** Plan Id */
             plan_id?: string | null;
         };
+        /** AvailabilityOut */
+        AvailabilityOut: {
+            /** Courts */
+            courts: components["schemas"]["CourtAvailabilityOut"][];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Duration Minutes */
+            duration_minutes: number;
+            /** Timezone */
+            timezone: string;
+        };
+        /**
+         * CancelReason
+         * @enum {string}
+         */
+        CancelReason: "BY_STAFF" | "BY_MEMBER" | "EXPIRED_UNCONFIRMED";
         /** CashDayOut */
         CashDayOut: {
             /**
@@ -1020,6 +1413,28 @@ export interface components {
             net: string;
             /** Outflow */
             outflow: string;
+        };
+        /** CategoryTotal */
+        CategoryTotal: {
+            category: components["schemas"]["ExpenseCategory"];
+            /** Count */
+            count: number;
+            /** Total */
+            total: string;
+        };
+        /** ClubBrief */
+        ClubBrief: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Logo Url */
+            logo_url: string | null;
+            /** Name */
+            name: string;
+            /** Timezone */
+            timezone: string;
         };
         /** ClubDirectoryItemOut */
         ClubDirectoryItemOut: {
@@ -1135,6 +1550,128 @@ export interface components {
             /** Website */
             website?: string | null;
         };
+        /** CourtAvailabilityOut */
+        CourtAvailabilityOut: {
+            /**
+             * Court Id
+             * Format: uuid
+             */
+            court_id: string;
+            /** Is Indoor */
+            is_indoor: boolean;
+            /** Name */
+            name: string;
+            /** Price */
+            price: string;
+            /** Slots */
+            slots: components["schemas"]["SlotOut"][];
+            sport: components["schemas"]["Sport"];
+            surface: components["schemas"]["CourtSurface"] | null;
+        };
+        /** CourtBrief */
+        CourtBrief: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Indoor */
+            is_indoor: boolean;
+            /** Name */
+            name: string;
+            sport: components["schemas"]["Sport"];
+            surface: components["schemas"]["CourtSurface"] | null;
+        };
+        /** CourtCreate */
+        CourtCreate: {
+            /**
+             * Capacity
+             * @default 4
+             */
+            capacity: number;
+            /** Description */
+            description?: string | null;
+            /** Image Url */
+            image_url?: string | null;
+            /**
+             * Is Indoor
+             * @default false
+             */
+            is_indoor: boolean;
+            /** Name */
+            name: string;
+            /** Price Guest */
+            price_guest: number | string;
+            /** Price Member */
+            price_member: number | string;
+            sport: components["schemas"]["Sport"];
+            surface?: components["schemas"]["CourtSurface"] | null;
+        };
+        /** CourtOut */
+        CourtOut: {
+            /** Capacity */
+            capacity: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Image Url */
+            image_url: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Indoor */
+            is_indoor: boolean;
+            /** Name */
+            name: string;
+            /** Price Guest */
+            price_guest: string;
+            /** Price Member */
+            price_member: string;
+            sport: components["schemas"]["Sport"];
+            surface: components["schemas"]["CourtSurface"] | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * CourtSurface
+         * @enum {string}
+         */
+        CourtSurface: "clay" | "hard" | "grass" | "synthetic" | "wood" | "concrete" | "other";
+        /**
+         * CourtUpdate
+         * @description Solo se modifican los campos enviados. `is_active=false` desactiva la cancha.
+         */
+        CourtUpdate: {
+            /** Capacity */
+            capacity?: number | null;
+            /** Description */
+            description?: string | null;
+            /** Image Url */
+            image_url?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Indoor */
+            is_indoor?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Price Guest */
+            price_guest?: number | string | null;
+            /** Price Member */
+            price_member?: number | string | null;
+            sport?: components["schemas"]["Sport"] | null;
+            surface?: components["schemas"]["CourtSurface"] | null;
+        };
         /**
          * CustomerType
          * @enum {string}
@@ -1165,6 +1702,130 @@ export interface components {
             reservations_today: number;
             /** Upcoming Reservations */
             upcoming_reservations: components["schemas"]["UpcomingReservation"][];
+        };
+        /**
+         * ExpenseCategory
+         * @enum {string}
+         */
+        ExpenseCategory: "maintenance" | "utilities" | "salaries" | "equipment" | "marketing" | "supplies" | "other";
+        /** ExpenseCreate */
+        ExpenseCreate: {
+            /** Amount */
+            amount: number | string;
+            category: components["schemas"]["ExpenseCategory"];
+            /** Description */
+            description: string;
+            /**
+             * Expense Date
+             * Format: date
+             */
+            expense_date: string;
+            /** Notes */
+            notes?: string | null;
+            /** Vendor Name */
+            vendor_name?: string | null;
+            /** Vendor Tax Id */
+            vendor_tax_id?: string | null;
+        };
+        /** ExpenseOut */
+        ExpenseOut: {
+            /** Amount */
+            amount: string;
+            /** Anomaly Analyzed At */
+            anomaly_analyzed_at: string | null;
+            /** Anomaly Explained At */
+            anomaly_explained_at: string | null;
+            /** Anomaly Explanation */
+            anomaly_explanation: string | null;
+            /** Anomaly Reasons */
+            anomaly_reasons: string | null;
+            /** Anomaly Recommended Action */
+            anomaly_recommended_action: string | null;
+            /** Anomaly Score */
+            anomaly_score: number | null;
+            anomaly_severity: components["schemas"]["AnomalySeverity"] | null;
+            category: components["schemas"]["ExpenseCategory"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Id */
+            created_by_id: string | null;
+            /** Currency */
+            currency: string;
+            /** Description */
+            description: string;
+            /**
+             * Expense Date
+             * Format: date
+             */
+            expense_date: string;
+            /**
+             * Explanation Status
+             * @enum {string}
+             */
+            readonly explanation_status: "not_needed" | "pending" | "ready" | "unavailable";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Notes */
+            notes: string | null;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /** Reviewed By Id */
+            reviewed_by_id: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Vendor Name */
+            vendor_name: string | null;
+            /** Vendor Tax Id */
+            vendor_tax_id: string | null;
+        };
+        /** ExpenseStatsOut */
+        ExpenseStatsOut: {
+            /**
+             * Anomalies Pending
+             * @description Gastos con anomalía sin revisar, de cualquier fecha.
+             */
+            anomalies_pending: number;
+            /** By Category */
+            by_category: components["schemas"]["CategoryTotal"][];
+            /** Count */
+            count: number;
+            /** Date From */
+            date_from: string | null;
+            /**
+             * Date To
+             * @description Incluido.
+             */
+            date_to: string | null;
+            /** Total */
+            total: string;
+        };
+        /**
+         * ExpenseUpdate
+         * @description Solo se modifican los campos enviados. `null` limpia los opcionales.
+         */
+        ExpenseUpdate: {
+            /** Amount */
+            amount?: number | string | null;
+            category?: components["schemas"]["ExpenseCategory"] | null;
+            /** Description */
+            description?: string | null;
+            /** Expense Date */
+            expense_date?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Vendor Name */
+            vendor_name?: string | null;
+            /** Vendor Tax Id */
+            vendor_tax_id?: string | null;
         };
         /** FeeGenerateOut */
         FeeGenerateOut: {
@@ -1271,6 +1932,24 @@ export interface components {
          * @enum {string}
          */
         Gender: "F" | "M" | "X";
+        /** GridCourtOut */
+        GridCourtOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Indoor */
+            is_indoor: boolean;
+            /** Name */
+            name: string;
+            /** Reservations */
+            reservations: components["schemas"]["ReservationOut"][];
+            sport: components["schemas"]["Sport"];
+            surface: components["schemas"]["CourtSurface"] | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1323,6 +2002,31 @@ export interface components {
             count: number;
             /** Items */
             items: components["schemas"]["LowStockItem"][];
+        };
+        /**
+         * MemberCourtOut
+         * @description Cancha vista por un socio: precio por hora de socio, sin datos internos.
+         */
+        MemberCourtOut: {
+            /** Capacity */
+            capacity: number;
+            /** Description */
+            description: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Image Url */
+            image_url: string | null;
+            /** Is Indoor */
+            is_indoor: boolean;
+            /** Name */
+            name: string;
+            /** Price Per Hour */
+            price_per_hour: string;
+            sport: components["schemas"]["Sport"];
+            surface: components["schemas"]["CourtSurface"] | null;
         };
         /** MemberCreate */
         MemberCreate: {
@@ -1435,6 +2139,20 @@ export interface components {
             last_name: string;
             /** Phone */
             phone: string | null;
+        };
+        /** MemberReservationCreate */
+        MemberReservationCreate: {
+            /**
+             * Court Id
+             * Format: uuid
+             */
+            court_id: string;
+            duration_minutes: components["schemas"]["AppDuration"];
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
         };
         /** MemberStatsOut */
         MemberStatsOut: {
@@ -1620,6 +2338,37 @@ export interface components {
             requested_at: string | null;
             status: components["schemas"]["MembershipStatus"];
         };
+        /** MyReservationOut */
+        MyReservationOut: {
+            cancel_reason: components["schemas"]["CancelReason"] | null;
+            club: components["schemas"]["ClubBrief"];
+            court: components["schemas"]["CourtBrief"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Duration Minutes */
+            duration_minutes: number;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            status: components["schemas"]["ReservationStatus"];
+            /** Total Price */
+            total_price: string;
+        };
         /** NewsCreate */
         NewsCreate: {
             /** Body */
@@ -1655,6 +2404,17 @@ export interface components {
             tag: string | null;
             /** Title */
             title: string;
+        };
+        /** Page[ExpenseOut] */
+        Page_ExpenseOut_: {
+            /** Items */
+            items: components["schemas"]["ExpenseOut"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
         };
         /** Page[FeeOut] */
         Page_FeeOut_: {
@@ -1700,10 +2460,32 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[MyReservationOut] */
+        Page_MyReservationOut_: {
+            /** Items */
+            items: components["schemas"]["MyReservationOut"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
         /** Page[NewsOut] */
         Page_NewsOut_: {
             /** Items */
             items: components["schemas"]["NewsOut"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[ReservationOut] */
+        Page_ReservationOut_: {
+            /** Items */
+            items: components["schemas"]["ReservationOut"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -1815,6 +2597,13 @@ export interface components {
             /** Phone */
             phone?: string | null;
         };
+        /** RecomputeOut */
+        RecomputeOut: {
+            /** Analyzed */
+            analyzed: number;
+            /** Flagged */
+            flagged: number;
+        };
         /** RefreshRequest */
         RefreshRequest: {
             /** Refresh Token */
@@ -1842,10 +2631,137 @@ export interface components {
             phone?: string | null;
         };
         /**
+         * ReservationCreate
+         * @description Reserva cargada por el staff: de un socio (`membership_id`) o de un invitado.
+         */
+        ReservationCreate: {
+            /**
+             * Court Id
+             * Format: uuid
+             */
+            court_id: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Guest Name */
+            guest_name?: string | null;
+            /** Guest Phone */
+            guest_phone?: string | null;
+            /** Membership Id */
+            membership_id?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Price Override */
+            price_override?: number | string | null;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** ReservationGridOut */
+        ReservationGridOut: {
+            /** Close Time */
+            close_time: string | null;
+            /** Courts */
+            courts: components["schemas"]["GridCourtOut"][];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Open Time */
+            open_time: string | null;
+            /** Slot Minutes */
+            slot_minutes: number;
+            /** Timezone */
+            timezone: string;
+        };
+        /** ReservationOut */
+        ReservationOut: {
+            cancel_reason: components["schemas"]["CancelReason"] | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Confirmed At */
+            confirmed_at: string | null;
+            /**
+             * Court Id
+             * Format: uuid
+             */
+            court_id: string;
+            /** Court Name */
+            court_name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Customer Name */
+            customer_name: string;
+            /** Customer Phone */
+            customer_phone: string | null;
+            customer_type: components["schemas"]["CustomerType"];
+            /** Duration Minutes */
+            duration_minutes: number;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Member Number */
+            member_number: string | null;
+            /** Membership Id */
+            membership_id: string | null;
+            /** Notes */
+            notes: string | null;
+            /** Paid Amount */
+            paid_amount: string;
+            source: components["schemas"]["ReservationSource"];
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            status: components["schemas"]["ReservationStatus"];
+            /** Total Price */
+            total_price: string;
+            /** User Id */
+            user_id: string | null;
+        };
+        /**
+         * ReservationSource
+         * @enum {string}
+         */
+        ReservationSource: "APP" | "PANEL";
+        /**
          * ReservationStatus
          * @enum {string}
          */
         ReservationStatus: "pending" | "confirmed" | "cancelled" | "completed";
+        /**
+         * ReservationUpdate
+         * @description Solo se modifican los campos enviados. Reprogramar exige `starts_at` y `ends_at` juntos.
+         *     Si cambia la cancha o la duración, el precio se recalcula salvo `price_override`.
+         */
+        ReservationUpdate: {
+            /** Court Id */
+            court_id?: string | null;
+            /** Ends At */
+            ends_at?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Price Override */
+            price_override?: number | string | null;
+            /** Starts At */
+            starts_at?: string | null;
+        };
         /** ResetPasswordRequest */
         ResetPasswordRequest: {
             /** New Password */
@@ -1857,6 +2773,19 @@ export interface components {
         RolesUpdate: {
             /** Roles */
             roles: components["schemas"]["StaffRole"][];
+        };
+        /** SlotOut */
+        SlotOut: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
         };
         /**
          * Sport
@@ -2206,16 +3135,33 @@ export interface components {
     pathItems: never;
 }
 export type AcceptInvitationRequest = components['schemas']['AcceptInvitationRequest'];
+export type AnomalySeverity = components['schemas']['AnomalySeverity'];
+export type AppDuration = components['schemas']['AppDuration'];
 export type ApproveRequest = components['schemas']['ApproveRequest'];
+export type AvailabilityOut = components['schemas']['AvailabilityOut'];
+export type CancelReason = components['schemas']['CancelReason'];
 export type CashDayOut = components['schemas']['CashDayOut'];
 export type CashSummary = components['schemas']['CashSummary'];
+export type CategoryTotal = components['schemas']['CategoryTotal'];
+export type ClubBrief = components['schemas']['ClubBrief'];
 export type ClubDirectoryItemOut = components['schemas']['ClubDirectoryItemOut'];
 export type ClubDirectoryOut = components['schemas']['ClubDirectoryOut'];
 export type ClubOut = components['schemas']['ClubOut'];
 export type ClubUpdate = components['schemas']['ClubUpdate'];
+export type CourtAvailabilityOut = components['schemas']['CourtAvailabilityOut'];
+export type CourtBrief = components['schemas']['CourtBrief'];
+export type CourtCreate = components['schemas']['CourtCreate'];
+export type CourtOut = components['schemas']['CourtOut'];
+export type CourtSurface = components['schemas']['CourtSurface'];
+export type CourtUpdate = components['schemas']['CourtUpdate'];
 export type CustomerType = components['schemas']['CustomerType'];
 export type DashboardFinanceOut = components['schemas']['DashboardFinanceOut'];
 export type DashboardOperationsOut = components['schemas']['DashboardOperationsOut'];
+export type ExpenseCategory = components['schemas']['ExpenseCategory'];
+export type ExpenseCreate = components['schemas']['ExpenseCreate'];
+export type ExpenseOut = components['schemas']['ExpenseOut'];
+export type ExpenseStatsOut = components['schemas']['ExpenseStatsOut'];
+export type ExpenseUpdate = components['schemas']['ExpenseUpdate'];
 export type FeeGenerateOut = components['schemas']['FeeGenerateOut'];
 export type FeeGenerateRequest = components['schemas']['FeeGenerateRequest'];
 export type FeeOut = components['schemas']['FeeOut'];
@@ -2225,15 +3171,18 @@ export type FeeSummaryOut = components['schemas']['FeeSummaryOut'];
 export type FeeTotals = components['schemas']['FeeTotals'];
 export type ForgotPasswordRequest = components['schemas']['ForgotPasswordRequest'];
 export type Gender = components['schemas']['Gender'];
+export type GridCourtOut = components['schemas']['GridCourtOut'];
 export type HttpValidationError = components['schemas']['HTTPValidationError'];
 export type InvitationPreviewOut = components['schemas']['InvitationPreviewOut'];
 export type InviteRequest = components['schemas']['InviteRequest'];
 export type LowStockItem = components['schemas']['LowStockItem'];
 export type LowStockOut = components['schemas']['LowStockOut'];
+export type MemberCourtOut = components['schemas']['MemberCourtOut'];
 export type MemberCreate = components['schemas']['MemberCreate'];
 export type MemberNewsOut = components['schemas']['MemberNewsOut'];
 export type MemberOut = components['schemas']['MemberOut'];
 export type MemberPersonOut = components['schemas']['MemberPersonOut'];
+export type MemberReservationCreate = components['schemas']['MemberReservationCreate'];
 export type MemberStatsOut = components['schemas']['MemberStatsOut'];
 export type MemberUpdate = components['schemas']['MemberUpdate'];
 export type MembershipStatus = components['schemas']['MembershipStatus'];
@@ -2249,13 +3198,17 @@ export type MovementMember = components['schemas']['MovementMember'];
 export type MovementReservation = components['schemas']['MovementReservation'];
 export type MovementResultOut = components['schemas']['MovementResultOut'];
 export type MyMembershipOut = components['schemas']['MyMembershipOut'];
+export type MyReservationOut = components['schemas']['MyReservationOut'];
 export type NewsCreate = components['schemas']['NewsCreate'];
 export type NewsOut = components['schemas']['NewsOut'];
+export type PageExpenseOut = components['schemas']['Page_ExpenseOut_'];
 export type PageFeeOut = components['schemas']['Page_FeeOut_'];
 export type PageMemberNewsOut = components['schemas']['Page_MemberNewsOut_'];
 export type PageMemberOut = components['schemas']['Page_MemberOut_'];
 export type PageMovementOut = components['schemas']['Page_MovementOut_'];
+export type PageMyReservationOut = components['schemas']['Page_MyReservationOut_'];
 export type PageNewsOut = components['schemas']['Page_NewsOut_'];
+export type PageReservationOut = components['schemas']['Page_ReservationOut_'];
 export type PageStockItemOut = components['schemas']['Page_StockItemOut_'];
 export type PasswordChange = components['schemas']['PasswordChange'];
 export type PaymentCreate = components['schemas']['PaymentCreate'];
@@ -2267,11 +3220,18 @@ export type PlanOut = components['schemas']['PlanOut'];
 export type PlanSummaryOut = components['schemas']['PlanSummaryOut'];
 export type PlanUpdate = components['schemas']['PlanUpdate'];
 export type ProfileUpdate = components['schemas']['ProfileUpdate'];
+export type RecomputeOut = components['schemas']['RecomputeOut'];
 export type RefreshRequest = components['schemas']['RefreshRequest'];
 export type RegisterRequest = components['schemas']['RegisterRequest'];
+export type ReservationCreate = components['schemas']['ReservationCreate'];
+export type ReservationGridOut = components['schemas']['ReservationGridOut'];
+export type ReservationOut = components['schemas']['ReservationOut'];
+export type ReservationSource = components['schemas']['ReservationSource'];
 export type ReservationStatus = components['schemas']['ReservationStatus'];
+export type ReservationUpdate = components['schemas']['ReservationUpdate'];
 export type ResetPasswordRequest = components['schemas']['ResetPasswordRequest'];
 export type RolesUpdate = components['schemas']['RolesUpdate'];
+export type SlotOut = components['schemas']['SlotOut'];
 export type Sport = components['schemas']['Sport'];
 export type StaffClubOut = components['schemas']['StaffClubOut'];
 export type StaffMemberOut = components['schemas']['StaffMemberOut'];
@@ -2448,6 +3408,123 @@ export interface operations {
             };
         };
     };
+    list_courts_api_v1_admin_courts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourtOut"][];
+                };
+            };
+        };
+    };
+    create_court_api_v1_admin_courts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CourtCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourtOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_court_api_v1_admin_courts__court_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                court_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_court_api_v1_admin_courts__court_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                court_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CourtUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourtOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     finance_api_v1_admin_dashboard_finance_get: {
         parameters: {
             query?: never;
@@ -2484,6 +3561,308 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DashboardOperationsOut"];
+                };
+            };
+        };
+    };
+    list_expenses_api_v1_admin_expenses_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                period?: ("day" | "week" | "month" | "year") | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                category?: components["schemas"]["ExpenseCategory"] | null;
+                has_anomaly?: boolean | null;
+                reviewed?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ExpenseOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_expense_api_v1_admin_expenses_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpenseCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recompute_anomalies_api_v1_admin_expenses_anomalies_recompute_post: {
+        parameters: {
+            query?: {
+                period?: ("day" | "week" | "month" | "year") | null;
+                date_from?: string | null;
+                date_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecomputeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_expenses_api_v1_admin_expenses_export_csv_get: {
+        parameters: {
+            query?: {
+                period?: ("day" | "week" | "month" | "year") | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                category?: components["schemas"]["ExpenseCategory"] | null;
+                has_anomaly?: boolean | null;
+                reviewed?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    expense_stats_api_v1_admin_expenses_stats_get: {
+        parameters: {
+            query?: {
+                period?: ("day" | "week" | "month" | "year") | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                category?: components["schemas"]["ExpenseCategory"] | null;
+                has_anomaly?: boolean | null;
+                reviewed?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseStatsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_expense_api_v1_admin_expenses__expense_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                expense_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_expense_api_v1_admin_expenses__expense_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                expense_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_expense_api_v1_admin_expenses__expense_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                expense_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpenseUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_expense_api_v1_admin_expenses__expense_id__review_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                expense_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3139,6 +4518,268 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_reservations_api_v1_admin_reservations_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                date?: string | null;
+                from?: string | null;
+                to?: string | null;
+                status?: components["schemas"]["ReservationStatus"] | null;
+                court_id?: string | null;
+                sort?: "starts_at" | "-starts_at";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ReservationOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_reservation_api_v1_admin_reservations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReservationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReservationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_reservations_api_v1_admin_reservations_export_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reservation_grid_api_v1_admin_reservations_grid_get: {
+        parameters: {
+            query: {
+                date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReservationGridOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_reservation_api_v1_admin_reservations__reservation_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reservation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReservationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_reservation_api_v1_admin_reservations__reservation_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reservation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReservationUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReservationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_reservation_api_v1_admin_reservations__reservation_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reservation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReservationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_reservation_api_v1_admin_reservations__reservation_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reservation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReservationOut"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -4097,6 +5738,74 @@ export interface operations {
             };
         };
     };
+    availability_api_v1_mobile_clubs__club_id__availability_get: {
+        parameters: {
+            query: {
+                date: string;
+                sport?: components["schemas"]["Sport"] | null;
+                duration?: components["schemas"]["AppDuration"];
+            };
+            header?: never;
+            path: {
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvailabilityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_courts_api_v1_mobile_clubs__club_id__courts_get: {
+        parameters: {
+            query?: {
+                sport?: components["schemas"]["Sport"] | null;
+            };
+            header?: never;
+            path: {
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberCourtOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     request_membership_api_v1_mobile_clubs__club_id__membership_requests_post: {
         parameters: {
             query?: never;
@@ -4171,6 +5880,41 @@ export interface operations {
             };
         };
     };
+    create_reservation_api_v1_mobile_clubs__club_id__reservations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberReservationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReservationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     my_memberships_api_v1_mobile_memberships_get: {
         parameters: {
             query?: never;
@@ -4207,6 +5951,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemberNewsOut"][];
+                };
+            };
+        };
+    };
+    list_my_reservations_api_v1_mobile_reservations_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                scope?: "upcoming" | "past";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MyReservationOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_my_reservation_api_v1_mobile_reservations__reservation_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reservation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReservationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
