@@ -171,18 +171,23 @@ async def test_finance_aggregates_the_cash_book_expenses_and_fees(
         "income": "11000.00",
         "cash_outflow": "200.00",
         "expenses": "400.00",
-        "net": "10400.00",
+        "result": "10600.00",
+        "cash_balance": "10800.00",
     }
     assert data["fees"]["collected"] == {"count": 1, "amount": "10000.00"}
     assert data["fees"]["pending"] == {"count": 1, "amount": "8000.00"}
-    series = [(m["year"], m["month"], m["income"], m["net"]) for m in data["series"]]
+    # Un egreso de caja no resta del resultado y un gasto no resta de la caja:
+    # así un gasto pagado en efectivo no se cuenta dos veces.
+    series = [
+        (m["year"], m["month"], m["income"], m["result"], m["cash_balance"]) for m in data["series"]
+    ]
     assert series == [
-        (2025, 10, "0.00", "0.00"),
-        (2025, 11, "0.00", "0.00"),
-        (2025, 12, "0.00", "0.00"),
-        (2026, 1, "0.00", "-100.00"),
-        (2026, 2, "300.00", "300.00"),
-        (2026, 3, "11000.00", "10400.00"),
+        (2025, 10, "0.00", "0.00", "0.00"),
+        (2025, 11, "0.00", "0.00", "0.00"),
+        (2025, 12, "0.00", "0.00", "0.00"),
+        (2026, 1, "0.00", "-100.00", "0.00"),
+        (2026, 2, "300.00", "300.00", "300.00"),
+        (2026, 3, "11000.00", "10600.00", "10800.00"),
     ]
 
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { formatMoney, monthLabel } from "@clubsystem/shared";
-import { Banknote, Receipt, Scale, TrendingDown, TrendingUp } from "lucide-react";
+import { Banknote, Receipt, Scale, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 
 import { StatCard } from "@/components/shared/stat-card";
 import { QueryError } from "@/components/shared/state-view";
@@ -23,16 +23,29 @@ export function FinanceSection() {
       <h2 id="finance-title" className="text-lg font-semibold">
         {current ? `Finanzas de ${monthLabel(current.year, current.month)}` : "Finanzas del mes"}
       </h2>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <StatCard
+          label="Resultado"
+          value={current && formatMoney(current.result)}
+          hint="Ingresos − gastos"
+          icon={Scale}
+          tone="info"
+        />
+        <StatCard
+          label="Caja"
+          value={current && formatMoney(current.cash_balance)}
+          hint="Ingresos − egresos de caja"
+          icon={Wallet}
+          tone="info"
+        />
         <StatCard label="Ingresos" value={current && formatMoney(current.income)} icon={TrendingUp} tone="success" />
+        <StatCard label="Gastos" value={current && formatMoney(current.expenses)} icon={Receipt} tone="danger" />
         <StatCard
           label="Egresos de caja"
           value={current && formatMoney(current.cash_outflow)}
           icon={TrendingDown}
           tone="warning"
         />
-        <StatCard label="Gastos" value={current && formatMoney(current.expenses)} icon={Receipt} tone="danger" />
-        <StatCard label="Resultado" value={current && formatMoney(current.net)} icon={Scale} tone="info" />
         <StatCard
           label="Cuotas cobradas"
           value={fees && formatMoney(fees.collected.amount)}

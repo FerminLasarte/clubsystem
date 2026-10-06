@@ -238,7 +238,8 @@ class DashboardService:
                     income=income,
                     cash_outflow=outflow,
                     expenses=expense_total,
-                    net=income - outflow - expense_total,
+                    result=income - expense_total,
+                    cash_balance=income - outflow,
                 )
             )
         return DashboardFinanceOut(

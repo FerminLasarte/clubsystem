@@ -51,7 +51,10 @@ class MonthFinance(BaseModel):
     income: Decimal
     cash_outflow: Decimal
     expenses: Decimal
-    net: Decimal
+    # "Resultado": ingresos − gastos (lo que ganó o perdió el club en el mes).
+    result: Decimal
+    # "Caja": ingresos − egresos de caja (cómo se movió el efectivo del libro de caja).
+    cash_balance: Decimal
 
 
 class DashboardFinanceOut(BaseModel):

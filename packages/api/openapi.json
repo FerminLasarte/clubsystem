@@ -3008,6 +3008,11 @@
       },
       "MonthFinance": {
         "properties": {
+          "cash_balance": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cash Balance",
+            "type": "string"
+          },
           "cash_outflow": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Cash Outflow",
@@ -3027,9 +3032,9 @@
             "title": "Month",
             "type": "integer"
           },
-          "net": {
+          "result": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Net",
+            "title": "Result",
             "type": "string"
           },
           "year": {
@@ -3043,7 +3048,8 @@
           "income",
           "cash_outflow",
           "expenses",
-          "net"
+          "result",
+          "cash_balance"
         ],
         "title": "MonthFinance",
         "type": "object"

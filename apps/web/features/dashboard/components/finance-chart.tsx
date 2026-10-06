@@ -51,7 +51,7 @@ export function FinanceChart({ series }: { series: MonthFinance[] }) {
           ))}
         </div>
         <Table className="sr-only">
-          <caption>Ingresos, egresos de caja, gastos y resultado por mes</caption>
+          <caption>Ingresos, egresos de caja, gastos, resultado y caja por mes</caption>
           <TableHeader>
             <TableRow>
               <TableHead>Mes</TableHead>
@@ -59,6 +59,7 @@ export function FinanceChart({ series }: { series: MonthFinance[] }) {
                 <TableHead key={s.key}>{s.label}</TableHead>
               ))}
               <TableHead>Resultado</TableHead>
+              <TableHead>Caja</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -68,7 +69,8 @@ export function FinanceChart({ series }: { series: MonthFinance[] }) {
                 {SERIES.map((s) => (
                   <TableCell key={s.key}>{formatMoney(month[s.key])}</TableCell>
                 ))}
-                <TableCell>{formatMoney(month.net)}</TableCell>
+                <TableCell>{formatMoney(month.result)}</TableCell>
+                <TableCell>{formatMoney(month.cash_balance)}</TableCell>
               </TableRow>
             ))}
           </TableBody>

@@ -2358,6 +2358,8 @@ export interface components {
         };
         /** MonthFinance */
         MonthFinance: {
+            /** Cash Balance */
+            cash_balance: string;
             /** Cash Outflow */
             cash_outflow: string;
             /** Expenses */
@@ -2366,8 +2368,8 @@ export interface components {
             income: string;
             /** Month */
             month: number;
-            /** Net */
-            net: string;
+            /** Result */
+            result: string;
             /** Year */
             year: number;
         };
