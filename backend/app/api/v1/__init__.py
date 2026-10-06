@@ -2,7 +2,10 @@
 
 from app.api.v1 import auth, invitations, me
 from app.api.v1.admin import club as admin_club
+from app.api.v1.admin import members as admin_members
+from app.api.v1.admin import membership_plans as admin_membership_plans
 from app.api.v1.admin import staff as admin_staff
+from app.api.v1.mobile import memberships as mobile_memberships
 
 routers = [
     auth.router,
@@ -10,4 +13,7 @@ routers = [
     invitations.router,
     admin_club.router,
     admin_staff.router,
+    admin_membership_plans.router,
+    admin_members.router,
+    mobile_memberships.router,
 ]

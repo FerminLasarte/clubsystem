@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 _INVALID_CREDENTIALS = "Email o contraseña incorrectos."
 _VERIFY_TTL = timedelta(days=2)
 _RESET_TTL = timedelta(hours=1)
+_ACCOUNT_SETUP_TTL = timedelta(days=7)
 
 
 @dataclass(frozen=True)
@@ -238,6 +239,20 @@ class AuthService:
             "Restablecer contraseña",
             f"Para elegir una contraseña nueva: {web_link(f'/reset-password?token={raw}')}\n"
             "Si no lo pediste, ignorá este mensaje.",
+        )
+
+    async def send_account_setup(self, user: User, club_name: str) -> None:
+        """Cuenta creada por el staff de un club: la persona elige su contraseña con el link."""
+        raw = await self._new_one_time_token(
+            user, OneTimeTokenPurpose.RESET_PASSWORD, _ACCOUNT_SETUP_TTL
+        )
+        await send_email(
+            user.email,
+            f"Ya sos socio de {club_name}",
+            f"Hola {user.first_name}, {club_name} te dio de alta como socio en ClubSystem.\n"
+            f"Elegí tu contraseña para entrar a la app: "
+            f"{web_link(f'/reset-password?token={raw}')}\n"
+            "El enlace vence en 7 días.",
         )
 
     async def reset_password(self, raw_token: str, new_password: str) -> None:
