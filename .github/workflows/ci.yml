@@ -49,7 +49,7 @@ jobs:
       - name: Tests
         run: poetry run pytest
       - name: Auditoría de dependencias
-        run: pipx run pip-audit --strict -r <(poetry export --without-hashes 2>/dev/null || poetry run pip freeze)
+        run: poetry run pip install -q pip-audit && poetry run pip-audit --strict
 
   frontends:
     runs-on: ubuntu-latest

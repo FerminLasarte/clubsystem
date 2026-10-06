@@ -1,0 +1,24 @@
+{
+  "name": "@clubsystem/api",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Contrato de la API (tipos generados desde OpenAPI) y cliente HTTP compartido por web y mobile.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "node ./scripts/generate.mjs",
+    "type-check": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.17.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.9.2"
+  }
+}
