@@ -75,21 +75,6 @@ El script hace lo siguiente:
    simuladores ni la sesión que tengas en la app.
 3. Siembra la base, levanta la API y corre los flows de `apps/mobile/.maestro/`.
 
-> **iOS 27 y Expo SDK 57.** Compilada con Xcode 27, la app se cierra al abrir en iOS 27: Apple
-> exige el ciclo de vida por escenas (UIScene) y Expo SDK 57 no lo adopta. Mientras no se
-> resuelva, con Xcode 27 corré los e2e en un simulador de iOS 26, donde la falta de UIScene es
-> solo un aviso. Hay que bajar el runtime una vez (~8.5 GB):
->
-> ```bash
-> xcodebuild -downloadPlatform iOS -buildVersion 26.5
-> ```
-> ```bash
-> E2E_IOS_RUNTIME=26 apps/mobile/e2e/run-ios.sh
-> ```
->
-> El runtime se borra con `xcrun simctl runtime delete`. La CI usa Xcode 26, que no tiene este
-> problema.
-
 Si un paso falla, las capturas quedan en `apps/mobile/e2e/output/` y el log de la API en
 `apps/mobile/e2e/api.log`. Para ajustar un flow sirven `maestro studio` (inspector visual) y
 `maestro hierarchy` (árbol de accesibilidad de la pantalla actual).
@@ -104,34 +89,24 @@ brew uninstall maestro
 rm -rf apps/mobile/ios
 ```
 ```bash
-xcrun simctl delete "ClubSystem E2E (iOS 26)"
+xcrun simctl delete "ClubSystem E2E"
 ```
 
-### Versiones de Xcode e iOS (pendiente: unificar)
+### Versiones de Xcode e iOS
 
-Hoy conviven tres versiones distintas solo por el problema de UIScene:
+La app adopta el ciclo de vida por escenas (UIScene) con `apps/mobile/plugins/withSceneLifecycle.js`
+hasta Expo SDK 58. Sin eso, compilada con el SDK de iOS 27 se cierra al abrir. Con el plugin
+abre en iOS 26 y en iOS 27.
 
 | Dónde | Xcode | Simulador de los e2e |
 |---|---|---|
-| Mac de desarrollo | 27 (el único instalado) | iOS 26.5, con un runtime bajado solo para esto (~8.5 GB), en "ClubSystem E2E (iOS 26)" |
+| Mac de desarrollo | 27 | iOS 27, en "ClubSystem E2E" |
 | CI (`e2e-mobile.yml`) | 26, fijado con `xcode-version: "26"` | El iOS 26.x que trae ese Xcode |
 
-Cuando la app abra en iOS 27 (por el plugin de UIScene o actualizando a Expo SDK 58), se unifica
-todo en Xcode 27 e iOS 27:
-1. Correr `E2E_REBUILD=1 apps/mobile/e2e/run-ios.sh` sin `E2E_IOS_RUNTIME`. Crea "ClubSystem
-   E2E" con iOS 27 y tiene que pasar.
-2. En `e2e-mobile.yml`, volver a `xcode-version: latest-stable` cuando el runner tenga Xcode 27.
-3. Sacar de este documento la nota de iOS 27 y la opción `E2E_IOS_RUNTIME=26`.
-4. Borrar lo que quedó de iOS 26 en la Mac:
-
-```bash
-xcrun simctl delete "ClubSystem E2E (iOS 26)"
-```
-```bash
-xcrun simctl runtime delete 22655E21-91F6-4B57-9E27-4A6CC6AF0423
-```
-
-El id del segundo comando es el runtime de iOS 26.5 (sale de `xcrun simctl runtime list`).
+La CI sigue en Xcode 26 porque el runner `macos-26` no trae Xcode 27. Solo lo tiene la imagen
+`xcode-27`, que hoy está en preview
+([actions/runner-images#14404](https://github.com/actions/runner-images/issues/14404)). Cuando
+salga de preview: `runs-on: xcode-27` y se saca el paso `setup-xcode`.
 
 ### En GitHub Actions
 

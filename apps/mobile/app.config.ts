@@ -46,6 +46,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         backgroundColor: nativeBackground,
       },
     ],
+    // Temporal hasta Expo SDK 58: sin UIScene la app se cierra al abrir con el SDK de iOS 27.
+    "./plugins/withSceneLifecycle",
   ],
   experiments: {
     typedRoutes: true,

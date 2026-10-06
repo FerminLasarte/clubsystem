@@ -30,10 +30,11 @@ if [[ ! -d "$APP" || -n "${E2E_REBUILD:-}" ]]; then
   cd "$MOBILE"
   CI=1 npx expo prebuild --platform ios
   # La URL de la API queda fija en el build (app.config.ts → extra.apiUrl).
+  # Firma ad-hoc del simulador (sin cuenta): sin entitlements, iOS 27 le niega el keychain a SecureStore.
   EXPO_PUBLIC_API_URL="http://localhost:$API_PORT" xcodebuild \
     -workspace ios/ClubSystem.xcworkspace -scheme ClubSystem -configuration Release \
     -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-    -derivedDataPath "$DERIVED" CODE_SIGNING_ALLOWED=NO -quiet build
+    -derivedDataPath "$DERIVED" -quiet build
 fi
 
 step "Simulador \"$SIMULATOR\""
