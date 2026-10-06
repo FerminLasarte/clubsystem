@@ -1,9 +1,5 @@
 import type { NextConfig } from "next";
 
-// El navegador habla solo con el origen de la web: /api/* se reenvía al backend.
-// Así las cookies HttpOnly de sesión son de primera parte y no hace falta CORS.
-const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8000";
-
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
@@ -26,9 +22,6 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@clubsystem/api", "@clubsystem/shared"],
-  async rewrites() {
-    return [{ source: "/api/:path*", destination: `${backendUrl}/api/:path*` }];
-  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

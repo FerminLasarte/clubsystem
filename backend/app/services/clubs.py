@@ -3,8 +3,36 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import BusinessRuleViolation
 from app.core.sql import contains_pattern
+from app.domain.enums import StaffRole
 from app.models import Club
-from app.schemas.clubs import ClubUpdate
+from app.schemas.clubs import ClubCreate, ClubUpdate
+from app.services.staff import issue_invitation
+
+
+async def create_club_with_owner(session: AsyncSession, data: ClubCreate) -> tuple[Club, bool]:
+    """
+    Da de alta un club e invita a su dueño por email; al aceptar, elige su contraseña.
+    Lo usa un operador con el rol dueño de la base (scripts/create_club.py): el panel no crea
+    clubes. Si el slug ya existe, solo renueva la invitación (por ejemplo, si venció).
+    Devuelve el club y si se creó ahora.
+    """
+    club = (await session.execute(select(Club).where(Club.slug == data.slug))).scalar_one_or_none()
+    created = club is None
+    if club is None:
+        club = Club(
+            slug=data.slug,
+            name=data.name,
+            sport_types=sorted({s.value for s in data.sport_types}),
+            city=data.city,
+        )
+        if data.timezone:
+            club.timezone = data.timezone
+        session.add(club)
+        await session.flush()
+    await issue_invitation(
+        session, club, str(data.owner_email), [StaffRole.OWNER.value], invited_by=None
+    )
+    return club, created
 
 
 async def update_club(session: AsyncSession, club: Club, data: ClubUpdate) -> Club:

@@ -3,7 +3,7 @@ from typing import Annotated
 from uuid import UUID
 from zoneinfo import available_timezones
 
-from pydantic import AnyHttpUrl, BaseModel, EmailStr, Field, StringConstraints, field_validator
+from pydantic import AfterValidator, AnyHttpUrl, BaseModel, EmailStr, Field, StringConstraints
 
 from app.domain.cancellation import MAX_MEMBER_CANCEL_NOTICE_HOURS
 from app.domain.enums import Sport
@@ -11,6 +11,16 @@ from app.schemas.common import HexColor, Schema
 
 Text100 = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]
 Text255 = Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)]
+ClubName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=255)]
+
+
+def _known_timezone(value: str) -> str:
+    if value not in available_timezones():
+        raise ValueError("Zona horaria desconocida")
+    return value
+
+
+TimeZone = Annotated[str, AfterValidator(_known_timezone)]
 
 
 class ClubOut(Schema):
@@ -37,17 +47,14 @@ class ClubOut(Schema):
 class ClubUpdate(BaseModel):
     """Solo se modifican los campos enviados. `null` limpia los opcionales."""
 
-    name: (
-        Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=255)]
-        | None
-    ) = None
+    name: ClubName | None = None
     sport_types: list[Sport] | None = None
     logo_url: AnyHttpUrl | None = None
     primary_color: HexColor | None = None
     accent_color: HexColor | None = None
     address: Text255 | None = None
     city: Text100 | None = None
-    timezone: str | None = None
+    timezone: TimeZone | None = None
     phone: Annotated[str, StringConstraints(strip_whitespace=True, max_length=50)] | None = None
     email: EmailStr | None = None
     website: AnyHttpUrl | None = None
@@ -57,12 +64,16 @@ class ClubUpdate(BaseModel):
         Annotated[int, Field(ge=0, le=MAX_MEMBER_CANCEL_NOTICE_HOURS)] | None
     ) = None
 
-    @field_validator("timezone")
-    @classmethod
-    def _valid_tz(cls, value: str | None) -> str | None:
-        if value is not None and value not in available_timezones():
-            raise ValueError("Zona horaria desconocida")
-        return value
+
+class ClubCreate(BaseModel):
+    """Alta de un club por un operador (scripts/create_club.py), con la invitación a su dueño."""
+
+    slug: Annotated[str, StringConstraints(pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$", max_length=100)]
+    name: ClubName
+    owner_email: EmailStr
+    sport_types: list[Sport] = Field(default_factory=list)
+    city: Text100 | None = None
+    timezone: TimeZone | None = None  # None: la del modelo (Buenos Aires)
 
 
 class ClubDirectoryOut(Schema):
