@@ -1,11 +1,11 @@
 "use client";
 
+import { formatDay, shiftDay } from "@clubsystem/shared";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { addDays, formatDayLong } from "@/features/reservations/time";
 
 interface DayNavProps {
   day: string;
@@ -16,13 +16,13 @@ interface DayNavProps {
 export function DayNav({ day, today, onChange }: DayNavProps) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button variant="outline" size="icon" aria-label="Día anterior" onClick={() => onChange(addDays(day, -1))}>
+      <Button variant="outline" size="icon" aria-label="Día anterior" onClick={() => onChange(shiftDay(day, -1))}>
         <ChevronLeft className="size-4" aria-hidden />
       </Button>
       <Button variant="outline" disabled={day === today} onClick={() => onChange(today)}>
         Hoy
       </Button>
-      <Button variant="outline" size="icon" aria-label="Día siguiente" onClick={() => onChange(addDays(day, 1))}>
+      <Button variant="outline" size="icon" aria-label="Día siguiente" onClick={() => onChange(shiftDay(day, 1))}>
         <ChevronRight className="size-4" aria-hidden />
       </Button>
       <Label htmlFor="grid-day" className="sr-only">
@@ -36,7 +36,7 @@ export function DayNav({ day, today, onChange }: DayNavProps) {
         className="w-auto"
       />
       <p className="text-sm font-medium first-letter:uppercase" aria-live="polite">
-        {formatDayLong(day)}
+        {formatDay(day, { dateStyle: "full" })}
       </p>
     </div>
   );

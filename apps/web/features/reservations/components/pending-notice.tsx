@@ -1,5 +1,6 @@
 "use client";
 
+import { pluralize } from "@clubsystem/shared";
 import { BellRing } from "lucide-react";
 
 import { usePendingCount } from "@/features/reservations/api";
@@ -17,13 +18,12 @@ export function PendingNotice({ day, isToday }: { day: string; isToday: boolean 
   }
   if (!pending.data) return null;
 
-  const plural = pending.data === 1 ? "reserva pendiente" : "reservas pendientes";
   return (
     <div role="status" className="flex items-start gap-3 rounded-lg bg-warning/15 px-4 py-3 text-sm text-warning-foreground">
       <BellRing className="mt-0.5 size-4 shrink-0" aria-hidden />
       <p>
         <strong>
-          {pending.data} {plural} de confirmar {isToday ? "hoy" : "este día"}.
+          {pluralize(pending.data, "reserva pendiente", "reservas pendientes")} de confirmar {isToday ? "hoy" : "este día"}.
         </strong>{" "}
         Llegan desde la app y se cancelan solas si no se confirman antes de empezar.
       </p>

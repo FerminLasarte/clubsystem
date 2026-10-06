@@ -1,13 +1,12 @@
 "use client";
 
-import { formatMoney } from "@clubsystem/shared";
+import { formatMoney, monthLabel } from "@clubsystem/shared";
 import { Banknote, Receipt, Scale, TrendingDown, TrendingUp } from "lucide-react";
 
 import { StatCard } from "@/components/shared/stat-card";
 import { QueryError } from "@/components/shared/state-view";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardFinance } from "@/features/dashboard/api";
-import { formatMonth } from "@/lib/calendar";
 
 import { FinanceChart } from "./finance-chart";
 
@@ -22,7 +21,7 @@ export function FinanceSection() {
   return (
     <section aria-labelledby="finance-title" className="grid gap-4">
       <h2 id="finance-title" className="text-lg font-semibold">
-        {current ? `Finanzas de ${formatMonth(current.year, current.month)}` : "Finanzas del mes"}
+        {current ? `Finanzas de ${monthLabel(current.year, current.month)}` : "Finanzas del mes"}
       </h2>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Ingresos" value={current && formatMoney(current.income)} icon={TrendingUp} tone="success" />

@@ -9,15 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useUpdateReservation } from "@/features/reservations/api";
+import { optionalText } from "@/lib/form";
 
 export function NotesForm({ reservation }: { reservation: ReservationOut }) {
   const update = useUpdateReservation();
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const notes = new FormData(event.currentTarget).get("notes")?.toString().trim() ?? "";
+    const notes = optionalText(new FormData(event.currentTarget), "notes");
     update.mutate(
-      { id: reservation.id, body: { notes: notes === "" ? null : notes } },
+      { id: reservation.id, body: { notes } },
       { onSuccess: () => toast.success("Notas guardadas") },
     );
   }

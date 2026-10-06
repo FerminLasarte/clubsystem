@@ -163,7 +163,7 @@ export function useCancelReservation() {
   });
 }
 
-/** URL del CSV del backend (misma sesión por cookies). Solo admite rango de fechas. */
-export function exportUrl(from: string, to: string): string {
-  return `/api/v1/admin/reservations/export?${new URLSearchParams({ from, to }).toString()}`;
+/** CSV de reservas de un rango de fechas (para `ExportButton`). */
+export function exportReservationsCsv(from: string, to: string) {
+  return api.GET("/api/v1/admin/reservations/export", { params: { query: { from, to } }, parseAs: "blob" });
 }

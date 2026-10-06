@@ -1,15 +1,14 @@
 "use client";
 
 import type { ReservationStatus } from "@clubsystem/api";
-import { RESERVATION_STATUS_LABELS } from "@clubsystem/shared";
+import { isIsoDay, RESERVATION_STATUS_LABELS, shiftDay } from "@clubsystem/shared";
 
 import { Pagination } from "@/components/shared/pagination";
 import { QueryError, StateView } from "@/components/shared/state-view";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HISTORY_PAGE_SIZE, useReservationHistory, type HistoryFilters as Filters } from "@/features/reservations/api";
-import { addDays, parseDay } from "@/features/reservations/time";
-import { useUrlParams } from "@/features/reservations/use-url-params";
+import { pageParam, useUrlParams } from "@/lib/use-url-params";
 import { cn } from "@/lib/utils";
 
 import { HistoryFilters } from "./history-filters";
@@ -21,15 +20,17 @@ function isStatus(value: string | null): value is ReservationStatus {
 
 /** Filtros desde la URL. Por defecto: los últimos 30 días hasta hoy. */
 function readFilters(params: Pick<URLSearchParams, "get">, today: string): Filters {
-  const to = parseDay(params.get("to")) ?? today;
-  const from = parseDay(params.get("from")) ?? addDays(to, -30);
+  const rawTo = params.get("to");
+  const rawFrom = params.get("from");
+  const to = isIsoDay(rawTo) ? rawTo : today;
+  const from = isIsoDay(rawFrom) ? rawFrom : shiftDay(to, -30);
   const status = params.get("status");
   return {
     from: from <= to ? from : to,
     to,
     status: isStatus(status) ? status : null,
     courtId: params.get("court"),
-    page: Math.max(1, Number(params.get("page")) || 1),
+    page: pageParam(params),
   };
 }
 
@@ -61,7 +62,7 @@ export function ReservationHistory({ today, timeZone, onSelect }: ReservationHis
               page={filters.page}
               pageSize={HISTORY_PAGE_SIZE}
               total={history.data.total}
-              onPageChange={(page) => update({ page: String(page) })}
+              onPageChange={(page) => update({ page })}
             />
           </CardContent>
         </Card>

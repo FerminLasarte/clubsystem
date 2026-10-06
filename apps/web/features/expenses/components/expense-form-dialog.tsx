@@ -21,11 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useActiveSession } from "@/features/auth/api";
 import { useCreateExpense, useUpdateExpense } from "@/features/expenses/api";
 import { EXPENSE_CATEGORIES } from "@/features/expenses/labels";
-
-function emptyToNull(value: FormDataEntryValue | null): string | null {
-  const text = value?.toString().trim() ?? "";
-  return text === "" ? null : text;
-}
+import { optionalText } from "@/lib/form";
 
 function readForm(form: FormData): ExpenseCreate {
   return {
@@ -33,9 +29,9 @@ function readForm(form: FormData): ExpenseCreate {
     description: String(form.get("description")).trim(),
     amount: String(form.get("amount")),
     expense_date: String(form.get("expense_date")),
-    vendor_name: emptyToNull(form.get("vendor_name")),
-    vendor_tax_id: emptyToNull(form.get("vendor_tax_id")),
-    notes: emptyToNull(form.get("notes")),
+    vendor_name: optionalText(form, "vendor_name"),
+    vendor_tax_id: optionalText(form, "vendor_tax_id"),
+    notes: optionalText(form, "notes"),
   };
 }
 

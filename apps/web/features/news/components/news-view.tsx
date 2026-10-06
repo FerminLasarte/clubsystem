@@ -11,15 +11,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActiveSession } from "@/features/auth/api";
 import { NEWS_PAGE_SIZE, useDeleteNews, useNews } from "@/features/news/api";
-import { pageFromParams, useQueryParams } from "@/lib/use-query-params";
+import { pageParam, useUrlParams } from "@/lib/use-url-params";
 
 import { NewsDialog } from "./news-dialog";
 import { NewsTable } from "./news-table";
 
 export function NewsView() {
   const canWrite = useActiveSession().permissions.includes("news:write");
-  const { params, set } = useQueryParams();
-  const page = pageFromParams(params);
+  const [params, setParams] = useUrlParams();
+  const page = pageParam(params);
   const news = useNews(page);
   const remove = useDeleteNews();
   const [toDelete, setToDelete] = useState<NewsOut | null>(null);
@@ -46,7 +46,7 @@ export function NewsView() {
                 page={page}
                 pageSize={NEWS_PAGE_SIZE}
                 total={news.data.total}
-                onPageChange={(next) => set({ page: next > 1 ? String(next) : null })}
+                onPageChange={(next) => setParams({ page: next > 1 ? next : null })}
               />
             </div>
           )}

@@ -1,11 +1,10 @@
 "use client";
 
 import type { StockItemOut } from "@clubsystem/api";
-import { formatMoney } from "@clubsystem/shared";
+import { formatMoney, formatQuantity } from "@clubsystem/shared";
 
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatQuantity } from "@/features/stock/format";
 
 import { StockRowActions, type StockAction } from "./stock-row-actions";
 

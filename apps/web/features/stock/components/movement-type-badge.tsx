@@ -1,13 +1,8 @@
 import type { StockMovementType } from "@clubsystem/api";
+import { STOCK_MOVEMENT_TYPE_LABELS } from "@clubsystem/shared";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-
-export const MOVEMENT_TYPE_LABELS: Record<StockMovementType, string> = {
-  IN: "Entrada",
-  OUT: "Salida",
-  ADJUSTMENT: "Ajuste",
-};
 
 const TONES: Record<StockMovementType, string> = {
   IN: "bg-success/10 text-success",
@@ -16,5 +11,5 @@ const TONES: Record<StockMovementType, string> = {
 };
 
 export function MovementTypeBadge({ type }: { type: StockMovementType }) {
-  return <Badge className={cn(TONES[type])}>{MOVEMENT_TYPE_LABELS[type]}</Badge>;
+  return <Badge className={cn(TONES[type])}>{STOCK_MOVEMENT_TYPE_LABELS[type]}</Badge>;
 }

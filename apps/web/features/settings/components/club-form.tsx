@@ -12,13 +12,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useClubSettings, useUpdateClub } from "@/features/settings/api";
+import { optionalText } from "@/lib/form";
 
 const SPORTS = Object.keys(SPORT_LABELS) as Sport[];
-
-function emptyToNull(value: FormDataEntryValue | null): string | null {
-  const text = value?.toString().trim() ?? "";
-  return text === "" ? null : text;
-}
 
 function ClubFormFields({ club, canEdit }: { club: ClubOut; canEdit: boolean }) {
   const update = useUpdateClub();
@@ -28,12 +24,12 @@ function ClubFormFields({ club, canEdit }: { club: ClubOut; canEdit: boolean }) 
     const form = new FormData(event.currentTarget);
     update.mutate({
       name: String(form.get("name")),
-      phone: emptyToNull(form.get("phone")),
-      email: emptyToNull(form.get("email")),
-      address: emptyToNull(form.get("address")),
-      city: emptyToNull(form.get("city")),
-      open_time: emptyToNull(form.get("open_time")),
-      close_time: emptyToNull(form.get("close_time")),
+      phone: optionalText(form, "phone"),
+      email: optionalText(form, "email"),
+      address: optionalText(form, "address"),
+      city: optionalText(form, "city"),
+      open_time: optionalText(form, "open_time"),
+      close_time: optionalText(form, "close_time"),
       primary_color: String(form.get("primary_color")),
       accent_color: String(form.get("accent_color")),
       sport_types: form.getAll("sport_types").map(String) as Sport[],

@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useUpdateMember } from "@/features/members/api";
-import { optionalText } from "@/features/members/format";
+import { optionalText } from "@/lib/form";
 
 import { PlanSelect, planIdFrom } from "./plan-select";
 
@@ -39,9 +39,9 @@ export function MemberEditDialog({ member, onClose }: MemberEditDialogProps) {
         id: member.id,
         body: {
           plan_id: planIdFrom(form.get("plan_id")),
-          member_number: optionalText(form.get("member_number")),
+          member_number: optionalText(form, "member_number"),
           joined_on: String(form.get("joined_on")),
-          notes: optionalText(form.get("notes")),
+          notes: optionalText(form, "notes"),
         },
       },
       {

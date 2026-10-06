@@ -35,14 +35,9 @@ function useInvalidateMembers() {
   return () => queryClient.invalidateQueries({ queryKey: keys.all });
 }
 
-/** URL del CSV del backend con los mismos filtros que la tabla (descarga con la cookie de sesión). */
-export function membersExportUrl(filters: MemberListFilters): string {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(filters)) {
-    if (value) params.set(key, value);
-  }
-  const query = params.toString();
-  return `/api/v1/admin/members/export.csv${query ? `?${query}` : ""}`;
+/** CSV del backend con los mismos filtros que la tabla (para `ExportButton`). */
+export function exportMembersCsv(filters: MemberListFilters) {
+  return api.GET("/api/v1/admin/members/export.csv", { params: { query: filters }, parseAs: "blob" });
 }
 
 // ── Socios ──────────────────────────────────────────────────────────────────

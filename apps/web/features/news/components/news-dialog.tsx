@@ -1,6 +1,6 @@
 "use client";
 
-import { todayIn } from "@clubsystem/shared";
+import { todayIn, zonedToIso } from "@clubsystem/shared";
 import { Plus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useActiveSession } from "@/features/auth/api";
 import { useCreateNews } from "@/features/news/api";
-import { zonedDateTimeToIso } from "@/lib/zoned-time";
+import { optionalText } from "@/lib/form";
 
 /** Sugerencias; la etiqueta es texto libre. */
 const TAG_SUGGESTIONS = ["Aviso", "Clases", "Mantenimiento", "Torneo", "Promoción"];
@@ -38,16 +38,15 @@ export function NewsDialog() {
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const tag = String(form.get("tag")).trim();
     const date = String(form.get("expires_date"));
     const time = String(form.get("expires_time")) || "23:59";
     create.mutate(
       {
         title: String(form.get("title")).trim(),
         body: String(form.get("body")).trim(),
-        tag: tag || null,
+        tag: optionalText(form, "tag"),
         // La fecha y hora elegidas son las del club, no las del navegador.
-        expires_at: date ? zonedDateTimeToIso(date, time, timeZone) : null,
+        expires_at: date ? zonedToIso(date, time, timeZone) : null,
       },
       { onSuccess: () => onOpenChange(false) },
     );

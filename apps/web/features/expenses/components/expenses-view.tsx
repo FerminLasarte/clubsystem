@@ -1,12 +1,13 @@
 "use client";
 
-import { Download, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 
+import { ExportButton } from "@/components/shared/export-button";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { useActiveSession } from "@/features/auth/api";
-import { exportCsvUrl } from "@/features/expenses/api";
+import { exportExpensesCsv } from "@/features/expenses/api";
 import { toFilterQuery, toPeriodQuery, useExpenseFilters } from "@/features/expenses/hooks/use-expense-filters";
 
 import { ExpenseFiltersBar } from "./expense-filters";
@@ -32,11 +33,7 @@ export function ExpensesView() {
         description="Gastos operativos del club y alertas de montos inusuales."
         actions={
           <>
-            <Button variant="outline" asChild>
-              <a href={exportCsvUrl(query)} download>
-                <Download className="size-4" aria-hidden /> Exportar CSV
-              </a>
-            </Button>
+            <ExportButton request={() => exportExpensesCsv(query)} filename="gastos.csv" />
             {canWrite ? (
               <>
                 <RecomputeButton period={period} />

@@ -16,7 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useCreateMember } from "@/features/members/api";
-import { optionalText } from "@/features/members/format";
+import { optionalText } from "@/lib/form";
 
 import { PlanSelect, planIdFrom } from "./plan-select";
 
@@ -37,9 +37,9 @@ export function MemberCreateDialog() {
         email: String(form.get("email")).trim(),
         first_name: String(form.get("first_name")),
         last_name: String(form.get("last_name")),
-        phone: optionalText(form.get("phone")),
+        phone: optionalText(form, "phone"),
         plan_id: planIdFrom(form.get("plan_id")),
-        member_number: optionalText(form.get("member_number")),
+        member_number: optionalText(form, "member_number"),
       },
       { onSuccess: () => onOpenChange(false) },
     );

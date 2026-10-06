@@ -1,7 +1,7 @@
 "use client";
 
 import type { StockItemOut } from "@clubsystem/api";
-import { formatDateTime } from "@clubsystem/shared";
+import { formatDateTime, formatQuantity } from "@clubsystem/shared";
 import { useState } from "react";
 
 import { Pagination } from "@/components/shared/pagination";
@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useActiveSession } from "@/features/auth/api";
 import { MOVEMENTS_PAGE_SIZE, useStockMovements } from "@/features/stock/api";
-import { formatDelta, formatQuantity } from "@/features/stock/format";
+import { formatDelta } from "@/features/stock/format";
 
 import { MovementTypeBadge } from "./movement-type-badge";
 

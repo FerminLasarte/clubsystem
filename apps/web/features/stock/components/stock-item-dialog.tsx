@@ -15,27 +15,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useCreateStockItem, useUpdateStockItem } from "@/features/stock/api";
+import { optionalText } from "@/lib/form";
 
 import { StockItemFields } from "./stock-item-fields";
-
-function text(form: FormData, key: string): string | null {
-  const value = form.get(key)?.toString().trim() ?? "";
-  return value === "" ? null : value;
-}
 
 /** Datos del formulario comunes a alta y edición (vacío = sin dato). */
 function itemFields(form: FormData) {
   return {
-    name: text(form, "name") ?? "",
-    sku: text(form, "sku"),
-    category: text(form, "category"),
-    description: text(form, "description"),
-    unit: (text(form, "unit") ?? "unit") as StockUnit,
-    min_quantity: text(form, "min_quantity") ?? "0",
-    unit_cost: text(form, "unit_cost"),
-    unit_price: text(form, "unit_price"),
-    supplier: text(form, "supplier"),
-    location: text(form, "location"),
+    name: optionalText(form, "name") ?? "",
+    sku: optionalText(form, "sku"),
+    category: optionalText(form, "category"),
+    description: optionalText(form, "description"),
+    unit: (optionalText(form, "unit") ?? "unit") as StockUnit,
+    min_quantity: optionalText(form, "min_quantity") ?? "0",
+    unit_cost: optionalText(form, "unit_cost"),
+    unit_price: optionalText(form, "unit_price"),
+    supplier: optionalText(form, "supplier"),
+    location: optionalText(form, "location"),
   } satisfies StockItemUpdate;
 }
 
@@ -64,7 +60,7 @@ export function StockItemDialog({ open, onOpenChange, item }: StockItemDialogPro
     const form = new FormData(event.currentTarget);
     const options = { onSuccess: () => close(false) };
     if (item) update.mutate({ id: item.id, body: itemFields(form) }, options);
-    else create.mutate({ ...itemFields(form), quantity: text(form, "quantity") ?? "0" }, options);
+    else create.mutate({ ...itemFields(form), quantity: optionalText(form, "quantity") ?? "0" }, options);
   }
 
   return (

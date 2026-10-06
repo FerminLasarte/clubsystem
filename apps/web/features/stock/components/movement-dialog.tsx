@@ -1,6 +1,7 @@
 "use client";
 
 import type { MovementCreate, StockItemOut, StockMovementType } from "@clubsystem/api";
+import { formatQuantity, STOCK_MOVEMENT_TYPE_LABELS } from "@clubsystem/shared";
 import { useState, type FormEvent } from "react";
 
 import { FormError } from "@/components/shared/form-error";
@@ -18,9 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateMovement } from "@/features/stock/api";
-import { formatQuantity } from "@/features/stock/format";
-
-import { MOVEMENT_TYPE_LABELS } from "./movement-type-badge";
+import { optionalText } from "@/lib/form";
 
 const TYPES: StockMovementType[] = ["IN", "OUT", "ADJUSTMENT"];
 
@@ -34,8 +33,7 @@ function buildMovement(type: StockMovementType, form: FormData): MovementCreate 
   const amount = String(form.get("amount"));
   const reason = String(form.get("reason")).trim();
   if (type === "ADJUSTMENT") return { type, target_quantity: amount, reason };
-  const unitCost = form.get("unit_cost")?.toString().trim();
-  return { type, quantity: amount, reason, unit_cost: type === "IN" && unitCost ? unitCost : null };
+  return { type, quantity: amount, reason, unit_cost: type === "IN" ? optionalText(form, "unit_cost") : null };
 }
 
 interface MovementDialogProps {
@@ -83,7 +81,7 @@ export function MovementDialog({ open, item, onOpenChange }: MovementDialogProps
             <TabsList aria-label="Tipo de movimiento" className="w-full">
               {TYPES.map((t) => (
                 <TabsTrigger key={t} value={t}>
-                  {MOVEMENT_TYPE_LABELS[t]}
+                  {STOCK_MOVEMENT_TYPE_LABELS[t]}
                 </TabsTrigger>
               ))}
             </TabsList>

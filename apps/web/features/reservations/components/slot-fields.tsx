@@ -1,10 +1,12 @@
 "use client";
 
+import { zonedToIso } from "@clubsystem/shared";
+
 import { FormField } from "@/components/shared/form-field";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCourts } from "@/features/courts/api";
-import { formatDuration, zonedToIso } from "@/features/reservations/time";
+import { formatDuration } from "@/features/reservations/time";
 
 const DURATIONS = [30, 60, 90, 120, 150, 180, 210, 240];
 

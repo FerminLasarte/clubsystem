@@ -1,7 +1,7 @@
 "use client";
 
 import type { ExpenseStatsOut } from "@clubsystem/api";
-import { EXPENSE_CATEGORY_LABELS, formatMoney } from "@clubsystem/shared";
+import { EXPENSE_CATEGORY_LABELS, formatDay, formatMoney, pluralize } from "@clubsystem/shared";
 import { AlertTriangle, ReceiptText } from "lucide-react";
 
 import { StatCard } from "@/components/shared/stat-card";
@@ -9,7 +9,6 @@ import { QueryError } from "@/components/shared/state-view";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useExpenseStats, type PeriodQuery } from "@/features/expenses/api";
-import { formatDay } from "@/features/expenses/labels";
 
 function periodHint(stats: ExpenseStatsOut): string | undefined {
   const { date_from: from, date_to: to } = stats;
@@ -59,7 +58,7 @@ export function ExpenseStats({ period }: { period: PeriodQuery }) {
           label="Total del período"
           value={data ? formatMoney(data.total) : undefined}
           icon={ReceiptText}
-          hint={data ? [`${data.count} gastos`, periodHint(data)].filter(Boolean).join(" · ") : undefined}
+          hint={data ? [pluralize(data.count, "gasto", "gastos"), periodHint(data)].filter(Boolean).join(" · ") : undefined}
         />
         <StatCard
           label="Anomalías sin revisar"

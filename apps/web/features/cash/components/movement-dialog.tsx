@@ -1,7 +1,7 @@
 "use client";
 
 import type { PaymentMethod, TransactionType } from "@clubsystem/api";
-import { PAYMENT_METHOD_LABELS } from "@clubsystem/shared";
+import { PAYMENT_METHOD_LABELS, TRANSACTION_TYPE_LABELS } from "@clubsystem/shared";
 import { Plus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
@@ -21,7 +21,6 @@ import {
 import { useCreatePayment } from "@/features/cash/api";
 
 import { MemberPicker } from "./member-picker";
-import { TRANSACTION_TYPE_LABELS } from "./movement-type-badge";
 
 export function MovementDialog({ canPickMember }: { canPickMember: boolean }) {
   const [open, setOpen] = useState(false);

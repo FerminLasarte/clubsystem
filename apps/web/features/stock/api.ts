@@ -35,13 +35,9 @@ function filterQuery({ search, category, lowStock }: StockFilters) {
   };
 }
 
-export function stockExportUrl(filters: StockFilters): string {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(filterQuery(filters))) {
-    if (value !== undefined) query.set(key, String(value));
-  }
-  const qs = query.toString();
-  return `/api/v1/admin/stock/items/export.csv${qs ? `?${qs}` : ""}`;
+/** CSV del inventario con los mismos filtros que la tabla (para `ExportButton`). */
+export function exportStockCsv(filters: StockFilters) {
+  return api.GET("/api/v1/admin/stock/items/export.csv", { params: { query: filterQuery(filters) }, parseAs: "blob" });
 }
 
 export function useStockItems(filters: StockFilters, page: number) {

@@ -1,3 +1,5 @@
+import { STOCK_UNIT_SHORT_LABELS } from "./labels";
+
 /** Formato para Argentina. Los montos llegan de la API como string decimal ("8000.00"). */
 
 const money = new Intl.NumberFormat("es-AR", {
@@ -13,7 +15,19 @@ export function formatMoney(value: string | number | null | undefined): string {
   return Number.isFinite(n) ? money.format(n) : "—";
 }
 
-/** Fecha/hora en la zona horaria del club (no la del dispositivo). */
+const quantity = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 });
+
+/** Cantidades de stock (llegan como string decimal, "12.500"), opcionalmente con la unidad abreviada. */
+export function formatQuantity(value: string | number, unit?: keyof typeof STOCK_UNIT_SHORT_LABELS): string {
+  const n = typeof value === "number" ? value : Number(value);
+  const text = Number.isFinite(n) ? quantity.format(n) : "—";
+  return unit ? `${text} ${STOCK_UNIT_SHORT_LABELS[unit]}` : text;
+}
+
+/**
+ * Fecha de un instante (ISO con hora) en la zona horaria del club (no la del dispositivo).
+ * Para días sin hora ("YYYY-MM-DD") usar `formatDay` de ./dates: acá se correrían un día.
+ */
 export function formatDate(iso: string, timeZone: string, opts: Intl.DateTimeFormatOptions = {}): string {
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeZone, ...opts }).format(new Date(iso));
 }
@@ -28,13 +42,11 @@ export function formatDateTime(iso: string, timeZone: string): string {
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short", timeZone }).format(new Date(iso));
 }
 
-/** "YYYY-MM-DD" de hoy en la zona horaria indicada. */
-export function todayIn(timeZone: string): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(
-    new Date(),
-  );
-}
-
 export function initials(firstName: string | null | undefined, lastName?: string | null): string {
   return `${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`.toUpperCase() || "?";
+}
+
+/** "1 gasto", "3 gastos": cantidad con el sustantivo en singular o plural. */
+export function pluralize(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import type { MemberOut } from "@clubsystem/api";
-import { formatDate, formatDateTime, MEMBERSHIP_STATUS_LABELS } from "@clubsystem/shared";
+import { formatDateTime, formatDay, MEMBERSHIP_STATUS_LABELS } from "@clubsystem/shared";
 
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -50,7 +50,7 @@ export function MembersTable({ members, canWrite, onAction }: MembersTableProps)
             <TableCell className="tabular">{member.member_number ?? "—"}</TableCell>
             <TableCell>{member.plan?.name ?? <span className="text-muted-foreground">Sin plan</span>}</TableCell>
             {/* joined_on es una fecha de calendario (sin hora): se formatea en UTC para no correr el día. */}
-            <TableCell>{member.joined_on ? formatDate(member.joined_on, "UTC") : "—"}</TableCell>
+            <TableCell>{member.joined_on ? formatDay(member.joined_on) : "—"}</TableCell>
             <TableCell>
               {member.last_reservation_at ? (
                 <time

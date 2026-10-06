@@ -1,7 +1,7 @@
 "use client";
 
 import type { FeeTotals } from "@clubsystem/api";
-import { formatMoney } from "@clubsystem/shared";
+import { formatMoney, pluralize } from "@clubsystem/shared";
 import { CircleCheck, Clock, FileText } from "lucide-react";
 
 import { StatCard } from "@/components/shared/stat-card";
@@ -10,7 +10,7 @@ import { useFeesSummary } from "@/features/fees/api";
 
 function hint(totals: FeeTotals | undefined): string | undefined {
   if (!totals) return undefined;
-  return totals.count === 1 ? "1 cuota" : `${totals.count} cuotas`;
+  return pluralize(totals.count, "cuota", "cuotas");
 }
 
 /** Emitido / cobrado / pendiente del período. */

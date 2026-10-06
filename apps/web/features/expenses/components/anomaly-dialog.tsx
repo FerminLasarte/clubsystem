@@ -1,7 +1,7 @@
 "use client";
 
 import type { ExpenseOut } from "@clubsystem/api";
-import { EXPENSE_CATEGORY_LABELS, formatDateTime, formatMoney } from "@clubsystem/shared";
+import { EXPENSE_CATEGORY_LABELS, formatDateTime, formatDay, formatMoney } from "@clubsystem/shared";
 
 import { FormError } from "@/components/shared/form-error";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { useActiveSession } from "@/features/auth/api";
 import { useExpense, useReviewExpense } from "@/features/expenses/api";
-import { formatDay } from "@/features/expenses/labels";
 
 import { AiExplanation } from "./ai-explanation";
 import { AnomalyBadge } from "./anomaly-badge";

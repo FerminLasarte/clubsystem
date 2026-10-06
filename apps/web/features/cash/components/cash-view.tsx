@@ -1,13 +1,12 @@
 "use client";
 
-import { todayIn } from "@clubsystem/shared";
+import { formatDay, isIsoDay, todayIn } from "@clubsystem/shared";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { QueryError } from "@/components/shared/state-view";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActiveSession } from "@/features/auth/api";
 import { useCashDay } from "@/features/cash/api";
-import { formatCalendarDate, isCalendarDate } from "@/lib/calendar";
 import { useUrlParams } from "@/lib/use-url-params";
 
 import { CashSummaryCards } from "./cash-summary";
@@ -21,7 +20,7 @@ export function CashView() {
   const [params, setParams] = useUrlParams();
   const today = todayIn(active_club.timezone);
   const requested = params.get("date");
-  const date = isCalendarDate(requested) ? requested : today;
+  const date = isIsoDay(requested) ? requested : today;
   const day = useCashDay(date);
   const canWrite = permissions.includes("cash:write");
 
@@ -29,7 +28,7 @@ export function CashView() {
     <>
       <PageHeader
         title="Caja"
-        description={formatCalendarDate(date, { dateStyle: "full" })}
+        description={formatDay(date, { dateStyle: "full" })}
         actions={canWrite ? <MovementDialog canPickMember={permissions.includes("members:read")} /> : null}
       />
       <div className="grid gap-6">

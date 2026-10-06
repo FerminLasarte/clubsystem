@@ -1,11 +1,10 @@
 "use client";
 
 import type { ReservationOut } from "@clubsystem/api";
-import { formatDate, formatMoney, formatTime } from "@clubsystem/shared";
+import { formatDate, formatMoney, formatTime, RESERVATION_SOURCE_LABELS } from "@clubsystem/shared";
 
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { SOURCE_LABELS } from "@/features/reservations/status";
 
 import { StatusBadge } from "./status-badge";
 
@@ -56,7 +55,7 @@ export function ReservationsTable({ reservations, timeZone, onSelect }: Reservat
             <TableCell>
               <StatusBadge status={r.status} />
             </TableCell>
-            <TableCell>{SOURCE_LABELS[r.source]}</TableCell>
+            <TableCell>{RESERVATION_SOURCE_LABELS[r.source]}</TableCell>
             <TableCell className="tabular text-right">{formatMoney(r.total_price)}</TableCell>
             <TableCell className="tabular text-right">{formatMoney(r.paid_amount)}</TableCell>
           </TableRow>

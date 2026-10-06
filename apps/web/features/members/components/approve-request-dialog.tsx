@@ -8,7 +8,7 @@ import { FormField } from "@/components/shared/form-field";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useApproveRequest } from "@/features/members/api";
-import { optionalText } from "@/features/members/format";
+import { optionalText } from "@/lib/form";
 
 import { PlanSelect, planIdFrom } from "./plan-select";
 
@@ -38,7 +38,7 @@ export function ApproveRequestDialog({ request, onClose }: ApproveRequestDialogP
         id: request.id,
         body: {
           plan_id: planId === request.plan?.id ? null : planId,
-          member_number: optionalText(form.get("member_number")),
+          member_number: optionalText(form, "member_number"),
         },
       },
       { onSuccess: () => onOpenChange(false) },

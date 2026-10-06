@@ -1,15 +1,16 @@
 "use client";
 
 import type { StockItemOut } from "@clubsystem/api";
-import { Download, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { ExportButton } from "@/components/shared/export-button";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useActiveSession } from "@/features/auth/api";
-import { stockExportUrl, useDeleteStockItem } from "@/features/stock/api";
+import { exportStockCsv, useDeleteStockItem } from "@/features/stock/api";
 import { useStockFilters } from "@/features/stock/hooks";
 
 import { MovementDialog } from "./movement-dialog";
@@ -46,11 +47,7 @@ export function StockView() {
         description="Inventario del club. Toda variación de cantidad queda registrada como movimiento."
         actions={
           <>
-            <Button variant="outline" asChild>
-              <a href={stockExportUrl(filters)} download>
-                <Download className="size-4" aria-hidden /> Exportar CSV
-              </a>
-            </Button>
+            <ExportButton request={() => exportStockCsv(filters)} filename="stock.csv" />
             {canWrite ? (
               <Button onClick={() => setCreating(true)}>
                 <Plus className="size-4" aria-hidden /> Nuevo ítem

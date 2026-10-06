@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useActiveSession } from "@/features/auth/api";
 import { useCreateReservation } from "@/features/reservations/api";
+import { optionalText } from "@/lib/form";
 
 import { MemberPicker } from "./member-picker";
 import { readSlot, SlotFields, type SlotDefaults } from "./slot-fields";
@@ -22,11 +24,6 @@ const CUSTOMERS: { value: Customer; label: string }[] = [
   { value: "member", label: "Socio" },
   { value: "guest", label: "Invitado" },
 ];
-
-function optionalText(form: FormData, key: string): string | null {
-  const value = form.get(key)?.toString().trim() ?? "";
-  return value === "" ? null : value;
-}
 
 interface CreateReservationFormProps {
   defaults: SlotDefaults;
@@ -61,20 +58,15 @@ export function CreateReservationForm({ defaults, onCreated }: CreateReservation
       <SlotFields defaults={defaults} />
       <fieldset className="grid gap-3 sm:col-span-2">
         <legend className="mb-2 text-sm font-medium">Cliente</legend>
-        <div className="flex gap-2">
-          {CUSTOMERS.map(({ value, label }) => (
-            <Button
-              key={value}
-              type="button"
-              size="sm"
-              variant={customer === value ? "default" : "outline"}
-              aria-pressed={customer === value}
-              onClick={() => setCustomer(value)}
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
+        <Tabs value={customer} onValueChange={(value) => setCustomer(value === "guest" ? "guest" : "member")}>
+          <TabsList aria-label="Tipo de cliente">
+            {CUSTOMERS.map(({ value, label }) => (
+              <TabsTrigger key={value} value={value}>
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
         {customer === "member" ? (
           <MemberPicker value={member} onChange={setMember} />
         ) : (

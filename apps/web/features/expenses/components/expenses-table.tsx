@@ -1,13 +1,12 @@
 "use client";
 
 import type { ExpenseOut } from "@clubsystem/api";
-import { EXPENSE_CATEGORY_LABELS, formatMoney } from "@clubsystem/shared";
+import { ANOMALY_SEVERITY_LABELS, EXPENSE_CATEGORY_LABELS, formatDay, formatMoney } from "@clubsystem/shared";
 import { Pencil, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatDay, SEVERITY_LABELS } from "@/features/expenses/labels";
 
 import { AnomalyBadge } from "./anomaly-badge";
 
@@ -55,7 +54,7 @@ export function ExpensesTable({ expenses, canWrite, onOpenAnomaly, onEdit, onDel
                   variant="ghost"
                   size="sm"
                   className="-ml-2 h-auto p-1"
-                  aria-label={`Anomalía ${SEVERITY_LABELS[expense.anomaly_severity].toLowerCase()}${expense.reviewed_at ? " (revisada)" : ""}: ver detalle`}
+                  aria-label={`Anomalía ${ANOMALY_SEVERITY_LABELS[expense.anomaly_severity].toLowerCase()}${expense.reviewed_at ? " (revisada)" : ""}: ver detalle`}
                   onClick={() => onOpenAnomaly(expense)}
                 >
                   <AnomalyBadge severity={expense.anomaly_severity} reviewed={expense.reviewed_at !== null} />

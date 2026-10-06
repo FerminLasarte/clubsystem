@@ -1,11 +1,7 @@
 import type { TransactionType } from "@clubsystem/api";
+import { TRANSACTION_TYPE_LABELS } from "@clubsystem/shared";
 
 import { Badge } from "@/components/ui/badge";
-
-export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
-  INCOME: "Ingreso",
-  OUTFLOW: "Egreso",
-};
 
 export function MovementTypeBadge({ type }: { type: TransactionType }) {
   return (

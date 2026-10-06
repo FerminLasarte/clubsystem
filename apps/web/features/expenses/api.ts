@@ -1,4 +1,5 @@
 import { unwrap, type ExpenseCreate, type ExpenseOut, type ExpenseUpdate, type paths } from "@clubsystem/api";
+import { pluralize } from "@clubsystem/shared";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -50,15 +51,6 @@ export function useExpense(id: string, seed: ExpenseOut) {
   });
 }
 
-/** URL del CSV del backend con los mismos filtros (la sesión viaja en la cookie). */
-export function exportCsvUrl(query: ExpenseFilterQuery): string {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (value !== null && value !== undefined) params.set(key, String(value));
-  }
-  const search = params.toString();
-  return `/api/v1/admin/expenses/export.csv${search ? `?${search}` : ""}`;
-}
 
 function useInvalidateExpenses() {
   const queryClient = useQueryClient();
@@ -124,8 +116,13 @@ export function useRecomputeAnomalies() {
     onSuccess: ({ analyzed, flagged }) => {
       void invalidate();
       toast.success("Anomalías recalculadas", {
-        description: `${analyzed} gastos analizados · ${flagged} con anomalía`,
+        description: `${pluralize(analyzed, "gasto analizado", "gastos analizados")} · ${flagged} con anomalía`,
       });
     },
   });
+}
+
+/** CSV de gastos con los mismos filtros que el listado (para `ExportButton`). */
+export function exportExpensesCsv(query: ExpenseFilterQuery) {
+  return api.GET("/api/v1/admin/expenses/export.csv", { params: { query }, parseAs: "blob" });
 }

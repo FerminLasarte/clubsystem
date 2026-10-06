@@ -62,3 +62,51 @@ export const STOCK_UNIT_LABELS = {
   liter: "Litro",
   pack: "Pack",
 } as const;
+
+/** Abreviaturas para acompañar cantidades ("12 u.", "3 cajas"). */
+export const STOCK_UNIT_SHORT_LABELS = {
+  unit: "u.",
+  box: "cajas",
+  kg: "kg",
+  liter: "L",
+  pack: "packs",
+} as const;
+
+export const STOCK_MOVEMENT_TYPE_LABELS = {
+  IN: "Entrada",
+  OUT: "Salida",
+  ADJUSTMENT: "Ajuste",
+} as const;
+
+export const COURT_SURFACE_LABELS = {
+  clay: "Polvo de ladrillo",
+  hard: "Cemento / dura",
+  grass: "Césped",
+  synthetic: "Sintético",
+  wood: "Madera",
+  concrete: "Hormigón",
+  other: "Otra",
+} as const;
+
+export const ANOMALY_SEVERITY_LABELS = {
+  low: "Baja",
+  medium: "Media",
+  high: "Alta",
+  critical: "Crítica",
+} as const;
+
+export const TRANSACTION_TYPE_LABELS = {
+  INCOME: "Ingreso",
+  OUTFLOW: "Egreso",
+} as const;
+
+export const RESERVATION_SOURCE_LABELS = {
+  APP: "App del socio",
+  PANEL: "Panel",
+} as const;
+
+export const CANCEL_REASON_LABELS = {
+  BY_STAFF: "Cancelada por el club",
+  BY_MEMBER: "Cancelada por el socio",
+  EXPIRED_UNCONFIRMED: "Venció sin confirmar",
+} as const;

@@ -1,9 +1,8 @@
 import type { MonthFinance } from "@clubsystem/api";
-import { formatMoney } from "@clubsystem/shared";
+import { formatMoney, monthLabel } from "@clubsystem/shared";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatMonth } from "@/lib/calendar";
 import { cn } from "@/lib/utils";
 
 const SERIES = [
@@ -48,7 +47,7 @@ export function FinanceChart({ series }: { series: MonthFinance[] }) {
         </div>
         <div aria-hidden className="mt-2 grid gap-3 text-center text-xs text-muted-foreground" style={columns}>
           {series.map((month) => (
-            <span key={`${month.year}-${month.month}`}>{formatMonth(month.year, month.month, true)}</span>
+            <span key={`${month.year}-${month.month}`}>{monthLabel(month.year, month.month, true)}</span>
           ))}
         </div>
         <Table className="sr-only">
@@ -65,7 +64,7 @@ export function FinanceChart({ series }: { series: MonthFinance[] }) {
           <TableBody>
             {series.map((month) => (
               <TableRow key={`${month.year}-${month.month}`}>
-                <TableCell>{formatMonth(month.year, month.month)}</TableCell>
+                <TableCell>{monthLabel(month.year, month.month)}</TableCell>
                 {SERIES.map((s) => (
                   <TableCell key={s.key}>{formatMoney(month[s.key])}</TableCell>
                 ))}

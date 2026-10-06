@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChangePassword, useProfile, useUpdateProfile } from "@/features/settings/api";
+import { optionalText } from "@/lib/form";
 
 export function ProfileSection() {
   const profile = useProfile();
@@ -21,7 +22,7 @@ export function ProfileSection() {
     update.mutate({
       first_name: String(form.get("first_name")),
       last_name: String(form.get("last_name")),
-      phone: form.get("phone")?.toString() || null,
+      phone: optionalText(form, "phone"),
     });
   }
 

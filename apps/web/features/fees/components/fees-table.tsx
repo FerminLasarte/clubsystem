@@ -1,14 +1,13 @@
 "use client";
 
 import type { FeeOut } from "@clubsystem/api";
-import { formatDateTime, formatMoney, PAYMENT_METHOD_LABELS } from "@clubsystem/shared";
+import { formatDateTime, formatDay, formatMoney, PAYMENT_METHOD_LABELS } from "@clubsystem/shared";
 import { Ban } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useActiveSession } from "@/features/auth/api";
-import { formatCalendarDate } from "@/lib/calendar";
 import { cn } from "@/lib/utils";
 
 import { FeeStatusBadge } from "./fee-status-badge";
@@ -50,7 +49,7 @@ export function FeesTable({ fees, canWrite, onPay, onCancel }: FeesTableProps) {
             <TableCell className="tabular text-right">{formatMoney(fee.amount)}</TableCell>
             <TableCell>
               <span className={cn(fee.is_overdue && "font-medium text-destructive")}>
-                {formatCalendarDate(fee.due_date)}
+                {formatDay(fee.due_date)}
               </span>
               {fee.is_overdue ? (
                 <Badge variant="destructive" className="ml-2">

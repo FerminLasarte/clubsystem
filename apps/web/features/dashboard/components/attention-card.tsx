@@ -1,14 +1,12 @@
 "use client";
 
 import type { LowStockOut } from "@clubsystem/api";
-import { STOCK_UNIT_LABELS } from "@clubsystem/shared";
+import { formatQuantity, pluralize, STOCK_UNIT_LABELS } from "@clubsystem/shared";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useActiveSession } from "@/features/auth/api";
-
-const quantity = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 });
 
 interface AttentionCardProps {
   /** null si el rol no puede ver socios. */
@@ -24,7 +22,7 @@ function LowStock({ lowStock }: { lowStock: LowStockOut }) {
         <p className="font-medium">
           {lowStock.count === 0
             ? "Sin artículos con stock bajo"
-            : `${lowStock.count} ${lowStock.count === 1 ? "artículo" : "artículos"} con stock bajo`}
+            : `${pluralize(lowStock.count, "artículo", "artículos")} con stock bajo`}
         </p>
         <Button variant="link" size="sm" asChild>
           <Link href="/stock">Ir a stock</Link>
@@ -36,7 +34,7 @@ function LowStock({ lowStock }: { lowStock: LowStockOut }) {
             <li key={item.id} className="flex justify-between gap-2">
               <span className="truncate">{item.name}</span>
               <span className="tabular shrink-0 text-warning-foreground">
-                {quantity.format(Number(item.quantity))} / {quantity.format(Number(item.min_quantity))}{" "}
+                {formatQuantity(item.quantity)} / {formatQuantity(item.min_quantity)}{" "}
                 {STOCK_UNIT_LABELS[item.unit]}
               </span>
             </li>
@@ -61,7 +59,7 @@ export function AttentionCard({ pendingRequests, lowStock }: AttentionCardProps)
             <p className="font-medium">
               {pendingRequests === 0
                 ? "Sin solicitudes de socios pendientes"
-                : `${pendingRequests} ${pendingRequests === 1 ? "solicitud pendiente" : "solicitudes pendientes"}`}
+                : pluralize(pendingRequests, "solicitud pendiente", "solicitudes pendientes")}
             </p>
             {pendingRequests > 0 && canSeeMembers ? (
               <Button variant="link" size="sm" asChild>

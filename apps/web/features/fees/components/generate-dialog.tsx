@@ -1,6 +1,7 @@
 "use client";
 
 import type { FeeGenerateOut } from "@clubsystem/api";
+import { monthLabel } from "@clubsystem/shared";
 import { CalendarPlus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
@@ -17,7 +18,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useGenerateFees } from "@/features/fees/api";
-import { formatMonth } from "@/lib/calendar";
 
 function GenerateResult({ result }: { result: FeeGenerateOut }) {
   const rows = [
@@ -41,7 +41,7 @@ function GenerateResult({ result }: { result: FeeGenerateOut }) {
 export function GenerateDialog({ year, month }: { year: number; month: number }) {
   const [open, setOpen] = useState(false);
   const generate = useGenerateFees();
-  const period = formatMonth(year, month);
+  const period = monthLabel(year, month);
 
   function onOpenChange(next: boolean) {
     setOpen(next);

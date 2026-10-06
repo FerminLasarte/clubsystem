@@ -1,11 +1,11 @@
 "use client";
 
+import { isIsoDay, shiftDay } from "@clubsystem/shared";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { isCalendarDate, shiftDay } from "@/lib/calendar";
 
 interface DayNavProps {
   date: string;
@@ -43,7 +43,7 @@ export function DayNav({ date, today, onChange }: DayNavProps) {
         value={date}
         max={today}
         onChange={(event) => {
-          if (isCalendarDate(event.target.value)) onChange(event.target.value);
+          if (isIsoDay(event.target.value)) onChange(event.target.value);
         }}
       />
     </div>

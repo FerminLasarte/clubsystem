@@ -1,7 +1,7 @@
 "use client";
 
 import type { CourtOut } from "@clubsystem/api";
-import { formatMoney, SPORT_LABELS } from "@clubsystem/shared";
+import { COURT_SURFACE_LABELS, formatMoney, SPORT_LABELS } from "@clubsystem/shared";
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,6 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useSetCourtActive } from "@/features/courts/api";
-import { SURFACE_LABELS } from "@/features/courts/labels";
 import { cn } from "@/lib/utils";
 
 interface CourtsTableProps {
@@ -57,7 +56,7 @@ export function CourtsTable({ courts, canEdit, onEdit, onDelete }: CourtsTablePr
               ) : null}
             </TableCell>
             <TableCell>{SPORT_LABELS[court.sport]}</TableCell>
-            <TableCell>{court.surface ? SURFACE_LABELS[court.surface] : "—"}</TableCell>
+            <TableCell>{court.surface ? COURT_SURFACE_LABELS[court.surface] : "—"}</TableCell>
             <TableCell>{court.is_indoor ? "Sí" : "No"}</TableCell>
             <TableCell className="tabular text-right">{court.capacity}</TableCell>
             <TableCell className="tabular text-right">{formatMoney(court.price_member)}</TableCell>

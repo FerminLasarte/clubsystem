@@ -1,6 +1,6 @@
 "use client";
 
-import { todayIn } from "@clubsystem/shared";
+import { isIsoDay, todayIn } from "@clubsystem/shared";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
@@ -8,20 +8,13 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveSession } from "@/features/auth/api";
-import { parseDay } from "@/features/reservations/time";
-import { useUrlParams } from "@/features/reservations/use-url-params";
+import { useUrlParams } from "@/lib/use-url-params";
 
 import { CreateReservationDialog } from "./create-reservation-dialog";
 import { DayView } from "./day-view";
 import { ReservationDetailDialog } from "./reservation-detail-dialog";
 import { ReservationHistory } from "./reservation-history";
 import type { SlotDefaults } from "./slot-fields";
-
-/**
- * components/ui/tabs usa las variantes `data-horizontal`/`data-active` de shadcn, que no están
- * definidas en globals.css (Radix emite data-orientation/data-state): se aplican acá a mano.
- */
-const TRIGGER_CLASS = "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm";
 
 /** Estado de un diálogo que conserva su contenido al cerrar (para la animación de salida). */
 interface DialogState<T> {
@@ -37,7 +30,8 @@ export function ReservationsView() {
 
   const [params, update] = useUrlParams();
   const view = params.get("view") === "history" ? "history" : "grid";
-  const day = parseDay(params.get("date")) ?? today;
+  const requestedDay = params.get("date");
+  const day = isIsoDay(requestedDay) ? requestedDay : today;
 
   const [create, setCreate] = useState<DialogState<SlotDefaults>>({ open: false, value: { day } });
   const [detail, setDetail] = useState<DialogState<string | null>>({ open: false, value: null });
@@ -58,14 +52,10 @@ export function ReservationsView() {
           ) : null
         }
       />
-      <Tabs className="flex-col" value={view} onValueChange={(value) => update({ view: value === "history" ? value : null })}>
-        <TabsList className="h-8">
-          <TabsTrigger value="grid" className={TRIGGER_CLASS}>
-            Grilla
-          </TabsTrigger>
-          <TabsTrigger value="history" className={TRIGGER_CLASS}>
-            Historial
-          </TabsTrigger>
+      <Tabs value={view} onValueChange={(value) => update({ view: value === "history" ? value : null })}>
+        <TabsList>
+          <TabsTrigger value="grid">Grilla</TabsTrigger>
+          <TabsTrigger value="history">Historial</TabsTrigger>
         </TabsList>
         <TabsContent value="grid" className="pt-4">
           <DayView

@@ -1,7 +1,7 @@
 "use client";
 
 import type { CourtCreate, CourtOut, CourtSurface, Sport } from "@clubsystem/api";
-import { SPORT_LABELS } from "@clubsystem/shared";
+import { COURT_SURFACE_LABELS, SPORT_LABELS } from "@clubsystem/shared";
 import type { FormEvent } from "react";
 
 import { FormError } from "@/components/shared/form-error";
@@ -13,16 +13,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateCourt, useUpdateCourt } from "@/features/courts/api";
-import { SURFACE_LABELS } from "@/features/courts/labels";
+import { optionalText } from "@/lib/form";
 
 const SPORTS = Object.keys(SPORT_LABELS) as Sport[];
-const SURFACES = Object.keys(SURFACE_LABELS) as CourtSurface[];
+const SURFACES = Object.keys(COURT_SURFACE_LABELS) as CourtSurface[];
 const NO_SURFACE = "none";
-
-function text(form: FormData, key: string): string | null {
-  const value = form.get(key)?.toString().trim() ?? "";
-  return value === "" ? null : value;
-}
 
 function toBody(form: FormData): CourtCreate {
   const surface = String(form.get("surface"));
@@ -34,8 +29,8 @@ function toBody(form: FormData): CourtCreate {
     capacity: Number(form.get("capacity")),
     price_member: String(form.get("price_member")),
     price_guest: String(form.get("price_guest")),
-    description: text(form, "description"),
-    image_url: text(form, "image_url"),
+    description: optionalText(form, "description"),
+    image_url: optionalText(form, "image_url"),
   };
 }
 
@@ -102,7 +97,7 @@ export function CourtFormDialog({ open, onOpenChange, court }: CourtFormDialogPr
                 <SelectItem value={NO_SURFACE}>Sin especificar</SelectItem>
                 {SURFACES.map((surface) => (
                   <SelectItem key={surface} value={surface}>
-                    {SURFACE_LABELS[surface]}
+                    {COURT_SURFACE_LABELS[surface]}
                   </SelectItem>
                 ))}
               </SelectContent>

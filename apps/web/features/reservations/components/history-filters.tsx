@@ -1,16 +1,14 @@
 "use client";
 
 import type { ReservationStatus } from "@clubsystem/api";
-import { RESERVATION_STATUS_LABELS } from "@clubsystem/shared";
-import { Download } from "lucide-react";
+import { daysBetween, RESERVATION_STATUS_LABELS } from "@clubsystem/shared";
 
+import { ExportButton } from "@/components/shared/export-button";
 import { FormField } from "@/components/shared/form-field";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCourts } from "@/features/courts/api";
-import { exportUrl, type HistoryFilters as Filters } from "@/features/reservations/api";
-import { daysBetween } from "@/features/reservations/time";
+import { exportReservationsCsv, type HistoryFilters as Filters } from "@/features/reservations/api";
 
 const ALL = "all";
 const STATUSES = Object.keys(RESERVATION_STATUS_LABELS) as ReservationStatus[];
@@ -76,17 +74,11 @@ export function HistoryFilters({ filters, onChange }: HistoryFiltersProps) {
         </Select>
       </div>
       <div className="ml-auto grid gap-1">
-        {canExport ? (
-          <Button variant="outline" asChild>
-            <a href={exportUrl(filters.from, filters.to)} download>
-              <Download className="size-4" aria-hidden /> Exportar CSV
-            </a>
-          </Button>
-        ) : (
-          <Button variant="outline" disabled>
-            <Download className="size-4" aria-hidden /> Exportar CSV
-          </Button>
-        )}
+        <ExportButton
+          request={() => exportReservationsCsv(filters.from, filters.to)}
+          filename={`reservas-${filters.from}-${filters.to}.csv`}
+          disabled={!canExport}
+        />
         <p className="text-xs text-muted-foreground">
           {canExport ? "Todas las reservas del rango de fechas." : "El rango máximo para exportar es de un año."}
         </p>

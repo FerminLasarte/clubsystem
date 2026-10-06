@@ -1,8 +1,7 @@
 import type { ReservationOut } from "@clubsystem/api";
-import { formatDate, formatDateTime, formatMoney, formatTime } from "@clubsystem/shared";
+import { CANCEL_REASON_LABELS, formatDate, formatDateTime, formatMoney, formatTime, RESERVATION_SOURCE_LABELS } from "@clubsystem/shared";
 import type { ReactNode } from "react";
 
-import { CANCEL_REASON_LABELS, SOURCE_LABELS } from "@/features/reservations/status";
 import { formatDuration } from "@/features/reservations/time";
 
 import { StatusBadge } from "./status-badge";
@@ -40,7 +39,7 @@ export function ReservationSummary({ reservation: r, timeZone }: { reservation: 
         </span>{" "}
         <span className="text-muted-foreground">({formatDuration(r.duration_minutes)})</span>
       </Item>
-      <Item label="Origen">{SOURCE_LABELS[r.source]}</Item>
+      <Item label="Origen">{RESERVATION_SOURCE_LABELS[r.source]}</Item>
       <Item label="Precio">
         <span className="tabular font-medium">{formatMoney(r.total_price)}</span>
       </Item>
