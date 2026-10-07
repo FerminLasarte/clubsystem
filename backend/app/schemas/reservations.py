@@ -128,6 +128,26 @@ class ReservationCreate(BaseModel):
         return CustomerType.MEMBER if self.membership_id else CustomerType.GUEST
 
 
+class ReservationQuoteQuery(BaseModel):
+    """Datos para cotizar una reserva del panel antes de crearla."""
+
+    court_id: UUID
+    starts_at: AwareDatetime
+    ends_at: AwareDatetime
+    customer_type: CustomerType
+
+    @model_validator(mode="after")
+    def _times(self) -> Self:
+        if self.ends_at <= self.starts_at:
+            raise ValueError("`ends_at` debe ser posterior a `starts_at`.")
+        return self
+
+
+class ReservationQuoteOut(BaseModel):
+    # Tarifa de la cancha para el tipo de cliente por la duración (domain/pricing.py).
+    total_price: Money
+
+
 class ReservationUpdate(BaseModel):
     """
     Solo se modifican los campos enviados. Reprogramar exige `starts_at` y `ends_at` juntos.

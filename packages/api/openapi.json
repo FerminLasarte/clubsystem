@@ -4700,6 +4700,20 @@
         "title": "ReservationOut",
         "type": "object"
       },
+      "ReservationQuoteOut": {
+        "properties": {
+          "total_price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)",
+            "title": "Total Price",
+            "type": "string"
+          }
+        },
+        "required": [
+          "total_price"
+        ],
+        "title": "ReservationQuoteOut",
+        "type": "object"
+      },
       "ReservationSource": {
         "enum": [
           "APP",
@@ -8774,6 +8788,78 @@
           }
         },
         "summary": "Reservation Grid",
+        "tags": [
+          "Admin: reservas"
+        ]
+      }
+    },
+    "/api/v1/admin/reservations/quote": {
+      "get": {
+        "description": "Precio final con la tarifa de la cancha, para mostrarlo antes de crear la reserva.",
+        "operationId": "quote_reservation_api_v1_admin_reservations_quote_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "court_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Court Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "starts_at",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "Starts At",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ends_at",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "Ends At",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "customer_type",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CustomerType"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationQuoteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Quote Reservation",
         "tags": [
           "Admin: reservas"
         ]

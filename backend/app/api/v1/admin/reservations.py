@@ -13,6 +13,8 @@ from app.schemas.reservations import (
     ReservationFilters,
     ReservationGridOut,
     ReservationOut,
+    ReservationQuoteOut,
+    ReservationQuoteQuery,
     ReservationUpdate,
 )
 from app.services.reservations import ReservationService
@@ -48,6 +50,14 @@ async def export_reservations(
     period: Annotated[ExportRange, Query()], ctx: Reader, session: SessionDep
 ) -> Response:
     return await ReservationService(session, ctx).export(period)
+
+
+@router.get("/quote", response_model=ReservationQuoteOut)
+async def quote_reservation(
+    query: Annotated[ReservationQuoteQuery, Query()], ctx: Writer, session: SessionDep
+) -> ReservationQuoteOut:
+    """Precio final con la tarifa de la cancha, para mostrarlo antes de crear la reserva."""
+    return await ReservationService(session, ctx).quote(query)
 
 
 @router.get("/{reservation_id}", response_model=ReservationOut)
