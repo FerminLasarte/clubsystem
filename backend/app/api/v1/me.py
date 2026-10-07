@@ -48,7 +48,7 @@ async def update_profile(
             raise BusinessRuleViolation("Nombre y apellido son obligatorios.")
     for field, value in changes.items():
         setattr(user, field, value)
-    await session.flush()  # DNI duplicado → 409
+    await session.flush()
     return UserOut.model_validate(user)
 
 
