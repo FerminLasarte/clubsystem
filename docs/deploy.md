@@ -97,10 +97,10 @@ Seguí [Verificar el dominio](../README.md#verificar-el-dominio) en el README. A
    curl -s https://api.tudominio.com/health
    ```
 
-   Y que el rate limit no se pueda esquivar falsificando headers. Son 11 logins fallidos, cada uno con una IP inventada distinta:
+   Y que el rate limit no se pueda esquivar falsificando headers. Son 11 logins fallidos, cada uno con una IP inventada distinta y un email distinto (con el mismo email cortaría el límite por email, que no depende de la IP, y la prueba no diría nada):
 
    ```bash
-   for i in $(seq 1 11); do curl -s -o /dev/null -w "%{http_code} " -H "X-Real-IP: 203.0.113.$i" -H "X-Forwarded-For: 203.0.113.$i" -H 'content-type: application/json' -d '{"email":"nadie@example.com","password":"xxxxxxxxxx"}' https://api.tudominio.com/api/v1/auth/mobile/login; done
+   for i in $(seq 1 11); do curl -s -o /dev/null -w "%{http_code} " -H "X-Real-IP: 203.0.113.$i" -H "X-Forwarded-For: 203.0.113.$i" -H 'content-type: application/json' -d "{\"email\":\"nadie$i@example.com\",\"password\":\"xxxxxxxxxx\"}" https://api.tudominio.com/api/v1/auth/mobile/login; done
    ```
 
    El último tiene que dar `429`; los anteriores, `401`. Si nunca aparece el 429, la API está tomando la IP de los headers falsos y hay que revisar `TRUSTED_IP_HEADER` antes de seguir. Tu IP queda bloqueada para ese endpoint durante un minuto.

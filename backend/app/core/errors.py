@@ -40,6 +40,11 @@ class BusinessRuleViolation(DomainError):
     code = "business_rule"
 
 
+class TooManyRequests(DomainError):
+    status_code = 429
+    code = "rate_limited"
+
+
 class ServiceUnavailable(DomainError):
     status_code = 503
     code = "service_unavailable"

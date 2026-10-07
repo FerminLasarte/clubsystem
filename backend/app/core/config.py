@@ -42,6 +42,14 @@ class Settings(BaseSettings):
 
     # Rate limiting de endpoints de autenticación
     AUTH_RATE_LIMIT: str = "10/minute"
+    # Límites por identificador (ver api/rate_limit.py), que se suman al de IP: el login (panel y
+    # app comparten el contador), el registro y "olvidé mi contraseña" van por email; el cambio de
+    # contraseña y el reenvío de la verificación, por usuario.
+    LOGIN_EMAIL_RATE_LIMIT: str = "10/15 minutes"
+    REGISTER_EMAIL_RATE_LIMIT: str = "5/hour"
+    PASSWORD_FORGOT_EMAIL_RATE_LIMIT: str = "3/hour"  # noqa: S105 (es un límite)
+    PASSWORD_CHANGE_USER_RATE_LIMIT: str = "5/15 minutes"  # noqa: S105 (es un límite)
+    VERIFY_RESEND_USER_RATE_LIMIT: str = "3/hour"
     # Contadores del rate limit. memory:// alcanza con una sola instancia; con varias,
     # un Redis compartido de la plataforma, p. ej. redis://redis.railway.internal:6379.
     RATE_LIMIT_STORAGE_URI: str = "memory://"

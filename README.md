@@ -117,7 +117,7 @@ La guía de deploy (Vercel para la web, Railway para la API y Supabase como Post
   - uno para la app, sin ownership y sin `BYPASSRLS`, al que las migraciones le dan permisos (`DB_APP_ROLE`).
 
   Las migraciones corren como paso previo del deploy (`backend/scripts/predeploy.sh`), nunca al arrancar la app. Después, `scripts/check_db.py` verifica roles, RLS y permisos; también corre en la CI.
-- **Proxy y rate limiting.** El límite de intentos es por IP.
+- **Proxy y rate limiting.** El límite de intentos es por IP y, además, por identificador: el login (10 cada 15 min, panel y app juntos), el registro (5 por hora) y "olvidé mi contraseña" (3 por hora) cuentan por email; el cambio de contraseña (5 cada 15 min) y el reenvío de la verificación (3 por hora), por usuario. Los dos límites se suman, y el 429 es el mismo exista o no la cuenta (`backend/app/api/rate_limit.py`).
   - La IP del cliente sale del header que fija la plataforma (`TRUSTED_IP_HEADER`; en Railway, `X-Real-IP`), nunca de `X-Forwarded-For`, que el cliente puede completar. Después del primer deploy hay que verificar que no se pueda falsificar (paso 3 de la guía).
   - El panel llega a la API a través de Vercel. El proxy de Next manda la IP real del usuario firmada con `PROXY_SHARED_SECRET`, que es obligatorio en producción.
   - Con varias instancias, configurá un storage compartido: `RATE_LIMIT_STORAGE_URI=redis://…` (Redis de Railway).
