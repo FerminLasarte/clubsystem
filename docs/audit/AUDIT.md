@@ -1138,13 +1138,13 @@ Instalé Python 3.12 vía `uv`, el venv del backend con poetry, pyright, pip-aud
 
 ---
 
-## Anexo D: estado de la remediación (rama `refactor/fundaciones`)
+## Anexo D: estado de la remediación
 
-El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile se reescribió en paralelo (ver el estado al final de este anexo). Las verificaciones fueron:
+El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile se reescribió en paralelo (ver las filas MOB de la tabla). Las verificaciones fueron:
 - **Backend:** 158 tests de API contra Postgres real con RLS (`FORCE` y rol de app sin privilegios), ruff, pyright 0 y `alembic check`.
 - **Web:** `tsc`, `eslint --max-warnings 0` y `next build` sin errores, y pruebas manuales en el navegador de login, ajustes, socios, stock, novedades, gastos, cuotas, caja, inicio y reservas.
 - **Seguridad:** una revisión independiente posterior a la reescritura encontró 11 puntos. Están corregidos en `af7dfd0`, con tests en `tests/test_hardening.py`.
-- **Integración:** PR [#2](https://github.com/FerminLasarte/clubsystem/pull/2) contra `main`. Es la primera corrida de la CI en GitHub y está en verde en los dos jobs.
+- **Integración:** todo entró a `main` por PR con la CI en verde: [#2](https://github.com/FerminLasarte/clubsystem/pull/2) (reescritura), [#3](https://github.com/FerminLasarte/clubsystem/pull/3) (hosting), [#4](https://github.com/FerminLasarte/clubsystem/pull/4) (e2e), [#5](https://github.com/FerminLasarte/clubsystem/pull/5) (UIScene) y [#6](https://github.com/FerminLasarte/clubsystem/pull/6) (Maestro estable en la CI).
 
 | Hallazgo | Estado | Cómo / dónde |
 |---|---|---|
@@ -1182,7 +1182,8 @@ El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile
 | PLAT-01..05, 07..09 | ✅ | Alembic, seeds, CI, Turbo 2, solo pnpm, tipos generados, README/env y código muerto eliminado |
 | PLAT-06 Funcionalidad sin UI | ✅ | Aprobación de solicitudes e invitaciones de socios, precios socio/invitado en canchas. Las notificaciones se quitaron (decisión) |
 | WEB-01..10 | ✅ | Panel reescrito por feature: TanStack Query, paginación en servidor, Dialog/ConfirmDialog accesibles, tokens semánticos con lint, App Router con `metadata`/`error`/`loading` |
-| MOB-01..08 | ver abajo | Reescritura de la app (Expo, `Stack.Protected`, cliente compartido con refresh y SecureStore, tokens únicos) |
+| MOB-01 | ✅ parcial | `app.config.ts` con `EXPO_PUBLIC_API_URL`, bundle ids y scheme `clubsystem`. Falta `eas.json` con los perfiles de build (ver los pendientes) |
+| MOB-02..08 | ✅ | App reescrita por `features/`: `Stack.Protected`, cliente compartido (timeout de 15 s, 401 → refresh o logout, errores tipados, SecureStore), TanStack Query, disponibilidad y precio desde el backend, recuperación de contraseña real y `shared/theme/tokens.ts` único con modo claro |
 
 **Decisiones de producto e infraestructura (2026-10-06).** Las de producto (1 a 9) están implementadas; quedan pendientes la verificación del dominio de email y el hosting.
 
@@ -1199,7 +1200,7 @@ El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile
 | 9 | Sin ingresos nuevos sobre una reserva cancelada; devoluciones sí | ✅ | 422 `reservation_cancelled` en `CashService.create` |
 | 10 | Email con Resend | ✅ (falta el dominio) | Ver SEC-09 |
 | 11 | Hosting: Vercel (web), Railway (API) y Supabase (Postgres) | ⏳ configuración lista, sin contratar | Railway reemplaza a Render (2026-10-06): el equipo ya paga Railway Hobby y, para una API siempre encendida (los jobs corren en el proceso), el costo es similar. Supabase reemplaza a Neon (2026-10-06): para esta app el costo es similar, porque los jobs cada 60 s impiden que Neon escale a cero, y el equipo ya conoce Supabase. Se usa **solo como Postgres**: ni Supabase Auth ni `supabase-js` desde los clientes. Storage queda como opción para imágenes. Conexión por el pooler en modo sesión (puerto 5432), no en modo transacción (6543), por las prepared statements de asyncpg. En el repo: `backend/railway.json` y `backend/Dockerfile` (migraciones en el pre-deploy, nunca al arrancar), `apps/web/vercel.json`, `scripts/provision_db.py` (roles), `scripts/check_db.py` (roles, RLS y permisos; también en la CI), `scripts/create_club.py` (primer club) y la guía `docs/deploy.md`. La IP del cliente sale de `X-Real-IP` (Railway lo sobrescribe) o del header firmado del proxy de Next, nunca de `X-Forwarded-For`. Verificado contra la imagen de Supabase en local (`supabase start`: Postgres 17.11.0.004 y Supavisor 2.9.13 en modo sesión; no hubo cupo para un proyecto gratis). `postgres` no es superusuario pero tiene `CREATEROLE` y `BYPASSRLS`, así que crea los dos roles. Las migraciones aplican con `alembic check` limpio, `check_db.py` da OK, y los 163 tests pasan con los roles nuevos a través del pooler. `anon`, `authenticated` y `service_role` no pueden leer las tablas ni ejecutar las funciones `SECURITY DEFINER`. Falta repetirlo contra el proyecto real (red y SSL de Supabase), antes de crear el primer club |
-| 12 | Integración por PR contra `main` con CI en verde | ✅ | PR #2 en verde, sin mergear |
+| 12 | Integración por PR contra `main` con CI en verde | ✅ | PRs #2 a #6 mergeados con merge commit (el repo no permite auto-merge) |
 
 **Pendientes técnicos:**
 - Verificar el dominio de envío en Resend y cargar `RESEND_API_KEY` y `EMAIL_FROM` reales (pasos en el README). El envío real todavía no se probó contra la API de Resend: los tests la simulan.
@@ -1208,6 +1209,7 @@ El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile
 - Tests de frontend: hay e2e de humo (ver `docs/e2e.md`). Playwright prueba el panel en cada PR (job `e2e-web`) y Maestro prueba la app en un simulador de iOS, a mano o cada noche (`e2e-mobile.yml`). Faltan tests de componentes.
 - Endpoint de cotización de precio antes de reservar en el panel.
 - `pnpm audit`: sacar la excepción de las dos CVE de Expo cuando haya versiones parcheadas.
+- Builds de release de la app (MOB-01): `eas.json` con perfiles de desarrollo, staging y producción. Necesita las cuentas de Expo y de Apple/Google, y una URL HTTPS de la API.
 - E2E mobile en la CI con Xcode 27: en local ya corren con Xcode 27 e iOS 27, pero la CI sigue en Xcode 26 porque el runner `macos-26` no lo trae. Pasar a `runs-on: xcode-27` cuando esa imagen salga de preview (`docs/e2e.md`, "Versiones de Xcode e iOS").
 - Expo SDK 58 (hoy en beta, con React Native 0.88 en RC): al actualizar, sacar `apps/mobile/plugins/withSceneLifecycle.js`, que el plugin hace fallar a propósito con SDK ≥ 58. Ese plugin adopta UIScene en SDK 57, porque con el SDK de iOS 27 la app se cerraba al abrir (Apple TN3187), y usa el `ExpoAppSceneDelegate` que ya trae `expo` 57.0.26. El SDK de iOS 27 va a ser obligatorio para publicar en la App Store.
 
