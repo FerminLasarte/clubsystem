@@ -726,6 +726,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/reservations/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Quote Reservation
+         * @description Precio final con la tarifa de la cancha, para mostrarlo antes de crear la reserva.
+         */
+        get: operations["quote_reservation_api_v1_admin_reservations_quote_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/reservations/{reservation_id}": {
         parameters: {
             query?: never;
@@ -3001,6 +3021,11 @@ export interface components {
             /** User Id */
             user_id: string | null;
         };
+        /** ReservationQuoteOut */
+        ReservationQuoteOut: {
+            /** Total Price */
+            total_price: string;
+        };
         /**
          * ReservationSource
          * @enum {string}
@@ -3498,6 +3523,7 @@ export type RegisterRequest = components['schemas']['RegisterRequest'];
 export type ReservationCreate = components['schemas']['ReservationCreate'];
 export type ReservationGridOut = components['schemas']['ReservationGridOut'];
 export type ReservationOut = components['schemas']['ReservationOut'];
+export type ReservationQuoteOut = components['schemas']['ReservationQuoteOut'];
 export type ReservationSource = components['schemas']['ReservationSource'];
 export type ReservationStatus = components['schemas']['ReservationStatus'];
 export type ReservationUpdate = components['schemas']['ReservationUpdate'];
@@ -5149,6 +5175,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReservationGridOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quote_reservation_api_v1_admin_reservations_quote_get: {
+        parameters: {
+            query: {
+                court_id: string;
+                starts_at: string;
+                ends_at: string;
+                customer_type: components["schemas"]["CustomerType"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReservationQuoteOut"];
                 };
             };
             /** @description Validation Error */

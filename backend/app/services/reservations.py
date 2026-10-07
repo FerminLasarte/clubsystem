@@ -68,6 +68,8 @@ from app.schemas.reservations import (
     ReservationFilters,
     ReservationGridOut,
     ReservationOut,
+    ReservationQuoteOut,
+    ReservationQuoteQuery,
     ReservationUpdate,
     SlotOut,
 )
@@ -111,9 +113,13 @@ async def _lock_bookable_court(session: AsyncSession, court_id: UUID, club_id: U
     ).scalar_one_or_none()
     if court is None:
         raise NotFound("Cancha no encontrada.")
+    _check_bookable(court)
+    return court
+
+
+def _check_bookable(court: Court) -> None:
     if not court.is_active:
         raise BusinessRuleViolation("La cancha no está habilitada.", code="court_inactive")
-    return court
 
 
 def _check_hours(club: Club, starts_at: datetime, ends_at: datetime) -> Interval:
@@ -324,6 +330,15 @@ class ReservationService:
         if row is None:
             raise NotFound("Reserva no encontrada.")
         return _staff_out(row)
+
+    async def quote(self, data: ReservationQuoteQuery) -> ReservationQuoteOut:
+        """Precio de tarifa antes de crear. El horario y el solapamiento los valida `create`."""
+        court = await get_scoped(
+            self.db, Court, data.court_id, self.ctx.club_id, not_found="Cancha no encontrada."
+        )
+        _check_bookable(court)
+        minutes = _minutes(data.starts_at, data.ends_at)
+        return ReservationQuoteOut(total_price=_price(court, data.customer_type, minutes))
 
     async def create(self, data: ReservationCreate) -> UUID:
         court = await _lock_bookable_court(self.db, data.court_id, self.ctx.club_id)

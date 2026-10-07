@@ -1,12 +1,13 @@
 import {
   unwrap,
+  type CustomerType,
   type ReservationCreate,
   type ReservationOut,
   type ReservationStatus,
   type ReservationUpdate,
 } from "@clubsystem/api";
 import { formatMoney } from "@clubsystem/shared";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { api } from "@/lib/api";
@@ -21,6 +22,13 @@ export interface HistoryFilters {
   page: number;
 }
 
+export interface QuoteParams {
+  court_id: string;
+  starts_at: string;
+  ends_at: string;
+  customer_type: CustomerType;
+}
+
 export const reservationKeys = {
   all: ["reservations"] as const,
   grid: (day: string) => ["reservations", "grid", day] as const,
@@ -28,6 +36,7 @@ export const reservationKeys = {
   history: (filters: HistoryFilters) => ["reservations", "history", filters] as const,
   detail: (id: string) => ["reservations", "detail", id] as const,
   memberSearch: (search: string) => ["reservations", "member-search", search] as const,
+  quote: (params: QuoteParams | null) => ["reservations", "quote", params] as const,
 };
 
 export function useReservationGrid(day: string) {
@@ -96,6 +105,18 @@ export function useMemberSearch(search: string) {
       ),
     enabled: search.length >= 2,
     select: (page) => page.items,
+  });
+}
+
+/** Precio de tarifa de una reserva antes de crearla (lo calcula el backend). `null` mientras falten datos. */
+export function useReservationQuote(params: QuoteParams | null) {
+  return useQuery({
+    queryKey: reservationKeys.quote(params),
+    queryFn: params
+      ? () => unwrap(api.GET("/api/v1/admin/reservations/quote", { params: { query: params } }))
+      : skipToken,
+    placeholderData: keepPreviousData,
+    select: (quote) => quote.total_price,
   });
 }
 

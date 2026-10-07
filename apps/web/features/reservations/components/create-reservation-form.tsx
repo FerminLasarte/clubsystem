@@ -1,6 +1,7 @@
 "use client";
 
-import type { MemberOut, ReservationCreate } from "@clubsystem/api";
+import { errorMessage, type MemberOut, type ReservationCreate } from "@clubsystem/api";
+import { formatMoney } from "@clubsystem/shared";
 import { useState, type FormEvent } from "react";
 
 import { FormError } from "@/components/shared/form-error";
@@ -12,11 +13,18 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useActiveSession } from "@/features/auth/api";
-import { useCreateReservation } from "@/features/reservations/api";
+import { useCreateReservation, useReservationQuote } from "@/features/reservations/api";
 import { optionalText } from "@/lib/form";
 
 import { MemberPicker } from "./member-picker";
-import { readSlot, SlotFields, type SlotDefaults } from "./slot-fields";
+import {
+  completeSlot,
+  readSlot,
+  readSlotValues,
+  SlotFields,
+  slotValuesFromDefaults,
+  type SlotDefaults,
+} from "./slot-fields";
 
 type Customer = "member" | "guest";
 
@@ -36,6 +44,11 @@ export function CreateReservationForm({ defaults, onCreated }: CreateReservation
   const [customer, setCustomer] = useState<Customer>("member");
   const [member, setMember] = useState<MemberOut | null>(null);
   const [overridePrice, setOverridePrice] = useState(false);
+  // Cancha, fecha, hora y duración actuales, para cotizar antes de crear.
+  const [slotValues, setSlotValues] = useState(() => slotValuesFromDefaults(defaults));
+  const slot = completeSlot(slotValues, active_club.timezone);
+  const customerType = customer === "member" ? "MEMBER" : "GUEST";
+  const quote = useReservationQuote(slot && { ...slot, customer_type: customerType });
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,7 +67,11 @@ export function CreateReservationForm({ defaults, onCreated }: CreateReservation
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
+    <form
+      onSubmit={onSubmit}
+      onChange={(event) => setSlotValues(readSlotValues(new FormData(event.currentTarget)))}
+      className="grid gap-4 sm:grid-cols-2"
+    >
       <SlotFields defaults={defaults} />
       <fieldset className="grid gap-3 sm:col-span-2">
         <legend className="mb-2 text-sm font-medium">Cliente</legend>
@@ -77,10 +94,12 @@ export function CreateReservationForm({ defaults, onCreated }: CreateReservation
         )}
       </fieldset>
       <div className="grid gap-2 rounded-md bg-muted px-3 py-2 text-sm sm:col-span-2">
-        <p className="text-muted-foreground">
-          El precio lo calcula el sistema con la tarifa de la cancha ({customer === "member" ? "socio" : "invitado"}) y la
-          duración. Lo vas a ver al crear la reserva.
-        </p>
+        <QuotePreview
+          quote={quote}
+          ready={slot !== null}
+          rateLabel={customer === "member" ? "socio" : "invitado"}
+          overridden={overridePrice}
+        />
         <Label className="font-normal">
           <Checkbox checked={overridePrice} onCheckedChange={(checked) => setOverridePrice(checked === true)} />
           Cobrar un precio distinto
@@ -102,5 +121,31 @@ export function CreateReservationForm({ defaults, onCreated }: CreateReservation
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+interface QuotePreviewProps {
+  quote: ReturnType<typeof useReservationQuote>;
+  ready: boolean;
+  rateLabel: string;
+  overridden: boolean;
+}
+
+/** Precio que calcula el backend con la tarifa de la cancha, antes de crear la reserva. */
+function QuotePreview({ quote, ready, rateLabel, overridden }: QuotePreviewProps) {
+  if (!ready) return <p className="text-muted-foreground">Elegí cancha, fecha y hora para ver el precio.</p>;
+  if (quote.isError) {
+    return (
+      <p role="alert" className="text-destructive">
+        No pudimos calcular el precio: {errorMessage(quote.error)}
+      </p>
+    );
+  }
+  if (quote.data === undefined) return <p className="text-muted-foreground">Calculando el precio…</p>;
+  return (
+    <p aria-live="polite" className={quote.isPlaceholderData ? "opacity-60" : undefined}>
+      Precio con la tarifa de {rateLabel}: <span className="font-medium">{formatMoney(quote.data)}</span>
+      {overridden ? <span className="text-muted-foreground"> · Se cobra el precio que cargues.</span> : null}
+    </p>
   );
 }

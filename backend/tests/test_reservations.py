@@ -225,6 +225,80 @@ async def test_reservation_permissions(client: httpx.AsyncClient, factory: Facto
         },
     )
     assert created.status_code == 403
+    quote = await client.get(
+        f"{ADMIN}/quote",
+        params={
+            "court_id": str(court.id),
+            "customer_type": "GUEST",
+            "starts_at": "2030-01-01T10:00:00-03:00",
+            "ends_at": "2030-01-01T11:00:00-03:00",
+        },
+    )
+    assert quote.status_code == 403
+
+
+async def test_staff_quotes_the_price_before_creating(
+    client: httpx.AsyncClient, factory: Factory
+) -> None:
+    club = await _open_club(factory)
+    manager, _ = await factory.staff(club, roles=[StaffRole.RESERVATIONS_MANAGER])
+    court = await factory.court(club)
+    inactive = await factory.court(club, is_active=False)
+    day = future_day(club)
+    await login_web(client, manager)
+
+    def params(**kw: str) -> dict[str, str]:
+        return {
+            "court_id": str(court.id),
+            "customer_type": "MEMBER",
+            "starts_at": at(club, day, 18).isoformat(),
+            "ends_at": at(club, day, 19, 30).isoformat(),
+            **kw,
+        }
+
+    member = await client.get(f"{ADMIN}/quote", params=params())
+    assert member.status_code == 200, member.text
+    assert member.json() == {"total_price": "12000.00"}  # 8000/h de socio × 1,5 h
+    guest = await client.get(f"{ADMIN}/quote", params=params(customer_type="GUEST"))
+    assert guest.json() == {"total_price": "18000.00"}  # 12000/h de invitado × 1,5 h
+
+    # Cotiza el precio igual que al crear y no reserva nada.
+    created = await client.post(
+        ADMIN,
+        json={
+            "court_id": str(court.id),
+            "guest_name": "Invitado",
+            "starts_at": at(club, day, 18).isoformat(),
+            "ends_at": at(club, day, 19, 30).isoformat(),
+        },
+    )
+    assert created.json()["total_price"] == guest.json()["total_price"]
+    listed = await client.get(ADMIN, params={"date": day.isoformat()})
+    assert listed.json()["total"] == 1
+
+    # Horario y solapamiento los valida la creación, no la cotización.
+    overlapping = await client.get(f"{ADMIN}/quote", params=params())
+    assert overlapping.status_code == 200
+    late = await client.get(
+        f"{ADMIN}/quote",
+        params=params(
+            starts_at=at(club, day, 23).isoformat(),
+            ends_at=at(club, day + timedelta(days=1), 0).isoformat(),
+        ),
+    )
+    assert late.status_code == 200
+
+    off = await client.get(f"{ADMIN}/quote", params=params(court_id=str(inactive.id)))
+    assert off.status_code == 422
+    assert off.json()["error"]["code"] == "court_inactive"
+    backwards = await client.get(
+        f"{ADMIN}/quote", params=params(ends_at=at(club, day, 18).isoformat())
+    )
+    assert backwards.status_code == 422
+    naive = await client.get(f"{ADMIN}/quote", params=params(starts_at="2030-01-01T10:00:00"))
+    assert naive.status_code == 422
+    unknown = await client.get(f"{ADMIN}/quote", params=params(customer_type="VIP"))
+    assert unknown.status_code == 422
 
 
 async def test_staff_reservation_validations(client: httpx.AsyncClient, factory: Factory) -> None:
@@ -311,6 +385,10 @@ async def test_staff_cannot_use_resources_of_another_club(
         ADMIN, json={"court_id": str(court_a.id), "membership_id": str(membership_b.id), **times}
     )
     assert with_member_b.status_code == 404
+    quote_b = await client.get(
+        f"{ADMIN}/quote", params={"court_id": str(court_b.id), "customer_type": "GUEST", **times}
+    )
+    assert quote_b.status_code == 404
 
     rid = reservation_b.id
     assert (await client.get(f"{ADMIN}/{rid}")).status_code == 404

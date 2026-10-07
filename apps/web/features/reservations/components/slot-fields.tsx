@@ -9,6 +9,7 @@ import { useCourts } from "@/features/courts/api";
 import { formatDuration } from "@/features/reservations/time";
 
 const DURATIONS = [30, 60, 90, 120, 150, 180, 210, 240];
+const DEFAULT_DURATION = 60;
 
 export interface SlotDefaults {
   courtId?: string;
@@ -21,7 +22,7 @@ export interface SlotDefaults {
 export function SlotFields({ defaults }: { defaults: SlotDefaults }) {
   const courts = useCourts();
   const active = courts.data?.filter((court) => court.is_active) ?? [];
-  const duration = defaults.duration ?? 60;
+  const duration = defaults.duration ?? DEFAULT_DURATION;
   const durations = DURATIONS.includes(duration) ? DURATIONS : [...DURATIONS, duration].sort((a, b) => a - b);
 
   return (
@@ -62,13 +63,48 @@ export function SlotFields({ defaults }: { defaults: SlotDefaults }) {
   );
 }
 
+/** Valores de `SlotFields` tal como están en el formulario (vacíos mientras no se eligen). */
+export interface SlotValues {
+  courtId: string;
+  day: string;
+  time: string;
+  duration: number;
+}
+
+export function slotValuesFromDefaults(defaults: SlotDefaults): SlotValues {
+  return {
+    courtId: defaults.courtId ?? "",
+    day: defaults.day,
+    time: defaults.time ?? "",
+    duration: defaults.duration ?? DEFAULT_DURATION,
+  };
+}
+
+export function readSlotValues(form: FormData): SlotValues {
+  return {
+    courtId: String(form.get("court_id") ?? ""),
+    day: String(form.get("day") ?? ""),
+    time: String(form.get("time") ?? ""),
+    duration: Number(form.get("duration")),
+  };
+}
+
+/** Arma el intervalo en UTC según la zona del club. */
+function toSlot({ courtId, day, time, duration }: SlotValues, timeZone: string) {
+  const startsAt = zonedToIso(day, time, timeZone);
+  return {
+    court_id: courtId,
+    starts_at: startsAt,
+    ends_at: new Date(Date.parse(startsAt) + duration * 60_000).toISOString(),
+  };
+}
+
 /** Lee los campos de `SlotFields` y arma el intervalo en UTC según la zona del club. */
 export function readSlot(form: FormData, timeZone: string) {
-  const startsAt = zonedToIso(String(form.get("day")), String(form.get("time")), timeZone);
-  const minutes = Number(form.get("duration"));
-  return {
-    court_id: String(form.get("court_id")),
-    starts_at: startsAt,
-    ends_at: new Date(Date.parse(startsAt) + minutes * 60_000).toISOString(),
-  };
+  return toSlot(readSlotValues(form), timeZone);
+}
+
+/** Como `readSlot`, pero `null` mientras falte la cancha, la fecha o la hora. */
+export function completeSlot(values: SlotValues, timeZone: string) {
+  return values.courtId && values.day && values.time ? toSlot(values, timeZone) : null;
 }
