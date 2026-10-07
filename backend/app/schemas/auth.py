@@ -29,7 +29,6 @@ class RegisterRequest(BaseModel):
     first_name: Name
     last_name: Name
     phone: Annotated[str, StringConstraints(strip_whitespace=True, max_length=50)] | None = None
-    dni: Dni | None = None
     birth_date: date | None = None
     gender: Gender | None = None
 

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from sqlalchemy import select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -32,7 +33,7 @@ from app.services.email import send_email, web_link
 
 logger = logging.getLogger(__name__)
 
-_INVALID_CREDENTIALS = "Email o contraseña incorrectos."
+_INVALID_CREDENTIALS = "Email o contraseña incorrectos, o el email todavía no está confirmado."
 _VERIFY_TTL = timedelta(days=2)
 _RESET_TTL = timedelta(hours=1)
 _ACCOUNT_SETUP_TTL = timedelta(days=7)
@@ -58,13 +59,17 @@ class AuthService:
     # ── Credenciales ────────────────────────────────────────────────────────
 
     async def authenticate(self, email: str, password: str) -> User:
-        """Email + contraseña. El mismo error y el mismo tiempo si el usuario no existe."""
+        """
+        Email + contraseña. El mismo error y el mismo tiempo si el usuario no existe.
+        Exige el email confirmado, con el mismo error: si no, registrar un email ajeno y entrar
+        con esa contraseña revelaría si la cuenta ya existía.
+        """
         user = (
             await self.db.execute(select(User).where(User.email == normalize_email(email)))
         ).scalar_one_or_none()
 
         valid = await verify_password(password, user.password_hash if user else None)
-        if user is None or not valid or not user.is_active:
+        if user is None or not valid or not user.is_active or not user.email_verified:
             raise Unauthorized(_INVALID_CREDENTIALS, code="invalid_credentials")
 
         user.last_login_at = utcnow()
@@ -192,21 +197,51 @@ class AuthService:
 
     # ── Registro y verificación de email ────────────────────────────────────
 
-    async def register(self, data: RegisterRequest) -> User:
-        user = User(
-            email=normalize_email(data.email),
-            password_hash=await hash_password(data.password),
-            first_name=data.first_name,
-            last_name=data.last_name,
-            phone=data.phone,
-            dni=data.dni,
-            birth_date=data.birth_date,
-            gender=data.gender,
+    async def register(self, data: RegisterRequest) -> None:
+        """
+        Responde igual y hace el mismo trabajo exista o no el email (un hash de bcrypt, un token
+        y un email en segundo plano), para no revelar qué cuentas existen. Una cuenta existente
+        no se toca: se le avisa por email con un enlace para elegir contraseña, que además
+        confirma el email (sirve si nunca lo confirmó o si la registró otra persona).
+        """
+        email = normalize_email(data.email)
+        password_hash = await hash_password(data.password)
+        user = (
+            await self.db.scalars(
+                insert(User)
+                .values(
+                    email=email,
+                    password_hash=password_hash,
+                    first_name=data.first_name,
+                    last_name=data.last_name,
+                    phone=data.phone,
+                    birth_date=data.birth_date,
+                    gender=data.gender,
+                )
+                .on_conflict_do_nothing(index_elements=[User.email])
+                .returning(User)
+            )
+        ).one_or_none()
+        if user is not None:
+            await self.send_verification(user)
+            return
+
+        existing = (
+            await self.db.execute(select(User).where(User.email == email))
+        ).scalar_one_or_none()
+        if existing is None or not existing.is_active:
+            return
+        link = await self._password_link(existing, _RESET_TTL)
+        await send_email(
+            existing.email,
+            "Ya tenés una cuenta en ClubSystem",
+            f"Hola {existing.first_name}, alguien (probablemente vos) intentó crear una cuenta "
+            "con este email, pero ya tenés una.\n"
+            "Si no recordás tu contraseña o todavía no confirmaste tu email, elegí una nueva "
+            f"acá: {link}\n"
+            "El enlace vence en 1 hora. Si no fuiste vos, ignorá este mensaje: tu cuenta sigue "
+            "igual.",
         )
-        self.db.add(user)
-        await self.db.flush()  # dispara las constraints de unicidad acá (→ 409)
-        await self.send_verification(user)
-        return user
 
     async def send_verification(self, user: User) -> None:
         if user.email_verified:
@@ -215,7 +250,10 @@ class AuthService:
         await send_email(
             user.email,
             "Confirmá tu email",
-            f"Hola {user.first_name}, confirmá tu email: {web_link(f'/verify-email?token={raw}')}",
+            f"Hola {user.first_name}, confirmá tu email para activar tu cuenta: "
+            f"{web_link(f'/verify-email?token={raw}')}\n"
+            "El enlace vence en 2 días. Si no creaste una cuenta en ClubSystem, ignorá este "
+            "mensaje.",
         )
 
     async def verify_email(self, raw_token: str) -> None:
@@ -233,25 +271,21 @@ class AuthService:
         ).scalar_one_or_none()
         if user is None or not user.is_active:
             return
-        raw = await self._new_one_time_token(user, OneTimeTokenPurpose.RESET_PASSWORD, _RESET_TTL)
+        link = await self._password_link(user, _RESET_TTL)
         await send_email(
             user.email,
             "Restablecer contraseña",
-            f"Para elegir una contraseña nueva: {web_link(f'/reset-password?token={raw}')}\n"
-            "Si no lo pediste, ignorá este mensaje.",
+            f"Para elegir una contraseña nueva: {link}\nSi no lo pediste, ignorá este mensaje.",
         )
 
     async def send_account_setup(self, user: User, club_name: str) -> None:
         """Cuenta creada por el staff de un club: la persona elige su contraseña con el link."""
-        raw = await self._new_one_time_token(
-            user, OneTimeTokenPurpose.RESET_PASSWORD, _ACCOUNT_SETUP_TTL
-        )
+        link = await self._password_link(user, _ACCOUNT_SETUP_TTL)
         await send_email(
             user.email,
             f"Ya sos socio de {club_name}",
             f"Hola {user.first_name}, {club_name} te dio de alta como socio en ClubSystem.\n"
-            f"Elegí tu contraseña para entrar a la app: "
-            f"{web_link(f'/reset-password?token={raw}')}\n"
+            f"Elegí tu contraseña para entrar a la app: {link}\n"
             "El enlace vence en 7 días.",
         )
 
@@ -319,6 +353,11 @@ class AuthService:
             )
         )
         return raw
+
+    async def _password_link(self, user: User, ttl: timedelta) -> str:
+        """Enlace para elegir contraseña (reset). Al usarlo, el email queda confirmado."""
+        raw = await self._new_one_time_token(user, OneTimeTokenPurpose.RESET_PASSWORD, ttl)
+        return web_link(f"/reset-password?token={raw}")
 
     async def _consume_one_time_token(
         self, raw_token: str, purpose: OneTimeTokenPurpose

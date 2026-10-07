@@ -1079,7 +1079,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Register */
+        /**
+         * Register
+         * @description Misma respuesta exista o no el email; no abre sesión (se entra después de confirmarlo).
+         */
         post: operations["register_api_v1_auth_register_post"];
         delete?: never;
         options?: never;
@@ -2878,8 +2881,6 @@ export interface components {
         RegisterRequest: {
             /** Birth Date */
             birth_date?: string | null;
-            /** Dni */
-            dni?: string | null;
             /**
              * Email
              * Format: email
@@ -5880,12 +5881,12 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
-            201: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MobileSessionOut"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

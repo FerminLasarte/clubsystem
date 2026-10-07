@@ -35,6 +35,7 @@ from app.models import (
     StockItem,
     User,
 )
+from app.services.auth import AuthService, ClientInfo
 
 PASSWORD = "contraseña-segura-123"
 # bcrypt con costo bajo: solo para tests.
@@ -70,6 +71,17 @@ class Factory:
             "email_verified_at": datetime.now(UTC),
         }
         return await self._save(User(**{**defaults, **kw}))
+
+    async def mobile_headers(self, user: User) -> dict[str, str]:
+        """
+        Bearer de una sesión emitida sin pasar por el login, que exige el email confirmado.
+        Sirve para una cuenta sin confirmar con una sesión anterior a esa regla.
+        """
+        tokens = await AuthService(self.session).start_session(
+            user, client="mobile", info=ClientInfo(user_agent=None, ip=None)
+        )
+        await self.session.commit()
+        return {"authorization": f"Bearer {tokens.access_token}"}
 
     async def staff(
         self, club: Club, user: User | None = None, roles: list[StaffRole] | None = None
