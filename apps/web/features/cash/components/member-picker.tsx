@@ -6,7 +6,6 @@ import { useState } from "react";
 
 import { FormField } from "@/components/shared/form-field";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { useMemberSearch } from "@/features/cash/api";
 
 import { useDebouncedValue } from "@/lib/use-debounced-value";
@@ -44,9 +43,10 @@ export function MemberPicker() {
   const debounced = useDebouncedValue(search);
 
   if (selected) {
+    // Sin campo editable: "Socio" titula el grupo en vez de ser un <label> sin control.
     return (
-      <div className="grid gap-1.5">
-        <Label>Socio</Label>
+      <fieldset>
+        <legend className="mb-1.5 text-sm leading-none font-medium">Socio</legend>
         <input type="hidden" name="membership_id" value={selected.id} />
         <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-1.5 text-sm">
           <span className="truncate">{memberLabel(selected)}</span>
@@ -60,7 +60,7 @@ export function MemberPicker() {
             <X className="size-4" aria-hidden />
           </Button>
         </div>
-      </div>
+      </fieldset>
     );
   }
 

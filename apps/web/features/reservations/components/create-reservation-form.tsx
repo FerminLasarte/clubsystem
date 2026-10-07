@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useActiveSession } from "@/features/auth/api";
 import { useCreateReservation, useReservationQuote } from "@/features/reservations/api";
@@ -75,7 +75,7 @@ export function CreateReservationForm({ defaults, onCreated }: CreateReservation
       <SlotFields defaults={defaults} />
       <fieldset className="grid gap-3 sm:col-span-2">
         <legend className="mb-2 text-sm font-medium">Cliente</legend>
-        <Tabs value={customer} onValueChange={(value) => setCustomer(value === "guest" ? "guest" : "member")}>
+        <Tabs value={customer} onValueChange={(value) => setCustomer(value === "guest" ? "guest" : "member")} className="gap-3">
           <TabsList aria-label="Tipo de cliente">
             {CUSTOMERS.map(({ value, label }) => (
               <TabsTrigger key={value} value={value}>
@@ -83,15 +83,14 @@ export function CreateReservationForm({ defaults, onCreated }: CreateReservation
               </TabsTrigger>
             ))}
           </TabsList>
-        </Tabs>
-        {customer === "member" ? (
-          <MemberPicker value={member} onChange={setMember} />
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <TabsContent value="member">
+            <MemberPicker value={member} onChange={setMember} />
+          </TabsContent>
+          <TabsContent value="guest" className="grid gap-4 sm:grid-cols-2">
             <FormField id="guest_name" label="Nombre del invitado" required maxLength={200} />
             <FormField id="guest_phone" label="Teléfono" type="tel" maxLength={50} />
-          </div>
-        )}
+          </TabsContent>
+        </Tabs>
       </fieldset>
       <div className="grid gap-2 rounded-md bg-muted px-3 py-2 text-sm sm:col-span-2">
         <QuotePreview

@@ -2,7 +2,7 @@ import type { MonthFinance } from "@clubsystem/api";
 import { formatMoney, monthLabel } from "@clubsystem/shared";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 const SERIES = [
@@ -50,7 +50,8 @@ export function FinanceChart({ series }: { series: MonthFinance[] }) {
             <span key={`${month.year}-${month.month}`}>{monthLabel(month.year, month.month, true)}</span>
           ))}
         </div>
-        <Table className="sr-only">
+        {/* <table> nativo: el contenedor con scroll de <Table> no se puede ocultar del todo. */}
+        <table className="sr-only">
           <caption>Ingresos, egresos de caja, gastos, resultado y caja por mes</caption>
           <TableHeader>
             <TableRow>
@@ -74,7 +75,7 @@ export function FinanceChart({ series }: { series: MonthFinance[] }) {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </table>
       </CardContent>
     </Card>
   );
