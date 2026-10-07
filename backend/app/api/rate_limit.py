@@ -1,6 +1,6 @@
 """
-IP del cliente, para el rate limit y las sesiones, y limitador por IP para endpoints sensibles
-(login, registro, reset).
+IP del cliente, para el rate limit y las sesiones; limitador por IP para endpoints sensibles
+(login, registro, reset) y límite por identificador (email o usuario) que se suma al de IP.
 
 De dónde sale la IP, en orden:
   1. Panel: llega a través del proxy de Next en Vercel, así que la conexión es de Vercel y
@@ -15,16 +15,35 @@ Los contadores van en memoria del proceso salvo que RATE_LIMIT_STORAGE_URI apunt
 compartido (necesario con varias instancias). Ojo: slowapi consulta el storage en forma
 sincrónica; con Redis en la red privada de la plataforma es ~1 ms por request limitado.
 Si Redis no responde, se sigue con contadores en memoria.
+
+Límite por identificador (`limit_email`, `limit_user`): el de IP no frena a un atacante que
+reparte los intentos contra una misma cuenta entre muchas IPs. Va en el handler porque la clave
+sale del body. Primero corta el de IP (el decorador): un pedido que este rechaza no consume
+intentos del email. Para no revelar si una cuenta existe:
+  - se cuenta cada intento antes de buscar al usuario o verificar la contraseña, exista o no la
+    cuenta y salga bien o mal; así el 429 sale sin tocar la base ni bcrypt, en el mismo tiempo;
+  - el 429 es idéntico al del límite por IP;
+  - en el storage queda un hash del email, no el email.
 """
 
+import hashlib
 import hmac
 import ipaddress
+import logging
+from uuid import UUID
 
+from limits import parse
+from limits.storage import MemoryStorage
+from limits.strategies import FixedWindowRateLimiter
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.requests import Request
 
 from app.core.config import get_settings
+from app.core.errors import TooManyRequests
+from app.core.security import normalize_email
+
+logger = logging.getLogger(__name__)
 
 CLIENT_IP_HEADER = "x-clubsystem-client-ip"
 PROXY_SECRET_HEADER = "x-clubsystem-proxy-secret"  # noqa: S105 (nombre del header)
@@ -60,3 +79,32 @@ limiter = Limiter(
 
 def auth_limit() -> str:
     return get_settings().AUTH_RATE_LIMIT
+
+
+RATE_LIMITED_MESSAGE = "Demasiados intentos. Probá de nuevo en unos minutos."
+
+# Respaldo si el storage compartido no responde (slowapi tiene el suyo para el límite por IP).
+_fallback = FixedWindowRateLimiter(MemoryStorage())
+
+
+def _limit_identifier(scope: str, identifier: str, limit: str) -> None:
+    item = parse(limit)
+    key = hashlib.sha256(identifier.encode()).hexdigest()
+    backend = limiter.limiter
+    try:
+        allowed = backend.hit(item, "identifier", scope, key)
+    except backend.storage.base_exceptions:
+        logger.warning("Storage del rate limit inaccesible: límite por identificador en memoria")
+        allowed = _fallback.hit(item, "identifier", scope, key)
+    if not allowed:
+        raise TooManyRequests(RATE_LIMITED_MESSAGE)
+
+
+def limit_email(scope: str, email: str, limit: str) -> None:
+    """Cuenta un intento para el email y responde 429 si se pasa de `limit`."""
+    _limit_identifier(scope, normalize_email(email), limit)
+
+
+def limit_user(scope: str, user_id: UUID, limit: str) -> None:
+    """Cuenta un intento del usuario autenticado y responde 429 si se pasa de `limit`."""
+    _limit_identifier(scope, str(user_id), limit)

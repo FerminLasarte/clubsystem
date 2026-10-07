@@ -1153,7 +1153,7 @@ El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile
 | SEC-03 Roles solo en el JWT | ✅ | Los roles se leen de `club_staff` en cada request. Access de 15 min, refresh rotativo con detección de reuso, logout real y baja de staff |
 | SEC-04 Áreas sin RBAC / token de MP | ✅ | Matriz `domain/permissions.py`. Se quitó el token de MercadoPago (configuración sin efecto) |
 | SEC-05 El club edita al `User` global | ✅ | La identidad la edita solo su dueño (`/me`). El alta de socios es una invitación que la persona acepta |
-| SEC-06 Rate limit / enumeración | ✅ parcial | Rate limit por IP en auth, `/me` e invitaciones; hash dummy; mensajes uniformes. Pendiente: límite por identificador y storage compartido (README) |
+| SEC-06 Rate limit / enumeración | ✅ parcial | Rate limit por IP en auth, `/me` e invitaciones; hash dummy; mensajes uniformes. Límite por identificador que se suma al de IP (`api/rate_limit.py`): login 10/15 min por email (panel y app comparten el contador), registro 5/h y "olvidé mi contraseña" 3/h por email, cambio de contraseña 5/15 min y reenvío de verificación 3/h por usuario. Cuenta cada intento antes de buscar la cuenta, así que el 429 es igual y tarda lo mismo exista o no; en el storage queda un hash del email (`tests/test_auth_rate_limit.py`). Pendiente: el registro todavía responde 409 si el email existe, y Redis compartido al escalar (README) |
 | SEC-07 RLS inactiva | ✅ | RLS con `FORCE` en todas las tablas de tenant, rol de app sin ownership y políticas con `WITH CHECK`. Los tests corren con ese rol |
 | SEC-08 DNI autodeclarado | ✅ | El login de la app es solo con email (decisión 1). El DNI queda como dato del perfil, único, y ya no sirve para entrar |
 | SEC-09 Verificación de email | ✅ (falta el dominio) | Verificación, reset e invitaciones por token; aceptar una membresía exige email verificado. Envío con Resend fuera del request (`services/email.py`). En producción solo arranca con Resend configurado. Falta verificar el dominio y cargar la clave real (README) |
@@ -1205,7 +1205,7 @@ El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile
 **Pendientes técnicos:**
 - Verificar el dominio de envío en Resend y cargar `RESEND_API_KEY` y `EMAIL_FROM` reales (pasos en el README). El envío real todavía no se probó contra la API de Resend: los tests la simulan.
 - Hosting (decisión 11: Vercel, Railway y Supabase): la configuración está en el repo y los pasos en `docs/deploy.md`. Ya se verificó contra la imagen de Supabase en local (ver decisión 11). Falta repetirlo contra el proyecto real, antes de crear el primer club, y después contratar y configurar cada plataforma.
-- Rate limit por identificador (SEC-06). El storage compartido ya es configurable (`RATE_LIMIT_STORAGE_URI`).
+- Registro sin enumeración (SEC-06): hoy `POST /auth/register` responde 409 "Ya existe una cuenta con ese email". Arreglarlo cambia el flujo (respuesta uniforme sin login automático y un email de "ya tenés cuenta"), así que toca también la app mobile.
 - Tests de frontend: hay e2e de humo (ver `docs/e2e.md`). Playwright prueba el panel en cada PR (job `e2e-web`) y Maestro prueba la app en un simulador de iOS, a mano o cada noche (`e2e-mobile.yml`). Faltan tests de componentes.
 - Endpoint de cotización de precio antes de reservar en el panel.
 - `pnpm audit`: sacar la excepción de las dos CVE de Expo cuando haya versiones parcheadas.

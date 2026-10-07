@@ -6,7 +6,8 @@ from fastapi import APIRouter, Request, status
 from pydantic import AnyHttpUrl, BaseModel, StringConstraints
 
 from app.api.deps import AuthDep, CurrentUser, SessionDep
-from app.api.rate_limit import limiter
+from app.api.rate_limit import limit_user, limiter
+from app.core.config import get_settings
 from app.core.errors import BusinessRuleViolation
 from app.core.security import hash_password, verify_password
 from app.domain.enums import Gender
@@ -53,6 +54,8 @@ async def update_profile(
 
 @router.post("/password", status_code=status.HTTP_204_NO_CONTENT)
 async def change_password(body: PasswordChange, auth: AuthDep, session: SessionDep) -> None:
+    # Verifica la contraseña actual: sin límite, un access token robado permitiría adivinarla.
+    limit_user("password_change", auth.user.id, get_settings().PASSWORD_CHANGE_USER_RATE_LIMIT)
     if not await verify_password(body.current_password, auth.user.password_hash):
         raise BusinessRuleViolation("La contraseña actual no es correcta.", code="wrong_password")
     auth.user.password_hash = await hash_password(body.new_password)

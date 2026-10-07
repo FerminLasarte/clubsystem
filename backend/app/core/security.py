@@ -22,6 +22,11 @@ _JWT_ALGORITHM = "HS256"
 _DUMMY_HASH = bcrypt.hashpw(secrets.token_bytes(16), bcrypt.gensalt(BCRYPT_ROUNDS)).decode()
 
 
+def normalize_email(email: str) -> str:
+    """Forma con la que se guarda y se busca un email (y la clave de su rate limit)."""
+    return email.strip().lower()
+
+
 async def hash_password(plain: str) -> str:
     # bcrypt es CPU-bound (~250 ms): fuera del event loop.
     hashed = await run_in_threadpool(bcrypt.hashpw, plain.encode(), bcrypt.gensalt(BCRYPT_ROUNDS))

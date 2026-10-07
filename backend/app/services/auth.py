@@ -21,6 +21,7 @@ from app.core.security import (
     hash_opaque_token,
     hash_password,
     new_opaque_token,
+    normalize_email,
     verify_password,
 )
 from app.core.time import utcnow
@@ -59,7 +60,7 @@ class AuthService:
     async def authenticate(self, email: str, password: str) -> User:
         """Email + contraseña. El mismo error y el mismo tiempo si el usuario no existe."""
         user = (
-            await self.db.execute(select(User).where(User.email == email.strip().lower()))
+            await self.db.execute(select(User).where(User.email == normalize_email(email)))
         ).scalar_one_or_none()
 
         valid = await verify_password(password, user.password_hash if user else None)
@@ -193,7 +194,7 @@ class AuthService:
 
     async def register(self, data: RegisterRequest) -> User:
         user = User(
-            email=data.email.lower(),
+            email=normalize_email(data.email),
             password_hash=await hash_password(data.password),
             first_name=data.first_name,
             last_name=data.last_name,
@@ -228,7 +229,7 @@ class AuthService:
     async def request_password_reset(self, email: str) -> None:
         """Siempre responde igual: no revela si el email existe."""
         user = (
-            await self.db.execute(select(User).where(User.email == email.lower()))
+            await self.db.execute(select(User).where(User.email == normalize_email(email)))
         ).scalar_one_or_none()
         if user is None or not user.is_active:
             return

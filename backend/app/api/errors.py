@@ -8,7 +8,8 @@ from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy.exc import IntegrityError
 
-from app.core.errors import DomainError
+from app.api.rate_limit import RATE_LIMITED_MESSAGE
+from app.core.errors import DomainError, TooManyRequests
 from app.core.logging import request_id_var
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,8 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RateLimitExceeded)
     async def _rate_limited(_: Request, __: RateLimitExceeded) -> JSONResponse:
-        return _error(429, "rate_limited", "Demasiados intentos. Probá de nuevo en un minuto.")
+        # El mismo cuerpo que el límite por identificador: no se distingue cuál saltó.
+        return _error(429, TooManyRequests.code, RATE_LIMITED_MESSAGE)
 
     @app.exception_handler(Exception)
     async def _unexpected(_: Request, exc: Exception) -> JSONResponse:

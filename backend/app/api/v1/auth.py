@@ -22,7 +22,7 @@ from app.api.deps import (
     StaffContext,
     get_staff_context,
 )
-from app.api.rate_limit import auth_limit, client_ip, limiter
+from app.api.rate_limit import auth_limit, client_ip, limit_email, limit_user, limiter
 from app.core.config import get_settings
 from app.core.errors import Forbidden, Unauthorized
 from app.domain.permissions import permissions_for
@@ -165,6 +165,7 @@ async def _mobile_session(
 async def web_login(
     request: Request, response: Response, body: WebLoginRequest, session: SessionDep
 ) -> WebSessionOut:
+    limit_email("login", body.email, get_settings().LOGIN_EMAIL_RATE_LIMIT)
     service = AuthService(session)
     user = await service.authenticate(body.email, body.password)
     clubs = await service.staff_clubs(user)
@@ -232,6 +233,7 @@ async def web_switch_club(
 async def mobile_login(
     request: Request, body: MobileLoginRequest, session: SessionDep
 ) -> MobileSessionOut:
+    limit_email("login", body.email, get_settings().LOGIN_EMAIL_RATE_LIMIT)
     service = AuthService(session)
     user = await service.authenticate(body.email, body.password)
     tokens = await service.start_session(user, client="mobile", info=client_info(request))
@@ -268,6 +270,7 @@ async def mobile_session(user: CurrentUser, session: SessionDep) -> MobileProfil
 async def register(
     request: Request, body: RegisterRequest, session: SessionDep
 ) -> MobileSessionOut:
+    limit_email("register", body.email, get_settings().REGISTER_EMAIL_RATE_LIMIT)
     service = AuthService(session)
     user = await service.register(body)
     tokens = await service.start_session(user, client="mobile", info=client_info(request))
@@ -298,6 +301,7 @@ async def verify_email(request: Request, body: TokenRequest, session: SessionDep
 @router.post("/verify-email/resend", status_code=status.HTTP_202_ACCEPTED)
 @limiter.limit(auth_limit)
 async def resend_verification(request: Request, user: CurrentUser, session: SessionDep) -> None:
+    limit_user("verify_resend", user.id, get_settings().VERIFY_RESEND_USER_RATE_LIMIT)
     await AuthService(session).send_verification(user)
 
 
@@ -306,6 +310,7 @@ async def resend_verification(request: Request, user: CurrentUser, session: Sess
 async def forgot_password(
     request: Request, body: ForgotPasswordRequest, session: SessionDep
 ) -> None:
+    limit_email("password_forgot", body.email, get_settings().PASSWORD_FORGOT_EMAIL_RATE_LIMIT)
     await AuthService(session).request_password_reset(body.email)
 
 
