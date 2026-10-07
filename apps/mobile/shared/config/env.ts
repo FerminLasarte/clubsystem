@@ -9,6 +9,13 @@ function readApiUrl(): string {
   return value.replace(/\/+$/, "");
 }
 
+/** DSN de Sentry, definido en app.config.ts a partir de EXPO_PUBLIC_SENTRY_DSN. Vacío: monitoreo apagado. */
+function readSentryDsn(): string | null {
+  const value: unknown = Constants.expoConfig?.extra?.sentryDsn;
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
 export const env = {
   apiUrl: readApiUrl(),
+  sentryDsn: readSentryDsn(),
 } as const;

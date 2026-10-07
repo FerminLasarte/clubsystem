@@ -1,6 +1,9 @@
 "use client";
 
-export default function GlobalError({ reset }: { error: Error; reset: () => void }) {
+import { useReportError } from "@/lib/use-report-error";
+
+export default function GlobalError({ error, reset }: { error: Error; reset: () => void }) {
+  useReportError(error);
   return (
     <html lang="es">
       <body className="flex min-h-svh flex-col items-center justify-center gap-4 p-6 font-sans">

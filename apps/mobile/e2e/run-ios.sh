@@ -20,6 +20,8 @@ APP="$DERIVED/Build/Products/Release-iphonesimulator/ClubSystem.app"
 OUTPUT="${E2E_OUTPUT_DIR:-$MOBILE/e2e/output}"
 
 export MAESTRO_CLI_NO_ANALYTICS=1
+# El build de e2e no lleva DSN de Sentry ni sube source maps.
+export SENTRY_DISABLE_AUTO_UPLOAD=true
 # CocoaPods falla con un locale que no sea UTF-8.
 export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 

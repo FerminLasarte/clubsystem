@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
 const securityHeaders = [
@@ -27,4 +28,17 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sin SENTRY_AUTH_TOKEN (desarrollo y CI) no sube source maps; sin NEXT_PUBLIC_SENTRY_DSN no manda
+// nada (lib/monitoring.ts).
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  // Los eventos del navegador van al mismo origen y Next los reenvía a Sentry: la CSP sigue con
+  // connect-src 'self' y los bloqueadores de publicidad no los cortan. proxy.ts deja pasar esta ruta.
+  tunnelRoute: "/monitoring",
+  widenClientFileUpload: true,
+  sourcemaps: { deleteSourcemapsAfterUpload: true },
+  silent: !process.env.CI,
+  telemetry: false,
+});

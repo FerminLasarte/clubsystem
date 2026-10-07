@@ -1,8 +1,10 @@
 "use client";
 
 import { StateView } from "@/components/shared/state-view";
+import { useReportError } from "@/lib/use-report-error";
 
-export default function DashboardError({ reset }: { error: Error; reset: () => void }) {
+export default function DashboardError({ error, reset }: { error: Error; reset: () => void }) {
+  useReportError(error);
   return (
     <StateView
       variant="error"

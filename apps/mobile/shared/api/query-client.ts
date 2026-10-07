@@ -1,6 +1,8 @@
 import { ApiError } from "@clubsystem/api";
-import { focusManager, QueryClient } from "@tanstack/react-query";
+import { focusManager, MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 import { AppState, Platform } from "react-native";
+
+import { reportError } from "@/shared/lib/monitoring";
 
 export function makeQueryClient(): QueryClient {
   return new QueryClient({
@@ -12,6 +14,9 @@ export function makeQueryClient(): QueryClient {
           count < 2 && !(error instanceof ApiError && error.status >= 400 && error.status < 500),
       },
     },
+    // Las pantallas muestran el error; acá se reporta el inesperado (5xx o bug) al monitoreo.
+    queryCache: new QueryCache({ onError: reportError }),
+    mutationCache: new MutationCache({ onError: reportError }),
   });
 }
 
