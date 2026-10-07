@@ -19,6 +19,7 @@ export interface MemberListFilters {
 }
 
 export const PAGE_SIZE = 25;
+const MEMBER_SEARCH_LIMIT = 8;
 
 /** Todo lo de socios cuelga de `all`: cualquier alta, baja o cambio de plan afecta listas y contadores. */
 const keys = {
@@ -28,6 +29,7 @@ const keys = {
   requests: (page: number) => ["members", "requests", page] as const,
   invitations: (page: number) => ["members", "invitations", page] as const,
   plans: ["members", "plans"] as const,
+  search: (search: string, status: MembershipStatus | undefined) => ["members", "search", search, status] as const,
 };
 
 function useInvalidateMembers() {
@@ -48,6 +50,17 @@ export function useMembers(filters: MemberListFilters, page: number) {
     queryFn: () =>
       unwrap(api.GET("/api/v1/admin/members", { params: { query: { ...filters, page, page_size: PAGE_SIZE } } })),
     placeholderData: keepPreviousData,
+  });
+}
+
+/** Autocompletado: búsqueda en el servidor con pocos resultados, nunca el padrón completo. */
+export function useMemberSearch(search: string, status?: MembershipStatus) {
+  return useQuery({
+    queryKey: keys.search(search, status),
+    queryFn: () =>
+      unwrap(api.GET("/api/v1/admin/members", { params: { query: { search, status, page_size: MEMBER_SEARCH_LIMIT } } })),
+    enabled: search.length >= 2,
+    select: (page) => page.items,
   });
 }
 

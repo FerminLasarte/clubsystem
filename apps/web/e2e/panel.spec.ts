@@ -24,7 +24,7 @@ test("login, reserva, confirmación, cobro de cuota y caja", async ({ page }) =>
     const form = page.getByRole("dialog", { name: "Nueva reserva" });
     // El precio lo cotiza el backend antes de crear (tarifa de socio × 1 h).
     await expect(form.getByText("Precio con la tarifa de socio")).toContainText(/\$\s*12\.000/);
-    await form.getByRole("textbox", { name: "Socio" }).fill(member.split(" ")[1]);
+    await form.getByRole("searchbox", { name: "Socio" }).fill(member.split(" ")[1]);
     await form.getByRole("list", { name: "Resultados" }).getByRole("button", { name: new RegExp(member) }).click();
     await form.getByRole("button", { name: "Crear reserva" }).click();
 

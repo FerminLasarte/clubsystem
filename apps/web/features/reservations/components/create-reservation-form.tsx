@@ -16,7 +16,7 @@ import { useActiveSession } from "@/features/auth/api";
 import { useCreateReservation, useReservationQuote } from "@/features/reservations/api";
 import { optionalText } from "@/lib/form";
 
-import { MemberPicker } from "./member-picker";
+import { MemberPicker } from "@/features/members/components/member-picker";
 import {
   completeSlot,
   readSlot,
@@ -84,7 +84,7 @@ export function CreateReservationForm({ defaults, onCreated }: CreateReservation
             ))}
           </TabsList>
           <TabsContent value="member">
-            <MemberPicker value={member} onChange={setMember} />
+            <MemberPicker value={member} onChange={setMember} status="APPROVED" />
           </TabsContent>
           <TabsContent value="guest" className="grid gap-4 sm:grid-cols-2">
             <FormField id="guest_name" label="Nombre del invitado" required maxLength={200} />

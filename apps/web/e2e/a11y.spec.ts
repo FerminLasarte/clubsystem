@@ -96,8 +96,14 @@ test.describe("panel", () => {
   test("caja", async ({ page }) => {
     await page.goto("/cash");
     await expectNoViolations(page);
-    const movement = page.getByRole("button", { name: "Registrar movimiento" });
-    await closeDialog(page, await expectAccessibleDialog(page, movement, "Registrar movimiento"));
+    const opener = page.getByRole("button", { name: "Registrar movimiento" });
+    const movement = await expectAccessibleDialog(page, opener, "Registrar movimiento");
+    // El buscador de socios, ya con uno elegido.
+    await movement.getByRole("searchbox", { name: "Socio (opcional)" }).fill(fixtures.member_name.split(" ")[1]);
+    await movement.getByRole("list", { name: "Resultados" }).getByRole("button", { name: new RegExp(fixtures.member_name) }).click();
+    await expect(movement.getByRole("group", { name: "Socio (opcional)" })).toContainText(fixtures.member_name);
+    await expectNoViolations(page);
+    await closeDialog(page, movement);
     const exportCsv = page.getByRole("button", { name: "Exportar CSV" });
     await closeDialog(page, await expectAccessibleDialog(page, exportCsv, "Exportar caja"));
     const voidPayment = page.getByRole("button", { name: /^Anular movimiento: / });
