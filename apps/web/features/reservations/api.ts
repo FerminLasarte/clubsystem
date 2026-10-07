@@ -35,7 +35,6 @@ export const reservationKeys = {
   pending: (day: string) => ["reservations", "pending", day] as const,
   history: (filters: HistoryFilters) => ["reservations", "history", filters] as const,
   detail: (id: string) => ["reservations", "detail", id] as const,
-  memberSearch: (search: string) => ["reservations", "member-search", search] as const,
   quote: (params: QuoteParams | null) => ["reservations", "quote", params] as const,
 };
 
@@ -92,19 +91,6 @@ export function useReservation(id: string | null) {
         api.GET("/api/v1/admin/reservations/{reservation_id}", { params: { path: { reservation_id: id ?? "" } } }),
       ),
     enabled: id !== null,
-  });
-}
-
-/** Socios activos para el autocompletado (búsqueda en el servidor, nunca la lista completa). */
-export function useMemberSearch(search: string) {
-  return useQuery({
-    queryKey: reservationKeys.memberSearch(search),
-    queryFn: () =>
-      unwrap(
-        api.GET("/api/v1/admin/members", { params: { query: { search, status: "APPROVED", page_size: 8 } } }),
-      ),
-    enabled: search.length >= 2,
-    select: (page) => page.items,
   });
 }
 

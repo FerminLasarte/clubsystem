@@ -52,6 +52,16 @@ No choca con `next dev` (3000) ni con la API de desarrollo (8000). Otras opcione
 
 En la CI, si el job falla, el reporte HTML y los traces quedan como artefacto `playwright-report`.
 
+### Accesibilidad (axe)
+
+`apps/web/e2e/a11y.spec.ts` corre [axe](https://github.com/dequelabs/axe-core) (WCAG 2.2 A/AA y
+buenas prácticas) sobre login, inicio, reservas, socios, caja, cuotas, stock, gastos y ajustes, sus
+pestañas y los diálogos principales, y falla ante cualquier violación. Es el proyecto `a11y` de
+Playwright, que depende de `smoke` (`panel.spec.ts`): corre después para ver los estados que deja el
+smoke (reservas confirmadas, cuota pagada, ingreso en caja). Un fallo lista la regla, el selector y
+el motivo (por ejemplo el contraste medido). El lint suma las reglas recomendadas de
+`eslint-plugin-jsx-a11y`.
+
 ## App del socio (Maestro, simulador de iOS)
 
 Requisitos (macOS):

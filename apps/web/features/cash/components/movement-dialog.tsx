@@ -1,6 +1,6 @@
 "use client";
 
-import type { PaymentMethod, TransactionType } from "@clubsystem/api";
+import type { MemberOut, PaymentMethod, TransactionType } from "@clubsystem/api";
 import { PAYMENT_METHOD_LABELS, TRANSACTION_TYPE_LABELS } from "@clubsystem/shared";
 import { Plus } from "lucide-react";
 import { useState, type FormEvent } from "react";
@@ -19,16 +19,19 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useCreatePayment } from "@/features/cash/api";
-
-import { MemberPicker } from "./member-picker";
+import { MemberPicker } from "@/features/members/components/member-picker";
 
 export function MovementDialog({ canPickMember }: { canPickMember: boolean }) {
   const [open, setOpen] = useState(false);
+  const [member, setMember] = useState<MemberOut | null>(null);
   const create = useCreatePayment();
 
   function onOpenChange(next: boolean) {
     setOpen(next);
-    if (!next) create.reset();
+    if (!next) {
+      create.reset();
+      setMember(null);
+    }
   }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -40,7 +43,7 @@ export function MovementDialog({ canPickMember }: { canPickMember: boolean }) {
         method: String(form.get("method")) as PaymentMethod,
         amount: String(form.get("amount")),
         description: String(form.get("description")).trim(),
-        membership_id: form.get("membership_id")?.toString() || null,
+        membership_id: member?.id ?? null,
       },
       { onSuccess: () => onOpenChange(false) },
     );
@@ -65,7 +68,7 @@ export function MovementDialog({ canPickMember }: { canPickMember: boolean }) {
           <FormField id="description" label="Descripción" required maxLength={255} />
           {canPickMember ? (
             <div className="sm:col-span-2">
-              <MemberPicker />
+              <MemberPicker label="Socio (opcional)" value={member} onChange={setMember} />
             </div>
           ) : null}
           <div className="sm:col-span-2">

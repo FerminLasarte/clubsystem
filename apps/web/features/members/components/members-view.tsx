@@ -47,16 +47,18 @@ export function MembersView() {
           <TabsTrigger value="requests">
             Solicitudes
             {pendingCount > 0 ? (
-              <Badge variant="secondary" className="tabular" aria-label={`${pendingCount} pendientes`}>
+              <Badge variant="secondary" className="tabular">
                 {pendingCount}
+                <span className="sr-only"> pendientes</span>
               </Badge>
             ) : null}
           </TabsTrigger>
           <TabsTrigger value="invitations">
             Invitaciones
             {invitedCount > 0 ? (
-              <Badge variant="secondary" className="tabular" aria-label={`${invitedCount} sin responder`}>
+              <Badge variant="secondary" className="tabular">
                 {invitedCount}
+                <span className="sr-only"> sin responder</span>
               </Badge>
             ) : null}
           </TabsTrigger>

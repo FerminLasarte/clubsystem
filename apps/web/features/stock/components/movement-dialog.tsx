@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateMovement } from "@/features/stock/api";
 import { optionalText } from "@/lib/form";
@@ -78,6 +78,7 @@ export function MovementDialog({ open, item, onOpenChange }: MovementDialogProps
               setType(TYPES.find((t) => t === value) ?? "IN");
               move.reset();
             }}
+            className="gap-4"
           >
             <TabsList aria-label="Tipo de movimiento" className="w-full">
               {TYPES.map((t) => (
@@ -86,39 +87,44 @@ export function MovementDialog({ open, item, onOpenChange }: MovementDialogProps
                 </TabsTrigger>
               ))}
             </TabsList>
+            {/* Un solo panel, el del tipo elegido: los campos no se remontan al cambiar de tipo. */}
+            <TabsContent value={type} className="grid gap-4">
+              <FormField
+                id="amount"
+                label={QUANTITY_LABELS[type]}
+                type="number"
+                step="any"
+                // Entradas y salidas son estrictamente positivas; un ajuste puede dejar el stock en 0.
+                min={type === "ADJUSTMENT" ? 0 : 0.001}
+                required
+                // Foco inicial del modal en la cantidad, no en las pestañas.
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus
+                hint={type === "ADJUSTMENT" ? "El stock queda exactamente en este valor." : undefined}
+              />
+              {type === "IN" ? (
+                <FormField
+                  id="unit_cost"
+                  label="Costo unitario de esta compra ($, opcional)"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  hint={`Si lo completás, pasa a ser el costo del ítem${item?.unit_cost ? ` (hoy ${formatMoney(item.unit_cost)})` : ""}.`}
+                />
+              ) : null}
+              <div className="grid gap-1.5">
+                <Label htmlFor="reason">{type === "IN" ? "Motivo (opcional)" : "Motivo"}</Label>
+                <Textarea
+                  id="reason"
+                  name="reason"
+                  required={type !== "IN"}
+                  maxLength={500}
+                  rows={2}
+                  placeholder="Ej.: compra a proveedor, rotura, inventario físico…"
+                />
+              </div>
+            </TabsContent>
           </Tabs>
-          <FormField
-            id="amount"
-            label={QUANTITY_LABELS[type]}
-            type="number"
-            step="any"
-            // Entradas y salidas son estrictamente positivas; un ajuste puede dejar el stock en 0.
-            min={type === "ADJUSTMENT" ? 0 : 0.001}
-            required
-            autoFocus
-            hint={type === "ADJUSTMENT" ? "El stock queda exactamente en este valor." : undefined}
-          />
-          {type === "IN" ? (
-            <FormField
-              id="unit_cost"
-              label="Costo unitario de esta compra ($, opcional)"
-              type="number"
-              min={0}
-              step="0.01"
-              hint={`Si lo completás, pasa a ser el costo del ítem${item?.unit_cost ? ` (hoy ${formatMoney(item.unit_cost)})` : ""}.`}
-            />
-          ) : null}
-          <div className="grid gap-1.5">
-            <Label htmlFor="reason">{type === "IN" ? "Motivo (opcional)" : "Motivo"}</Label>
-            <Textarea
-              id="reason"
-              name="reason"
-              required={type !== "IN"}
-              maxLength={500}
-              rows={2}
-              placeholder="Ej.: compra a proveedor, rotura, inventario físico…"
-            />
-          </div>
         </form>
         <FormError error={move.error} />
         <DialogFooter>

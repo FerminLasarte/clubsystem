@@ -19,7 +19,16 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "smoke", testMatch: "panel.spec.ts", use: { ...devices["Desktop Chrome"] } },
+    {
+      // Después del smoke, para auditar los estados que deja: reservas confirmadas, cuota pagada, ingreso en caja.
+      name: "a11y",
+      testMatch: "a11y.spec.ts",
+      dependencies: ["smoke"],
+      use: { ...devices["Desktop Chrome"] },
+    },
+  ],
   webServer: [
     {
       command: e2eCommand("serve", "--port", String(API_PORT)),

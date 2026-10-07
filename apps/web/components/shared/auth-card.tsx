@@ -15,7 +15,9 @@ export function AuthCard({
     <main className="flex min-h-svh items-center justify-center bg-muted p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-xl">{title}</CardTitle>
+          <CardTitle className="text-xl">
+            <h1>{title}</h1>
+          </CardTitle>
           {description ? <CardDescription>{description}</CardDescription> : null}
         </CardHeader>
         {children ? <CardContent>{children}</CardContent> : null}

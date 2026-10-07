@@ -8,7 +8,6 @@ import { api } from "@/lib/api";
 export const cashKeys = {
   all: ["cash"] as const,
   day: (date: string) => ["cash", "day", date] as const,
-  memberSearch: (search: string) => ["cash", "member-search", search] as const,
 };
 
 /**
@@ -60,22 +59,5 @@ export function useVoidPayment() {
       toast.success("Movimiento anulado");
     },
     meta: { silent: true },
-  });
-}
-
-const MEMBER_SEARCH_LIMIT = 8;
-
-/** Autocomplete de socios: busca en el servidor y trae pocos resultados (nunca todo el padrón). */
-export function useMemberSearch(search: string) {
-  const term = search.trim();
-  return useQuery({
-    queryKey: cashKeys.memberSearch(term),
-    queryFn: () =>
-      unwrap(
-        api.GET("/api/v1/admin/members", {
-          params: { query: { search: term, page: 1, page_size: MEMBER_SEARCH_LIMIT } },
-        }),
-      ),
-    enabled: term.length >= 2,
   });
 }
