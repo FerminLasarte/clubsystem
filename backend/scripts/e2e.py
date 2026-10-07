@@ -94,7 +94,9 @@ async def seed() -> None:
     zone = tz(TIMEZONE)
     today = today_in(zone)
     now = utcnow()
-    pw_hash = bcrypt.hashpw(FIXTURES["password"].encode(), bcrypt.gensalt()).decode()
+    # Costo mínimo: en el runner de macOS de la CI (saturado por el simulador) un login con
+    # costo 12 llega a tardar más que los 15 s de timeout de la app.
+    pw_hash = bcrypt.hashpw(FIXTURES["password"].encode(), bcrypt.gensalt(4)).decode()
     first_name, last_name = FIXTURES["member_name"].split(" ", 1)
 
     async with async_sessionmaker(engine, expire_on_commit=False)() as session, session.begin():

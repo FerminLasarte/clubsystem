@@ -15,7 +15,12 @@ name: Reservar y cancelar desde la app
     index: 1
 - inputText: ${PASSWORD}
 - tapOn: "Ingresar"
-# iOS ofrece guardar la contraseña (español en local, inglés en la CI).
+# iOS ofrece guardar la contraseña (español en local, inglés en la CI). En la CI el cartel
+# aparece hasta ~15 s después del login y tapa la pantalla: se lo espera antes de cerrarlo.
+- extendedWaitUntil:
+    visible: "Ahora no|Not Now"
+    timeout: 20000
+    optional: true
 - tapOn:
     text: "Ahora no|Not Now"
     optional: true
