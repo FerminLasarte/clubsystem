@@ -36,7 +36,9 @@ class User(UUIDPk, Timestamps, Base):
     first_name: Mapped[str] = mapped_column(String(100))
     last_name: Mapped[str] = mapped_column(String(100))
     phone: Mapped[str | None] = mapped_column(String(50))
-    dni: Mapped[str | None] = mapped_column(String(20), unique=True)
+    # Autodeclarado y sin verificar: no es único (un índice único revelaría de quién es un DNI
+    # y dejaría que otro lo ocupe primero). Ver SEC-08 en docs/audit/AUDIT.md.
+    dni: Mapped[str | None] = mapped_column(String(20))
     birth_date: Mapped[date | None] = mapped_column(Date)
     gender: Mapped[Gender | None] = mapped_column(str_enum(Gender, "gender"))
     avatar_url: Mapped[str | None] = mapped_column(Text)

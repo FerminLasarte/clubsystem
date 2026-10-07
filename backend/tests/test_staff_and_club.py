@@ -224,16 +224,27 @@ async def test_club_settings_permissions_and_validation(
         assert response.status_code == 422, invalid
 
 
-async def test_profile_is_edited_only_by_its_owner_and_dni_is_unique(
+async def test_profile_does_not_reveal_whether_a_dni_belongs_to_another_account(
     client: httpx.AsyncClient, factory: Factory
 ) -> None:
+    """El DNI es autodeclarado y no único: guardar uno ajeno responde igual que uno libre."""
     await factory.user(dni="20111222")
-    user = await factory.user()
-    headers = await login_mobile(client, user)
+    one, other = await factory.user(), await factory.user()
+    one_headers = await login_mobile(client, one)
+    other_headers = await login_mobile(client, other)
 
-    taken = await client.patch("/api/v1/me", json={"dni": "20111222"}, headers=headers)
-    assert taken.status_code == 409
-    ok = await client.patch("/api/v1/me", json={"first_name": "Lucía"}, headers=headers)
+    taken = await client.patch("/api/v1/me", json={"dni": "20111222"}, headers=one_headers)
+    free = await client.patch("/api/v1/me", json={"dni": "20333444"}, headers=other_headers)
+    assert taken.status_code == free.status_code == 200
+    assert (taken.json()["dni"], free.json()["dni"]) == ("20111222", "20333444")
+    own = {"id", "email", "last_name", "dni"}
+    assert {k: v for k, v in taken.json().items() if k not in own} == {
+        k: v for k, v in free.json().items() if k not in own
+    }
+    saved = await client.get("/api/v1/me", headers=one_headers)
+    assert saved.json()["dni"] == "20111222"
+
+    ok = await client.patch("/api/v1/me", json={"first_name": "Lucía"}, headers=one_headers)
     assert ok.json()["first_name"] == "Lucía"
 
 
