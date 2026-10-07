@@ -40,5 +40,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/:path*", "/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  // /monitoring es el túnel de Sentry (next.config.ts): no pide sesión, así se reportan también los
+  // errores del login.
+  matcher: ["/api/:path*", "/((?!api|monitoring|_next/static|_next/image|favicon.ico).*)"],
 };

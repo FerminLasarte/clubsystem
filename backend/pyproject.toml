@@ -20,6 +20,7 @@ slowapi = "^0.1.10"
 # Extra redis: storage compartido del rate limit (RATE_LIMIT_STORAGE_URI=redis://…).
 limits = { extras = ["redis"], version = "^5.8.0" }
 httpx = "^0.28.1"
+sentry-sdk = "^2.71.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.1.1"

@@ -7,6 +7,9 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
  */
 const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
 
+/** DSN de Sentry (shared/lib/monitoring.ts). Sin él, el monitoreo queda apagado (desarrollo y e2e). */
+const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN ?? "";
+
 /** `nativeBackground` de shared/theme/tokens.ts (la config nativa se evalúa fuera de Metro y no puede importarlo). */
 const nativeBackground = "#F8FAFC";
 
@@ -48,6 +51,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     // Temporal hasta Expo SDK 58: sin UIScene la app se cierra al abrir con el SDK de iOS 27.
     "./plugins/withSceneLifecycle",
+    // Sube source maps y símbolos en los builds de release con SENTRY_AUTH_TOKEN; sin él hay que
+    // definir SENTRY_DISABLE_AUTO_UPLOAD=true (docs/deploy.md).
+    ["@sentry/react-native", { organization: process.env.SENTRY_ORG, project: process.env.SENTRY_PROJECT }],
   ],
   experiments: {
     typedRoutes: true,
@@ -55,5 +61,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     apiUrl,
+    sentryDsn,
   },
 });

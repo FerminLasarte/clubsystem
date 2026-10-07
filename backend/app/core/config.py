@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -75,6 +75,16 @@ class Settings(BaseSettings):
     ANOMALY_LLM_TIMEOUT_SECONDS: float = 20.0
     ANOMALY_LLM_DAILY_LIMIT_PER_CLUB: int = 200
 
+    # Monitoreo de errores y latencia (core/monitoring.py). Sin DSN queda apagado.
+    SENTRY_DSN: str | None = None
+    # Versión a la que se asocian los errores. Railway define RAILWAY_GIT_COMMIT_SHA en cada deploy.
+    SENTRY_RELEASE: str | None = Field(
+        default=None, validation_alias=AliasChoices("SENTRY_RELEASE", "RAILWAY_GIT_COMMIT_SHA")
+    )
+    # Fracción de requests con medición de latencia. Los traces que empiezan en el panel o la app
+    # siguen la decisión del cliente.
+    SENTRY_TRACES_SAMPLE_RATE: float = Field(default=0.1, ge=0, le=1)
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
@@ -90,6 +100,11 @@ class Settings(BaseSettings):
         if len(raw) < 32 or raw.lower() in _KNOWN_WEAK_SECRETS:
             raise ValueError("JWT_SECRET_KEY debe tener al menos 32 caracteres aleatorios")
         return value
+
+    @field_validator("SENTRY_DSN", "SENTRY_RELEASE")
+    @classmethod
+    def _blank_is_none(cls, value: str | None) -> str | None:
+        return value.strip() or None if value else None
 
     @field_validator("RATE_LIMIT_STORAGE_URI")
     @classmethod

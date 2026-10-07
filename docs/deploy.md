@@ -6,6 +6,7 @@
 | API (FastAPI) | Railway, plan Hobby, US East (Virginia), Docker | `api.tudominio.com` |
 | Postgres | Supabase, East US (N. Virginia), **solo como Postgres** | — |
 | Email | Resend | `mail.tudominio.com` |
+| Errores y latencia | Sentry, región US | — |
 
 Lo que está automatizado en el repo:
 - `backend/railway.json`: build, pre-deploy, health check, reinicios y región de la API.
@@ -21,7 +22,7 @@ El navegador habla solo con `app.`. El proxy de Next (`apps/web/proxy.ts`) reenv
 ## 0. Antes de empezar
 
 - Un dominio propio (en la guía, `tudominio.com`) y acceso a su DNS.
-- Cuentas en Supabase, Resend, Railway y Vercel. En todas se puede entrar con GitHub.
+- Cuentas en Supabase, Resend, Railway, Vercel y Sentry. En todas se puede entrar con GitHub.
 - Dos secretos aleatorios, uno para `JWT_SECRET_KEY` y otro para `PROXY_SHARED_SECRET`. Generá cada uno con este comando:
 
   ```bash
@@ -82,6 +83,7 @@ Seguí [Verificar el dominio](../README.md#verificar-el-dominio) en el README. A
    RESEND_API_KEY=<de Resend>
    EMAIL_FROM="ClubSystem <no-reply@mail.tudominio.com>"
    ANTHROPIC_API_KEY=<opcional: solo para las explicaciones de anomalías>
+   SENTRY_DSN=<DSN del proyecto clubsystem-api, ver paso 6>
    ```
 
    Qué significa cada una:
@@ -123,6 +125,7 @@ Los jobs del scheduler son idempotentes, así que pueden correr en todas las ré
 2. **Environment Variables**, entorno *Production*:
    - `BACKEND_URL` = `https://api.tudominio.com`
    - `PROXY_SHARED_SECRET` = el del paso 0
+   - Las de Sentry del [paso 6](#6-monitoreo-de-errores-y-latencia-sentry).
 3. Previews: no hay API de staging. Dejá activa la **Deployment Protection** (Vercel Authentication), que viene por defecto. Si querés previews funcionales, cargá las mismas dos variables también en *Preview*; van a usar la API de producción.
 4. **Settings → Domains**: agregá `app.tudominio.com` y el registro DNS que indica Vercel.
 5. `vercel.json` fija la región `iad1` (Virginia, cerca de la API) y saltea el build cuando un commit no toca la web ni sus paquetes (`turbo-ignore`).
@@ -130,9 +133,53 @@ Los jobs del scheduler son idempotentes, así que pueden correr en todas las ré
 
 ## 5. App mobile
 
-Los builds de release tienen que usar `EXPO_PUBLIC_API_URL=https://api.tudominio.com`. La configuración de EAS no está en esta guía.
+Los builds de release tienen que usar `EXPO_PUBLIC_API_URL=https://api.tudominio.com` y las variables de Sentry del [paso 6](#6-monitoreo-de-errores-y-latencia-sentry). La configuración de EAS no está en esta guía.
 
-## 6. Primer club
+## 6. Monitoreo de errores y latencia (Sentry)
+
+Las tres apps reportan a Sentry los errores inesperados y una muestra de los tiempos de respuesta. **Sin DSN no se inicializa nada**: desarrollo, CI y e2e corren sin Sentry. El código está en `backend/app/core/monitoring.py`, `apps/web/lib/monitoring.ts`, `apps/mobile/shared/lib/monitoring.ts` y el filtro compartido `packages/shared/src/monitoring.ts`.
+
+**Plan.** El Developer, gratis, alcanza para empezar: 5.000 errores por mes, un solo usuario y 30 días de historial. Cuando se acaba la cuota, Sentry descarta los eventos hasta fin de mes y te quedás sin monitoreo, por eso conviene el límite del punto 3. Pasá a Team (USD 26/mes: 50.000 errores y usuarios ilimitados) cuando entre una segunda persona o la cuota quede corta.
+
+1. **Organización.** Creala en [sentry.io](https://sentry.io) con la región de datos **US**, la misma de Railway y Supabase. No se puede cambiar después.
+2. **Proyectos.** Creá tres, cada uno con su DSN:
+   - `clubsystem-api` (FastAPI)
+   - `clubsystem-web` (Next.js)
+   - `clubsystem-mobile` (React Native)
+
+   No hace falta seguir el asistente de instalación: el código ya está en el repo.
+3. **Límites y privacidad.** En cada proyecto, en **Settings → Client Keys (DSN) → Rate Limiting**, poné unos 100 eventos por hora, para que un error en loop no se coma la cuota del mes. En **Organization Settings → Security & Privacy**, dejá activos *Data Scrubber* y *Use Default Scrubbers*, y activá *Prevent Storing of IP Addresses*. Es una segunda capa sobre el filtro del código.
+4. **Auth token** para subir los source maps: en **Settings → Auth Tokens** creá un *Organization Token*. Es un secreto: va solo en Vercel y en EAS, nunca en el repo.
+5. **Railway (API).** Cargá `SENTRY_DSN` con el DSN de `clubsystem-api`. Opcionalmente, `SENTRY_TRACES_SAMPLE_RATE` (por defecto `0.1`, el 10% de los requests). La versión sale sola de `RAILWAY_GIT_COMMIT_SHA`, así que cada error queda asociado a su commit.
+6. **Vercel (panel)**, entorno *Production*:
+   - `NEXT_PUBLIC_SENTRY_DSN`: el DSN de `clubsystem-web`. Se incrusta en el build, así que cambiarlo requiere redeployar.
+   - `SENTRY_ORG` y `SENTRY_PROJECT` (`clubsystem-web`).
+   - `SENTRY_AUTH_TOKEN`: el del punto 4, marcado como *Sensitive*.
+   - Opcional: `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` (por defecto `0.1`).
+
+   El entorno (`production` o `preview`) sale de `NEXT_PUBLIC_VERCEL_ENV`, que Vercel define solo. El navegador manda los eventos a `/monitoring` del mismo origen y Next los reenvía a Sentry: la CSP no cambia y los bloqueadores de publicidad no los cortan.
+7. **App mobile (EAS)**, en los builds de release:
+   - `EXPO_PUBLIC_SENTRY_DSN`: el DSN de `clubsystem-mobile`.
+   - `SENTRY_ORG` y `SENTRY_PROJECT` (`clubsystem-mobile`).
+   - `SENTRY_AUTH_TOKEN`, como secreto.
+
+   **Sin el token, el build de release falla** al querer subir los source maps. En builds locales o de prueba, definí `SENTRY_DISABLE_AUTO_UPLOAD=true`, como hace `apps/mobile/e2e/run-ios.sh`. El muestreo de la app está fijo en 10%: cambiarlo requiere un build nuevo de todos modos.
+
+**Qué se manda y qué no.**
+- Se manda: el error con su stack trace, la ruta, el método, el status, el navegador o dispositivo, la versión, y los tags `request_id`, `user_id` y `club_id`. Los dos últimos son UUIDs.
+- No se manda nunca: cuerpos de requests, cookies, headers de autenticación, query strings, variables locales del stack ni la IP.
+- Además, un filtro con las mismas reglas en el backend y en los clientes reemplaza por `[Filtered]` emails, DNI, JWT y tokens que aparezcan en cualquier texto, por ejemplo en el `DETAIL` de un error de Postgres o en la URL `/reset-password?token=…`. Lo cubre `backend/tests/test_monitoring.py`.
+- No se usa Session Replay ni capturas de pantalla.
+- Los 4xx y los cortes de red del usuario no se reportan: son respuestas esperadas.
+
+**Del error al log.**
+- **Errores del backend.** Cada evento lleva el tag `request_id`, el mismo de los logs de Railway y del cuerpo de los 500. Buscalo en **Railway → Logs** para ver el request completo.
+- **Errores del panel y la app.** Un 5xx que ve el panel o la app se reporta con el `request_id` que devolvió el backend, así que el error del cliente y el del servidor se encuentran con el mismo valor.
+- **Trazas.** El panel y la app propagan la traza a la API (headers `sentry-trace` y `baggage`), y en **Explore → Traces** se ve el recorrido completo con sus tiempos. La API sigue la decisión de muestreo del cliente, para que la traza quede entera.
+
+**Probarlo en local.** Poné el DSN en `backend/.env` (`SENTRY_DSN`), en `apps/web/.env.local` (`NEXT_PUBLIC_SENTRY_DSN`) o en `apps/mobile/.env.local` (`EXPO_PUBLIC_SENTRY_DSN`). Los eventos salen con el entorno `development`.
+
+## 7. Primer club
 
 El panel no crea clubes; los da de alta un operador desde una shell dentro del servicio, que tiene todo el entorno de producción. Con la [CLI de Railway](https://docs.railway.com/guides/cli):
 
@@ -162,7 +209,7 @@ El script crea el club y le manda al dueño una invitación por email, que vence
 
 Si la invitación vence, se vuelve a correr el mismo comando: con el slug existente solo se renueva la invitación.
 
-## 7. Comprobación final
+## 8. Comprobación final
 
 - [ ] El dueño del primer club acepta la invitación y entra al panel.
 - [ ] Login en `https://app.tudominio.com`. En las DevTools, las cookies `cs_access` y `cs_refresh` aparecen `HttpOnly` y `Secure`, del host `app.`.
@@ -170,6 +217,7 @@ Si la invitación vence, se vuelve a correr el mismo comando: con el slug existe
 - [ ] Login desde la app mobile contra `api.`.
 - [ ] Varios logins fallidos seguidos desde el panel terminan en 429. Desde otra red (por ejemplo, datos del celular) se puede seguir intentando.
 - [ ] En los logs de Railway, cada request tiene `request_id` y no hay emails, DNI ni tokens.
+- [ ] En Sentry → Explore → Traces aparecen transacciones de la API y del panel. Abrí una de `POST /api/v1/auth/web/login`: tiene el tag `request_id` y no tiene el email, el cuerpo, las cookies ni la IP.
 
 ## Probar contra Supabase local
 

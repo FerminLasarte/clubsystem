@@ -67,3 +67,13 @@ export function fieldError(error: unknown, field: string): string | undefined {
   if (!(error instanceof ApiError)) return undefined;
   return error.fields.find((f) => f.field === field)?.message;
 }
+
+/**
+ * Si un error merece ir al monitoreo y con qué tags. Los 4xx son respuestas esperadas y los cortes de
+ * red son del usuario; los 5xx llevan el request_id del backend para cruzarlos con su log y su evento.
+ */
+export function monitoringContext(error: unknown): { tags: Record<string, string> } | null {
+  if (!(error instanceof ApiError)) return { tags: {} };
+  if (error.status < 500) return null;
+  return { tags: error.requestId ? { request_id: error.requestId } : {} };
+}
