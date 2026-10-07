@@ -195,7 +195,7 @@ async def test_register_is_limited_per_email(client: httpx.AsyncClient) -> None:
     ]
     assert statuses[-1] == 429
     other = {**body, "email": "otro@example.com"}
-    assert (await client.post(f"{API}/register", json=other)).status_code == 201
+    assert (await client.post(f"{API}/register", json=other)).status_code == 202
 
 
 async def test_password_change_is_limited_per_user(
@@ -226,7 +226,7 @@ async def test_verification_resend_is_limited_per_user(
     client: httpx.AsyncClient, factory: Factory, outbox: list[str]
 ) -> None:
     user = await factory.user(email_verified_at=None)
-    headers = await login_mobile(client, user)
+    headers = await factory.mobile_headers(user)
     allowed = _allowed(get_settings().VERIFY_RESEND_USER_RATE_LIMIT)
 
     statuses = [

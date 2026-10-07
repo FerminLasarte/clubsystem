@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from app.api.deps import ACCESS_COOKIE, REFRESH_COOKIE
+from app.core.security import verify_password
 from app.domain.enums import StaffRole, StaffStatus
 from app.services import auth as auth_service
 from tests.factories import PASSWORD, Factory, login_mobile, login_web, switch_club
@@ -187,33 +188,115 @@ async def test_mobile_login_does_not_accept_the_dni(
     assert legacy.status_code == 422
 
 
-async def test_register_verify_email_and_duplicates(
+_REGISTER = {
+    "password": "una-contraseña-larga",
+    "first_name": "Ana",
+    "last_name": "Pérez",
+}
+# Distintos en cada respuesta, exista o no la cuenta.
+_PER_REQUEST_HEADERS = {"date", "x-request-id"}
+
+
+def _comparable(response: httpx.Response) -> tuple[int, bytes, dict[str, str]]:
+    headers = {k: v for k, v in response.headers.items() if k not in _PER_REQUEST_HEADERS}
+    return response.status_code, response.content, headers
+
+
+@pytest.mark.parametrize(
+    "existing",
+    [
+        {},
+        {"email_verified_at": None},
+        {"is_active": False},
+    ],
+    ids=["verificada", "sin-confirmar", "inactiva"],
+)
+async def test_register_responds_the_same_whether_the_email_exists(
+    client: httpx.AsyncClient,
+    factory: Factory,
+    outbox: list[tuple[str, str, str]],
+    monkeypatch: pytest.MonkeyPatch,
+    existing: dict[str, object],
+) -> None:
+    user = await factory.user(email="ana@example.com", **existing)
+    # El tiempo lo domina bcrypt: los dos caminos tienen que hashear una vez.
+    hashes: list[str] = []
+    real_hash = auth_service.hash_password
+
+    async def _counting_hash(password: str) -> str:
+        hashes.append(password)
+        return await real_hash(password)
+
+    monkeypatch.setattr(auth_service, "hash_password", _counting_hash)
+
+    taken = await client.post(f"{API}/register", json={**_REGISTER, "email": "Ana@Example.com"})
+    hashes_taken = len(hashes)
+    new = await client.post(f"{API}/register", json={**_REGISTER, "email": "nueva@example.com"})
+
+    assert taken.status_code == 202
+    assert _comparable(taken) == _comparable(new)
+    assert hashes_taken == len(hashes) - hashes_taken == 1
+
+    # La cuenta existente no cambia: ni contraseña ni datos.
+    await factory.session.refresh(user)
+    assert user.first_name == "Nombre"
+    assert await verify_password(PASSWORD, user.password_hash)
+
+    expected = [("nueva@example.com", "Confirmá tu email")]
+    if user.is_active:
+        expected.insert(0, ("ana@example.com", "Ya tenés una cuenta en ClubSystem"))
+    assert [(to, subject) for to, subject, _ in outbox] == expected
+
+
+async def test_register_opens_no_session_until_the_email_is_confirmed(
     client: httpx.AsyncClient, outbox: list[tuple[str, str, str]]
 ) -> None:
-    payload = {
-        "email": "Nuevo@Example.com",
-        "password": "una-contraseña-larga",
-        "first_name": "Ana",
-        "last_name": "Pérez",
-        "dni": "40111222",
-    }
-    created = await client.post(f"{API}/register", json=payload)
-    assert created.status_code == 201
-    assert created.json()["user"]["email"] == "nuevo@example.com"
-    assert created.json()["user"]["email_verified"] is False
+    email = "nueva@example.com"
+    created = await client.post(f"{API}/register", json={**_REGISTER, "email": "Nueva@Example.com"})
+    assert created.status_code == 202
+    assert created.json() is None
 
-    duplicate = await client.post(f"{API}/register", json={**payload, "dni": "40999888"})
-    assert duplicate.status_code == 409
-    same_dni = await client.post(f"{API}/register", json={**payload, "email": "otro@example.com"})
-    assert same_dni.status_code == 409
+    login = {"email": email, "password": _REGISTER["password"]}
+    before = await client.post(f"{API}/mobile/login", json=login)
+    unknown = await client.post(f"{API}/mobile/login", json={**login, "email": "nadie@example.com"})
+    # Sin confirmar, el mismo error que una cuenta inexistente: registrar un email ajeno y
+    # entrar con esa contraseña no revela si ya tenía cuenta.
+    assert before.status_code == unknown.status_code == 401
+    assert before.json() == unknown.json()
 
     token = _token_from(outbox[0][2])
     assert (await client.post(f"{API}/verify-email", json={"token": token})).status_code == 204
     assert (await client.post(f"{API}/verify-email", json={"token": token})).status_code == 422
 
-    headers = {"authorization": f"Bearer {created.json()['access_token']}"}
-    session = await client.get(f"{API}/mobile/session", headers=headers)
-    assert session.json()["user"]["email_verified"] is True
+    after = await client.post(f"{API}/mobile/login", json=login)
+    assert after.status_code == 200
+    assert after.json()["user"]["email"] == email
+    assert after.json()["user"]["email_verified"] is True
+
+
+async def test_registering_an_existing_email_lets_its_owner_recover_it(
+    client: httpx.AsyncClient, factory: Factory, outbox: list[tuple[str, str, str]]
+) -> None:
+    # Cuenta registrada por otra persona con un email ajeno: nunca se confirmó.
+    squatter = await factory.user(email="ana@example.com", email_verified_at=None)
+
+    await client.post(f"{API}/register", json={**_REGISTER, "email": squatter.email})
+    token = _token_from(outbox[0][2])
+    reset = await client.post(
+        f"{API}/password/reset", json={"token": token, "new_password": "la-de-la-duena-real"}
+    )
+    assert reset.status_code == 204
+
+    login = await client.post(
+        f"{API}/mobile/login",
+        json={"email": squatter.email, "password": "la-de-la-duena-real"},
+    )
+    assert login.status_code == 200
+    assert login.json()["user"]["email_verified"] is True
+    old = await client.post(
+        f"{API}/mobile/login", json={"email": squatter.email, "password": PASSWORD}
+    )
+    assert old.status_code == 401
 
 
 async def test_register_rejects_short_passwords(client: httpx.AsyncClient) -> None:

@@ -1,5 +1,5 @@
+import { router } from "expo-router";
 import { useState } from "react";
-import { Alert } from "react-native";
 
 import { errorMessage, fieldError } from "@clubsystem/api";
 import { MIN_PASSWORD_LENGTH, optional } from "@/shared/lib/forms";
@@ -13,8 +13,20 @@ export function RegisterForm() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [dni, setDni] = useState("");
   const [phone, setPhone] = useState("");
+
+  if (register.isSuccess) {
+    return (
+      <Card>
+        <Notice
+          tone="success"
+          title="Revisá tu email"
+          message={`Te enviamos un email a ${email.trim()} con los pasos para entrar. Si no lo ves en unos minutos, revisá la carpeta de spam.`}
+        />
+        <Button title="Ir a iniciar sesión" onPress={() => router.back()} />
+      </Card>
+    );
+  }
 
   const passwordTooShort = password.length > 0 && password.length < MIN_PASSWORD_LENGTH;
   const canSubmit =
@@ -25,23 +37,13 @@ export function RegisterForm() {
 
   const submit = () => {
     if (!canSubmit) return;
-    register.mutate(
-      {
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        email: email.trim(),
-        password,
-        dni: optional(dni),
-        phone: optional(phone),
-      },
-      {
-        onSuccess: (data) =>
-          Alert.alert(
-            "Confirmá tu email",
-            `Te enviamos un enlace a ${data.user.email}. Lo necesitás para pedir ser socio de un club.`,
-          ),
-      },
-    );
+    register.mutate({
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+      email: email.trim(),
+      password,
+      phone: optional(phone),
+    });
   };
 
   const error = register.error;
@@ -70,13 +72,6 @@ export function RegisterForm() {
         textContentType="newPassword"
         error={passwordTooShort ? `Usá al menos ${MIN_PASSWORD_LENGTH} caracteres.` : fieldError(error, "password")}
         hint={`Mínimo ${MIN_PASSWORD_LENGTH} caracteres.`}
-      />
-      <Input
-        label="DNI (opcional)"
-        value={dni}
-        onChangeText={setDni}
-        keyboardType="number-pad"
-        error={fieldError(error, "dni")}
       />
       <Input label="Teléfono (opcional)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" error={fieldError(error, "phone")} />
       {register.isError ? <Notice tone="danger" message={errorMessage(error)} /> : null}

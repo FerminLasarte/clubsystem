@@ -4319,18 +4319,6 @@
             ],
             "title": "Birth Date"
           },
-          "dni": {
-            "anyOf": [
-              {
-                "pattern": "^\\d{6,10}$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dni"
-          },
           "email": {
             "format": "email",
             "title": "Email",
@@ -9814,6 +9802,7 @@
     },
     "/api/v1/auth/register": {
       "post": {
+        "description": "Misma respuesta exista o no el email; no abre sesión (se entra después de confirmarlo).",
         "operationId": "register_api_v1_auth_register_post",
         "requestBody": {
           "content": {
@@ -9826,12 +9815,10 @@
           "required": true
         },
         "responses": {
-          "201": {
+          "202": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MobileSessionOut"
-                }
+                "schema": {}
               }
             },
             "description": "Successful Response"

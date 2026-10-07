@@ -347,7 +347,7 @@ async def test_accepting_requires_a_verified_email_and_own_invitation(
     _, invited = await factory.membership(club, unverified, status=MembershipStatus.INVITED)
     stranger = await factory.user()
 
-    headers = await login_mobile(client, unverified)
+    headers = await factory.mobile_headers(unverified)
     refused = await client.post(f"{MOBILE}/memberships/{invited.id}/accept", headers=headers)
     assert refused.status_code == 422
     assert refused.json()["error"]["code"] == "email_not_verified"
@@ -567,7 +567,7 @@ async def test_membership_request_requires_verified_email_and_active_club(
     unverified = await factory.user(email_verified_at=None)
     verified = await factory.user()
 
-    headers = await login_mobile(client, unverified)
+    headers = await factory.mobile_headers(unverified)
     response = await client.post(f"{MOBILE}/clubs/{club.id}/membership-requests", headers=headers)
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "email_not_verified"

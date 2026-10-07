@@ -265,16 +265,12 @@ async def mobile_session(user: CurrentUser, session: SessionDep) -> MobileProfil
     )
 
 
-@router.post("/register", response_model=MobileSessionOut, status_code=status.HTTP_201_CREATED)
+@router.post("/register", status_code=status.HTTP_202_ACCEPTED)
 @limiter.limit(auth_limit)
-async def register(
-    request: Request, body: RegisterRequest, session: SessionDep
-) -> MobileSessionOut:
+async def register(request: Request, body: RegisterRequest, session: SessionDep) -> None:
+    """Misma respuesta exista o no el email; no abre sesión (se entra después de confirmarlo)."""
     limit_email("register", body.email, get_settings().REGISTER_EMAIL_RATE_LIMIT)
-    service = AuthService(session)
-    user = await service.register(body)
-    tokens = await service.start_session(user, client="mobile", info=client_info(request))
-    return await _mobile_session(service, user, tokens)
+    await AuthService(session).register(body)
 
 
 # ── Comunes ─────────────────────────────────────────────────────────────────

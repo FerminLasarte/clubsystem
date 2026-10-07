@@ -28,12 +28,9 @@ export function useLogin() {
   });
 }
 
+/** No abre sesión: se entra después de confirmar el email. */
 export function useRegister() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: RegisterRequest) => authApi.register(body),
-    onSuccess: (data) => startSession(queryClient, data),
-  });
+  return useMutation({ mutationFn: (body: RegisterRequest) => authApi.register(body) });
 }
 
 /** Revoca la sesión en el backend y, salga como salga, cierra la sesión local. */

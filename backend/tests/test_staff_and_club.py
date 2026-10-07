@@ -107,7 +107,7 @@ async def test_invitation_takes_over_an_unverified_account_registered_by_someone
     club = await factory.club()
     owner, _ = await factory.staff(club)
     squatter = await factory.user(email="encargado@example.com", email_verified_at=None)
-    squatter_headers = await login_mobile(client, squatter)
+    squatter_headers = await factory.mobile_headers(squatter)
 
     await login_web(client, owner)
     await client.post(

@@ -153,7 +153,7 @@ async def test_a_failed_delivery_changes_nothing_and_logs_no_personal_data(
     # Misma respuesta exista o no la cuenta, y el registro no falla por el email.
     assert (known.status_code, known.content) == (unknown.status_code, unknown.content)
     assert known.status_code == 202
-    assert registered.status_code == 201, registered.text
+    assert registered.status_code == 202, registered.text
     assert len(resend.requests) == 2  # reset de la cuenta existente + verificación del alta
 
     messages = [r.getMessage() for r in caplog.records if r.name == "app.services.email"]
