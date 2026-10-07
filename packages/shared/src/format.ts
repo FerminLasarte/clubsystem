@@ -38,8 +38,9 @@ export function formatTime(iso: string, timeZone: string): string {
   );
 }
 
+/** "7 oct 2026, 23:30". Se arma con las dos de arriba: con `timeStyle`, es-AR usa 12 h ("11:30 p. m.") desde CLDR 48. */
 export function formatDateTime(iso: string, timeZone: string): string {
-  return new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short", timeZone }).format(new Date(iso));
+  return `${formatDate(iso, timeZone)}, ${formatTime(iso, timeZone)}`;
 }
 
 export function initials(firstName: string | null | undefined, lastName?: string | null): string {
