@@ -1140,6 +1140,8 @@ Instalé Python 3.12 vía `uv`, el venv del backend con poetry, pyright, pip-aud
 
 ## Anexo D: estado de la remediación
 
+> **Proyecto en pausa desde el 2026-10-07**, hasta confirmar que es viable. El código está cerrado: la auditoría y las fases 0 a 4 están completas, y de la Fase 5 solo falta revisar el bundle (T5.6). No hay nada desplegado. Para retomar, el orden propuesto es: (1) staging real en Supabase, Railway y Vercel con Resend y Sentry, siguiendo `docs/deploy.md`, y crear el primer club; (2) `eas.json` y builds de release de la app; (3) el resto de los pendientes técnicos de abajo. Las funcionalidades que se quitaron hasta implementarlas (notificaciones, WhatsApp, reporte de caja, seña y política de cancelación) están en el Anexo C; los pagos con MercadoPago, en la fila SEC-04.
+
 El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile se reescribió en paralelo (ver las filas MOB de la tabla). Las verificaciones fueron:
 - **Backend:** 180 tests de API contra Postgres real con RLS (`FORCE` y rol de app sin privilegios), ruff, pyright 0 y `alembic check`.
 - **Web:** `tsc`, `eslint --max-warnings 0` (con `jsx-a11y`) y `next build` sin errores, y pruebas manuales en el navegador de login, ajustes, socios, stock, novedades, gastos, cuotas, caja, inicio y reservas.
