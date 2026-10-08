@@ -1141,10 +1141,11 @@ Instalé Python 3.12 vía `uv`, el venv del backend con poetry, pyright, pip-aud
 ## Anexo D: estado de la remediación
 
 El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile se reescribió en paralelo (ver las filas MOB de la tabla). Las verificaciones fueron:
-- **Backend:** 158 tests de API contra Postgres real con RLS (`FORCE` y rol de app sin privilegios), ruff, pyright 0 y `alembic check`.
-- **Web:** `tsc`, `eslint --max-warnings 0` y `next build` sin errores, y pruebas manuales en el navegador de login, ajustes, socios, stock, novedades, gastos, cuotas, caja, inicio y reservas.
+- **Backend:** 180 tests de API contra Postgres real con RLS (`FORCE` y rol de app sin privilegios), ruff, pyright 0 y `alembic check`.
+- **Web:** `tsc`, `eslint --max-warnings 0` (con `jsx-a11y`) y `next build` sin errores, y pruebas manuales en el navegador de login, ajustes, socios, stock, novedades, gastos, cuotas, caja, inicio y reservas.
+- **Frontends:** tests unitarios con Vitest en web, mobile y `packages/shared` (job `frontends` de la CI), smoke de Playwright y auditoría de axe del panel en cada PR, y Maestro para la app (ver `docs/e2e.md`).
 - **Seguridad:** una revisión independiente posterior a la reescritura encontró 11 puntos. Están corregidos en `af7dfd0`, con tests en `tests/test_hardening.py`.
-- **Integración:** todo entró a `main` por PR con la CI en verde: [#2](https://github.com/FerminLasarte/clubsystem/pull/2) (reescritura), [#3](https://github.com/FerminLasarte/clubsystem/pull/3) (hosting), [#4](https://github.com/FerminLasarte/clubsystem/pull/4) (e2e), [#5](https://github.com/FerminLasarte/clubsystem/pull/5) (UIScene) y [#6](https://github.com/FerminLasarte/clubsystem/pull/6) (Maestro estable en la CI).
+- **Integración:** todo entró a `main` por PR con la CI en verde: [#2](https://github.com/FerminLasarte/clubsystem/pull/2) (reescritura), [#3](https://github.com/FerminLasarte/clubsystem/pull/3) (hosting), [#4](https://github.com/FerminLasarte/clubsystem/pull/4) (e2e), [#5](https://github.com/FerminLasarte/clubsystem/pull/5) (UIScene), [#6](https://github.com/FerminLasarte/clubsystem/pull/6) (Maestro estable en la CI), [#7](https://github.com/FerminLasarte/clubsystem/pull/7) (este anexo), [#8](https://github.com/FerminLasarte/clubsystem/pull/8) (rate limit por email), [#9](https://github.com/FerminLasarte/clubsystem/pull/9) (registro sin enumeración), [#10](https://github.com/FerminLasarte/clubsystem/pull/10) (DNI no único), [#11](https://github.com/FerminLasarte/clubsystem/pull/11) (cotización en el panel), [#12](https://github.com/FerminLasarte/clubsystem/pull/12) (Sentry), [#13](https://github.com/FerminLasarte/clubsystem/pull/13) (tests unitarios) y [#14](https://github.com/FerminLasarte/clubsystem/pull/14) (accesibilidad).
 
 | Hallazgo | Estado | Cómo / dónde |
 |---|---|---|
@@ -1200,14 +1201,28 @@ El backend y la web se reescribieron sobre la arquitectura de §5. La app mobile
 | 9 | Sin ingresos nuevos sobre una reserva cancelada; devoluciones sí | ✅ | 422 `reservation_cancelled` en `CashService.create` |
 | 10 | Email con Resend | ✅ (falta el dominio) | Ver SEC-09 |
 | 11 | Hosting: Vercel (web), Railway (API) y Supabase (Postgres) | ⏳ configuración lista, sin contratar | Railway reemplaza a Render (2026-10-06): el equipo ya paga Railway Hobby y, para una API siempre encendida (los jobs corren en el proceso), el costo es similar. Supabase reemplaza a Neon (2026-10-06): para esta app el costo es similar, porque los jobs cada 60 s impiden que Neon escale a cero, y el equipo ya conoce Supabase. Se usa **solo como Postgres**: ni Supabase Auth ni `supabase-js` desde los clientes. Storage queda como opción para imágenes. Conexión por el pooler en modo sesión (puerto 5432), no en modo transacción (6543), por las prepared statements de asyncpg. En el repo: `backend/railway.json` y `backend/Dockerfile` (migraciones en el pre-deploy, nunca al arrancar), `apps/web/vercel.json`, `scripts/provision_db.py` (roles), `scripts/check_db.py` (roles, RLS y permisos; también en la CI), `scripts/create_club.py` (primer club) y la guía `docs/deploy.md`. La IP del cliente sale de `X-Real-IP` (Railway lo sobrescribe) o del header firmado del proxy de Next, nunca de `X-Forwarded-For`. Verificado contra la imagen de Supabase en local (`supabase start`: Postgres 17.11.0.004 y Supavisor 2.9.13 en modo sesión; no hubo cupo para un proyecto gratis). `postgres` no es superusuario pero tiene `CREATEROLE` y `BYPASSRLS`, así que crea los dos roles. Las migraciones aplican con `alembic check` limpio, `check_db.py` da OK, y los 163 tests pasan con los roles nuevos a través del pooler. `anon`, `authenticated` y `service_role` no pueden leer las tablas ni ejecutar las funciones `SECURITY DEFINER`. Falta repetirlo contra el proyecto real (red y SSL de Supabase), antes de crear el primer club |
-| 12 | Integración por PR contra `main` con CI en verde | ✅ | PRs #2 a #6 mergeados con merge commit (el repo no permite auto-merge) |
+| 12 | Integración por PR contra `main` con CI en verde | ✅ | PRs #2 a #14 mergeados con merge commit. `main` no tiene checks requeridos, así que se mergea a mano después de ver la CI en verde (el auto-merge no espera) |
+
+**Fase 5 (mejoras).**
+
+| Tarea | Estado | Cómo / dónde |
+|---|---|---|
+| T5.1 Tokens semánticos en la web | ✅ | Ver WEB-10: tokens de `@theme` y regla de lint para colores |
+| T5.2 Tema único en mobile | ✅ | Ver MOB-08: `shared/theme/tokens.ts` y modo claro |
+| T5.3 Accesibilidad | ✅ | #14. `eslint-plugin-jsx-a11y` en el lint del panel y `@axe-core/playwright` (WCAG 2.2 AA) sobre login y las pantallas principales con sus pestañas y diálogos (`apps/web/e2e/a11y.spec.ts`). Se corrigieron el contraste de los tokens, pestañas con `aria-controls` roto, encabezados y etiquetas |
+| T5.4 Observabilidad | ✅ (falta la cuenta) | #12. Sentry en la API, el panel y la app, solo si hay DSN. Sin cuerpos, cookies, headers de auth ni IP, y un filtro compartido (`packages/shared`) que borra emails, DNI, JWT y query strings. Los errores llevan `request_id`, usuario y club; tracing al 10%. La web manda los eventos por un túnel del mismo origen (`/monitoring`), así que la CSP no cambia. Configuración en `docs/deploy.md`, paso 6 |
+| T5.5 Tests de frontend | ✅ | #13. Vitest en web, mobile y `packages/shared` para la lógica pura (fechas, zonas, formatos, slots, stock, filtro de Sentry), con `TZ=America/New_York` para detectar dependencias de la zona del dispositivo. E2E de humo con Playwright y Maestro (#4) |
+| T5.6 Rendimiento | ⏳ parcial | Las listas de la app usan `FlatList` y el panel no tiene imágenes (no hace falta `next/image`). Falta revisar el bundle |
 
 **Pendientes técnicos:**
 - Verificar el dominio de envío en Resend y cargar `RESEND_API_KEY` y `EMAIL_FROM` reales (pasos en el README). El envío real todavía no se probó contra la API de Resend: los tests la simulan.
 - Hosting (decisión 11: Vercel, Railway y Supabase): la configuración está en el repo y los pasos en `docs/deploy.md`. Ya se verificó contra la imagen de Supabase en local (ver decisión 11). Falta repetirlo contra el proyecto real, antes de crear el primer club, y después contratar y configurar cada plataforma.
-- Registro sin enumeración (SEC-06): hoy `POST /auth/register` responde 409 "Ya existe una cuenta con ese email". Arreglarlo cambia el flujo (respuesta uniforme sin login automático y un email de "ya tenés cuenta"), así que toca también la app mobile.
-- Tests de frontend: hay e2e de humo (ver `docs/e2e.md`). Playwright prueba el panel en cada PR (job `e2e-web`) y Maestro prueba la app en un simulador de iOS, a mano o cada noche (`e2e-mobile.yml`). Faltan tests de componentes.
+- Sentry (T5.4): el código está y sin DSN no se inicializa. Falta crear la cuenta y cargar las variables en Railway, Vercel y EAS (`docs/deploy.md`, paso 6).
+- ~~Registro sin enumeración (SEC-06).~~ ✅ (2026-10-07, #9) Ver la fila SEC-06.
+- Tests de frontend: unitarios con Vitest y e2e de humo (ver Fase 5). Faltan tests de componentes.
 - ~~Endpoint de cotización de precio antes de reservar en el panel.~~ ✅ (2026-10-07) `GET /admin/reservations/quote` (cancha, inicio, fin y tipo de cliente; `reservations:write`) devuelve la tarifa de `domain/pricing.py`. No valida horario ni solapamiento, que siguen saliendo al crear. El formulario de nueva reserva la muestra en vivo, también con un precio distinto cargado (`tests/test_reservations.py`, e2e del panel).
+- Rate limit con varias instancias de la API: storage compartido (`RATE_LIMIT_STORAGE_URI=redis://…`, README).
+- Revisión del bundle del panel y de la app (lo que queda de T5.6).
 - `pnpm audit`: sacar la excepción de las dos CVE de Expo cuando haya versiones parcheadas.
 - Builds de release de la app (MOB-01): `eas.json` con perfiles de desarrollo, staging y producción. Necesita las cuentas de Expo y de Apple/Google, y una URL HTTPS de la API.
 - E2E mobile en la CI con Xcode 27: en local ya corren con Xcode 27 e iOS 27, pero la CI sigue en Xcode 26 porque el runner `macos-26` no lo trae. Pasar a `runs-on: xcode-27` cuando esa imagen salga de preview (`docs/e2e.md`, "Versiones de Xcode e iOS").
