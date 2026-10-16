@@ -7,6 +7,7 @@ SaaS multi-tenant para clubes deportivos. Monorepo pnpm + Turborepo.
 - `packages/types/`: tipos GENERADOS desde el OpenAPI del backend. No se editan a mano.
 
 La auditoría y el roadmap están en `docs/audit/AUDIT.md`. Las decisiones tomadas están en su Anexo C.
+Las funcionalidades nuevas pendientes (propuesta del Club Los 50), con sus preguntas abiertas y el orden propuesto, están en `docs/roadmap.md`.
 
 ## Comandos (backend)
 - DB local: `cd backend && docker compose up -d db` (Postgres 17 con los roles `clubsystem_owner` y `clubsystem_app`).
